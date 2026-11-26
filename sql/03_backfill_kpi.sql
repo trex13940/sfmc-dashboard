@@ -9,7 +9,8 @@
      Septembre   | 2026-08-31 16:00:00   | 2026-09-30 16:00:00
      Octobre     | 2026-09-30 16:00:00   | 2026-10-31 17:00:00
      Novembre    | 2026-10-31 17:00:00   | 2026-11-30 17:00:00
-     Décembre    | 2026-11-30 17:00:00   | 2026-12-31 17:00:00 */
+     Décembre    | 2026-11-30 17:00:00   | 2026-12-31 17:00:00 
+   FORMAT DES DATES : dans le WHERE, écrire 'AAAAMMJJ hh:mm:ss' (ex. '20260531 16:00:00') : indépendant de la langue du serveur. */
 SELECT
     j.JourneyName                                   AS JourneyName,
     CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120)                  AS [Month],
@@ -30,7 +31,7 @@ LEFT JOIN _Open o         ON o.JobID=s.JobID  AND o.ListID=s.ListID  AND o.Batch
 LEFT JOIN _Click c        ON c.JobID=s.JobID  AND c.ListID=s.ListID  AND c.BatchID=s.BatchID  AND c.SubscriberID=s.SubscriberID  AND c.IsUnique=1
 LEFT JOIN _Unsubscribe u  ON u.JobID=s.JobID  AND u.ListID=s.ListID  AND u.BatchID=s.BatchID  AND u.SubscriberID=s.SubscriberID  AND u.IsUnique=1
 LEFT JOIN _Complaint cp   ON cp.JobID=s.JobID AND cp.ListID=s.ListID AND cp.BatchID=s.BatchID AND cp.SubscriberID=s.SubscriberID AND cp.IsUnique=1
-WHERE s.EventDate >= '2026-05-31 16:00:00'          /* 01/06/2026 00:00 CEST exprimé en CST */
-  AND s.EventDate <  '2026-12-01 00:00:00'          /* fin de la période (CST) */
+WHERE s.EventDate >= '20260531 16:00:00'          /* 01/06/2026 00:00 CEST exprimé en CST */
+  AND s.EventDate <  '20261201 00:00:00'          /* fin de la période (CST) */
   AND (j.JourneyName LIKE 'MKT[_]%' OR j.JourneyName LIKE 'O__[_]%')           /* MKT_ ou Oxx_ */
 GROUP BY j.JourneyName, CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120), LEFT(j.JourneyName, 3)

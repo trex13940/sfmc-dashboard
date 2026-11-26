@@ -17,7 +17,7 @@ SELECT
     CONVERT(char(10), CAST(TODATETIMEOFFSET(t.EventDate,   '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS SendDate,
     CONVERT(char(10), CAST(TODATETIMEOFFSET(t.LeadCreated, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS LeadCreatedDate,
     t.LeadStatus                                     AS LeadStatus,
-    CASE WHEN t.IsConverted = 1 THEN 1 ELSE 0 END    AS IsConverted,
+    CASE WHEN CAST(t.IsConverted AS varchar(10)) IN ('1','true','True','TRUE') THEN 1 ELSE 0 END    AS IsConverted,
     DATEDIFF(day,
         CAST(CAST(TODATETIMEOFFSET(t.EventDate,   '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2) AS date),
         CAST(CAST(TODATETIMEOFFSET(t.LeadCreated, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2) AS date)) AS DaysToLead,
@@ -32,9 +32,11 @@ FROM (
         SELECT l.Id AS LeadId, l.Status AS LeadStatus, l.IsConverted AS IsConverted, l.CreatedDate AS LeadCreated,
                s.EventDate, s.JobID, s.ListID, s.BatchID, s.SubscriberID, j.JourneyName
         FROM (SELECT Id, Email, Status, IsConverted, CreatedDate
-              FROM Lead_Salesforce
-              WHERE CreatedDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 3, 0) AND CreatedDate < DATEADD(day, 1, GETDATE())
-                AND Email IS NOT NULL AND Email <> '') l
+              FROM (SELECT Id, Email, Status, IsConverted,
+                           TRY_CONVERT(datetime, REPLACE(CONVERT(varchar(19), CreatedDate, 126), 'T', ' '), 120) AS CreatedDate   /* CreatedDate texte OU date -> datetime, NULL si illisible */
+                    FROM Lead_Salesforce
+                    WHERE Email IS NOT NULL AND Email <> '') z
+              WHERE CreatedDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 3, 0) AND CreatedDate < DATEADD(day, 1, GETDATE())) l
         JOIN _Subscribers sub ON sub.EmailAddress = l.Email
         JOIN _Sent s ON s.SubscriberID = sub.SubscriberID
                     AND s.EventDate >= DATEADD(day, -30, DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 3, 0))

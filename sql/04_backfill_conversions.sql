@@ -11,7 +11,8 @@
      Septembre   | 2026-08-31 16:00:00   | 2026-09-30 16:00:00   | 2026-07-31 00:00:00
      Octobre     | 2026-09-30 16:00:00   | 2026-10-31 17:00:00   | 2026-08-31 00:00:00
      Novembre+   | 2026-10-31 17:00:00   | 2026-12-01 00:00:00   | 2026-09-30 00:00:00
-   (LEAD_FROM/LEAD_TO = début/fin de mois belge converti en CST ; SEND_FROM = LEAD_FROM - ~31 jours.) */
+   (LEAD_FROM/LEAD_TO = début/fin de mois belge converti en CST ; SEND_FROM = LEAD_FROM - ~31 jours.) 
+   FORMAT DES DATES : dans le WHERE, écrire 'AAAAMMJJ hh:mm:ss' (ex. '20260531 16:00:00') : indépendant de la langue du serveur. */
 SELECT
     t.LeadId                                         AS LeadId,
     t.JourneyName                                    AS JourneyName,
@@ -20,7 +21,7 @@ SELECT
     CONVERT(char(10), CAST(TODATETIMEOFFSET(t.EventDate,   '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS SendDate,
     CONVERT(char(10), CAST(TODATETIMEOFFSET(t.LeadCreated, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS LeadCreatedDate,
     t.LeadStatus                                     AS LeadStatus,
-    CASE WHEN t.IsConverted = 1 THEN 1 ELSE 0 END    AS IsConverted,
+    CASE WHEN CAST(t.IsConverted AS varchar(10)) IN ('1','true','True','TRUE') THEN 1 ELSE 0 END    AS IsConverted,
     DATEDIFF(day,
         CAST(CAST(TODATETIMEOFFSET(t.EventDate,   '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2) AS date),
         CAST(CAST(TODATETIMEOFFSET(t.LeadCreated, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2) AS date)) AS DaysToLead,
@@ -35,12 +36,14 @@ FROM (
         SELECT l.Id AS LeadId, l.Status AS LeadStatus, l.IsConverted AS IsConverted, l.CreatedDate AS LeadCreated,
                s.EventDate, s.JobID, s.ListID, s.BatchID, s.SubscriberID, j.JourneyName
         FROM (SELECT Id, Email, Status, IsConverted, CreatedDate
-              FROM Lead_Salesforce
-              WHERE CreatedDate >= '2026-05-31 16:00:00' AND CreatedDate < '2026-12-01 00:00:00'
-                AND Email IS NOT NULL AND Email <> '') l
+              FROM (SELECT Id, Email, Status, IsConverted,
+                           TRY_CONVERT(datetime, REPLACE(CONVERT(varchar(19), CreatedDate, 126), 'T', ' '), 120) AS CreatedDate   /* CreatedDate texte OU date -> datetime, NULL si illisible */
+                    FROM Lead_Salesforce
+                    WHERE Email IS NOT NULL AND Email <> '') z
+              WHERE CreatedDate >= '20260531 16:00:00' AND CreatedDate < '20261201 00:00:00') l
         JOIN _Subscribers sub ON sub.EmailAddress = l.Email
         JOIN _Sent s ON s.SubscriberID = sub.SubscriberID
-                    AND s.EventDate >= '2026-05-01 00:00:00'
+                    AND s.EventDate >= '20260501 00:00:00'
                     AND s.EventDate <= l.CreatedDate
                     AND s.EventDate >  DATEADD(day, -30, l.CreatedDate)           /* fenêtre d'attribution 30 j */
         JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
