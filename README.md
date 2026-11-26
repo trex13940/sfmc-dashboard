@@ -29,7 +29,7 @@ Si les DE n'ont pas une Customer Key identique à leur nom, adaptez `IP_DE_KEY`/
 1. SQL `sql/01_journey_kpi_monthly.sql` → DASH_Journey_KPI_Monthly, **Update**
 2. SQL `sql/02_conversions.sql` → DASH_Conversions, **Update** (nécessite la DE synchro `Lead_Salesforce`)
 
-Premier chargement (backfill depuis le 01/06/2026) : lancer **une fois** `sql/03_backfill_kpi.sql` et `sql/04_backfill_conversions.sql` (Run Once, mêmes DE cibles, mode Update), puis activer les requêtes récurrentes 01 et 02. Si le timeout de 30 min est atteint, chaque fichier contient un tableau de dates pour découper le chargement mois par mois. `sql/00_diagnostics.sql` sert à comprendre un résultat vide.
+Premier chargement (backfill depuis le 01/06/2026) : lancer **une fois** `sql/03_backfill_kpi.sql` et `sql/04_backfill_conversions.sql` (Run Once, mêmes DE cibles, mode Update), puis activer les requêtes récurrentes 01 et 02. Si le timeout de 30 min est atteint, chaque fichier contient un tableau de dates pour découper le chargement mois par mois. Les fichiers SQL des automations ne contiennent aucun commentaire (Automation Studio les refuse parfois) : voir `sql/NOTES.md`. `sql/00_diagnostics.sql` sert à comprendre un résultat vide.
 
 ## CloudPages
 1. Page API : coller `cloudpage_api.html` → noter l'URL publiée.
