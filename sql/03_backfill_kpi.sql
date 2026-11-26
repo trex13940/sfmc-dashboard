@@ -1,6 +1,6 @@
 /* BACKFILL (une seule fois) - KPI mensuels depuis le 01/06/2026 (CET) | Cible : DASH_Journey_KPI_Monthly | Mode : Update
    Même requête que 01_journey_kpi_monthly.sql, avec une période fixe (dates en CST = heure des Data Views).
-   Prérequis : les Data Views ne conservent qu'environ 6 mois -> à lancer rapidement.
+   Prérequis : les Data Views ne conservent qu environ 6 mois -> à lancer rapidement.
    SI LE TIMEOUT (30 min) EST ATTEINT : lancer plusieurs fois en changeant les 2 dates du WHERE (résultat identique, mois par mois) :
      Mois        | >=                    | <
      Juin 2026   | 2026-05-31 16:00:00   | 2026-06-30 16:00:00
@@ -10,7 +10,7 @@
      Octobre     | 2026-09-30 16:00:00   | 2026-10-31 17:00:00
      Novembre    | 2026-10-31 17:00:00   | 2026-11-30 17:00:00
      Décembre    | 2026-11-30 17:00:00   | 2026-12-31 17:00:00 
-   FORMAT DES DATES : dans le WHERE, écrire 'AAAAMMJJ hh:mm:ss' (ex. '20260531 16:00:00') : indépendant de la langue du serveur. */
+   FORMAT DES DATES : dans le WHERE, écrire "AAAAMMJJ hh:mm:ss" (ex. "20260531 16:00:00") : indépendant de la langue du serveur. */
 SELECT
     j.JourneyName                                   AS JourneyName,
     CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120)                  AS [Month],

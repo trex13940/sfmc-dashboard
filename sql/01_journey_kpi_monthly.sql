@@ -1,7 +1,7 @@
 /* Cible : DASH_Journey_KPI_Monthly  | Mode : Update (upsert)  | PK : JourneyName + Month
    Rafraîchit le mois courant + le mois précédent (les Data Views ne gardent que ~6 mois :
-   l'historique plus ancien reste dans la DE, jamais écrasé).
-   Attribution par mois d'ENVOI (cohorte) : opens/clicks/etc. sont rattachés au mois du send.
+   l historique plus ancien reste dans la DE, jamais écrasé).
+   Attribution par mois d ENVOI (cohorte) : opens/clicks/etc. sont rattachés au mois du send.
    Seuls les événements IsUnique=1 sont joints -> pas de multiplication de lignes.
    FUSEAU : EventDate / GETDATE() sont en CST fixe (UTC-6, sans DST). Ils sont convertis en CET/CEST
    (Europe/Brussels, DST inclus) via TODATETIMEOFFSET + AT TIME ZONE ; les mois sont donc ceux de Belgique. */

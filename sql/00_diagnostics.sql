@@ -3,7 +3,7 @@
    Chaque requête renvoie des lignes (Step, N) = nombre de lignes restantes après chaque étape.
    Là où N tombe à 0, on a trouvé le problème.
 
-   MODE D'EMPLOI
+   MODE D EMPLOI
    1. Créer une DE "DASH_Debug" : Step Text(200) (PK), N Number.
    2. Automation Studio > Activities > SQL Query > créer UNE activité par requête ci-dessous
       (A, B, C, D), cible DASH_Debug, mode OVERWRITE (une requête à la fois), puis "Run Once".
@@ -58,7 +58,7 @@ SELECT Step, N FROM (
 
 /* ---------------------------------------------------------------------------
    REQUÊTE C : le fuseau horaire (AT TIME ZONE est-il accepté ? les dates passent-elles le filtre ?)
-   Si cette requête provoque une ERREUR de syntaxe, AT TIME ZONE n'est pas supporté -> le dire,
+   Si cette requête provoque une ERREUR de syntaxe, AT TIME ZONE n est pas supporté -> le dire,
    les requêtes 01/02 seront réécrites sans cette fonction.
    --------------------------------------------------------------------------- */
 SELECT 'C1 maintenant (CET)' + CONVERT(char(19), CAST(TODATETIMEOFFSET(GETDATE(), '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS Step, 1 AS N
@@ -72,11 +72,11 @@ WHERE s.EventDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 2, 0)
 
 /* ---------------------------------------------------------------------------
    REQUÊTE D : conversions (02) - la DE de leads et la jointure par email
-   Adapter "Lead_Salesforce" si la DE a un autre nom (préfixer "ent." si elle est dans la BU parente).
+   Adapter "Lead_Salesforce_1" si la DE a un autre nom (préfixer "ent." si elle est dans la BU parente).
    --------------------------------------------------------------------------- */
-SELECT 'D1 Lead_Salesforce : lignes' AS Step, COUNT(*) AS N FROM Lead_Salesforce
+SELECT 'D1 Lead_Salesforce_1 : lignes' AS Step, COUNT(*) AS N FROM Lead_Salesforce_1
 UNION ALL
-SELECT 'D2 Lead_Salesforce : lignes avec Email', COUNT(*) FROM Lead_Salesforce WHERE Email IS NOT NULL AND Email <> ''
+SELECT 'D2 Lead_Salesforce_1 : lignes avec Email', COUNT(*) FROM Lead_Salesforce_1 WHERE Email IS NOT NULL AND Email <> ''
 UNION ALL
 SELECT 'D3 envois de journeys (90 j) + _Subscribers', COUNT(*)
 FROM _Sent s
@@ -91,7 +91,7 @@ FROM _Sent s
 JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
 JOIN _Journey j ON j.VersionID = ja.VersionID
 JOIN _Subscribers sub ON sub.SubscriberID = s.SubscriberID
-JOIN Lead_Salesforce l ON LOWER(l.Email) = LOWER(sub.EmailAddress)
+JOIN Lead_Salesforce_1 l ON LOWER(l.Email) = LOWER(sub.EmailAddress)
 WHERE s.EventDate >= DATEADD(day, -90, GETDATE())
   AND (j.JourneyName LIKE 'MKT[_]%' OR j.JourneyName LIKE 'O__[_]%')
 UNION ALL
@@ -100,7 +100,7 @@ FROM _Sent s
 JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
 JOIN _Journey j ON j.VersionID = ja.VersionID
 JOIN _Subscribers sub ON sub.SubscriberID = s.SubscriberID
-JOIN Lead_Salesforce l ON LOWER(l.Email) = LOWER(sub.EmailAddress)
+JOIN Lead_Salesforce_1 l ON LOWER(l.Email) = LOWER(sub.EmailAddress)
                       AND l.CreatedDate >= s.EventDate AND l.CreatedDate < DATEADD(day, 30, s.EventDate)
 WHERE s.EventDate >= DATEADD(day, -90, GETDATE())
   AND (j.JourneyName LIKE 'MKT[_]%' OR j.JourneyName LIKE 'O__[_]%')
