@@ -58,9 +58,9 @@ Libellés lisibles : renseigner `LABELS.type` / `LABELS.product` en haut du scri
 
 
 ## Onglets du dashboard
-- **Journeys** : triées de la plus récente à la plus ancienne ; colonnes Campaign, Month (mois couvert), Family, Type, Product ; option *Detail* = Journey + email activity.
+- **Journeys** : triées de la plus récente à la plus ancienne ; colonnes Campaign, Month (mois couvert), Family, Type, Product ; chaque journey a une icône flèche qui affiche ou masque, juste en dessous, le détail par activité email (boutons *Expand all* / *Collapse all*).
 - **Categories** : vue par préfixe, type de campagne ou produit.
-- **Conversions (leads)** : leads attribués (voir `sql/NOTES.md` pour les règles) ; regroupement possible par activité email.
+- **Conversions (leads)** : leads attribués (voir `sql/NOTES.md` pour les règles) ; même détail par activité email, repliable sous chaque journey.
 - **Journey analysis** : une journey en détail : langues FR/NL, emails, KPI et liste des liens (chargée à la demande).
 - **Insights** : top 5 des domaines (envois, bounces, complaints) et top 5 des journeys par bounces.
 - **Alerts** : volume du mois en cours comparé au mois précédent (ramené au prorata des jours écoulés) ; alerte si plus de 15 % en dessous, pour les journeys de plus de 500 envois le mois dernier. Réglages `ALERT_DROP`, `ALERT_MIN`, `ALERT_MIN_DAYS` en haut du script du dashboard.

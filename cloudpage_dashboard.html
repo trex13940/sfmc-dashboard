@@ -134,6 +134,17 @@ thead th.sorted{color:var(--red)}
 thead th.sorted::after{content:attr(data-arrow)}
 tbody tr:hover td{background:var(--pink-bg)}
 tr.tot td{font-weight:700;background:var(--pink-bg);color:var(--red)}
+.btn2{font:inherit;font-size:.8rem;font-weight:600;padding:8px 14px;margin-right:6px;border-radius:20px;cursor:pointer;background:var(--card);color:var(--red);border:2px solid var(--pink-mid)}
+.btn2:hover{border-color:var(--red)}
+.btn2:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.tg{border:0;background:var(--pink-bg);color:var(--red);width:22px;height:22px;border-radius:50%;cursor:pointer;margin-right:8px;font-size:.75rem;line-height:22px;padding:0;vertical-align:middle;transition:transform .15s}
+.tg:hover{background:var(--pink-mid)}
+.tg:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.tg[aria-expanded=true]{transform:rotate(90deg)}
+tr.child td{background:var(--pink-bg);font-size:.92em;color:var(--mute)}
+tr.child td.ind{padding-left:44px;color:var(--fg)}
+tr.child:hover td{background:var(--pink-light)}
+@media (prefers-color-scheme:dark){tr.child:hover td{background:#3a2430}}
 .h2{font-size:1rem;font-weight:700;margin:22px 0 10px}
 .msg{padding:30px;text-align:center;color:var(--mute)}.err{color:#ffd6e1;font-weight:600}
 .note{font-size:.75rem;color:var(--mute);margin-top:10px;padding-left:22px;position:relative}
@@ -180,8 +191,8 @@ td.bad{color:var(--err);font-weight:700}
     <label class="ctl" id="lFrom">From month<select id="fFrom"></select></label>
     <label class="ctl" id="lTo">To month<select id="fTo"></select></label>
     <label class="ctl" id="lGran">Granularity<select id="fGran"><option value="total">Period total</option><option value="month">By month</option></select></label>
-    <label class="ctl" id="lDet">Detail<select id="fDet"><option value="journey">Journey</option><option value="activity">Journey + email activity</option></select></label>
-    <label class="ctl" id="lGrp">Group by<select id="fGrp"><option value="journey">Journey</option><option value="activity">Journey + email activity</option><option value="cat">Category</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
+    <span class="ctl" id="lExp"><button class="btn2" id="bExp" type="button">Expand all</button><button class="btn2" id="bCol" type="button">Collapse all</button></span>
+    <label class="ctl" id="lGrp">Group by<select id="fGrp"><option value="journey">Journey</option><option value="cat">Category</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
     <label class="ctl" id="lView">View by<select id="fView"><option value="cat">Category (prefix)</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
     <label class="ctl" id="lAlert">Alert scope<select id="fAlert"><option value="ongoing">Ongoing journeys only</option><option value="all">All journeys</option></select></label>
     <label class="ctl" id="lQ">Search<input id="fQ" placeholder="journey name…"></label>
@@ -238,13 +249,15 @@ const ALERT_MIN = 500;        /* only for journeys with more than 500 sends last
 const ALERT_MIN_DAYS = 3;     /* do not alert before 3 full days of data in the month */
 
 const PALETTE=['#c30045','#101820','#dc0078','#51626f','#4b9b30','#ad0cdf'];
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', det:'journey', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing'};
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing'};
 const SORT = {};   /* sort state per table id: {k,d} */
+const EXP = new Set();   /* expanded journey rows (email activity detail) */
+const EXPKEYS = {};      /* keys of the rows that can be expanded, per table */
 
 const TABS = {
-  journeys:{view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lDet','lQ'], csv:'tbl'},
+  journeys:{view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lExp','lQ'], csv:'tbl'},
   cats:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lView','lQ'], csv:'tbl'},
-  conv:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lGrp','lQ'], csv:'tbl'},
+  conv:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lGrp','lExp','lQ'], csv:'tbl'},
   ana:     {view:'ana',  ctl:['lJ','lFrom','lTo'], csv:'tEmail'},
   ins:     {view:'ins',  ctl:['lFam','lType','lProd','lFrom','lTo'], csv:null},
   alerts:  {view:'alerts', ctl:['lAlert'], csv:'tAlerts'},
@@ -372,15 +385,31 @@ function renderTable(id, keyCols, cols, rows, total, opts){
   if (sk){ const sc = all.find(c=>c.k===sk); rows.sort((a,b)=>{const x=sc.v(a),y=sc.v(b);return (x>y?1:x<y?-1:0)*dir;}); }
   else if (opts.cmp){ rows.sort(opts.cmp); }
   else { sk = opts.defK && all.find(c=>c.k===opts.defK) ? opts.defK : cols[0]?.k; dir=-1; const sc=all.find(c=>c.k===sk); rows.sort((a,b)=>{const x=sc.v(a),y=sc.v(b);return (x>y?1:x<y?-1:0)*dir;}); }
+  /* child rows (email activities) sorted by the sorted numeric column, else by the first numeric column */
+  const kc = (sk && cols.find(c=>c.k===sk)) || cols[0];
+  const rowKey = r => id+'|'+r.name+'|'+(r.month||'');
+  const keys = [];
   let h = '<thead><tr>'+all.map(c=>`<th class="${c.left?'l':''} ${c.k===sk?'sorted':''}" data-k="${c.k}" data-arrow="${dir>0?' ▲':' ▼'}">${esc(c.l)}</th>`).join('')+'</tr></thead><tbody>';
   if (total) h += '<tr class="tot">'+all.map(c=>`<td class="${c.left?'l':''}">${c.left? (c===all[0]?'TOTAL':'') : c.f(total)}</td>`).join('')+'</tr>';
-  for (const r of rows) h += '<tr>'+all.map(c=>`<td class="${(c.left?'l ':'')+(c.cls?c.cls(r):'')}">${c.f(r)}</td>`).join('')+'</tr>';
+  for (const r of rows){
+    const ch = opts.children ? opts.children(r) : null, rk = rowKey(r), open = !!(ch && ch.length && EXP.has(rk));
+    if (ch && ch.length) keys.push(rk);
+    h += '<tr>'+all.map((c,i)=>{
+      let inner = c.f(r);
+      if (i===0 && ch && ch.length) inner = `<button type="button" class="tg" data-rk="${esc(rk)}" aria-expanded="${open}" title="Show / hide email activities" aria-label="Show or hide email activities">▸</button>`+inner;
+      return `<td class="${(c.left?'l ':'')+(c.cls?c.cls(r):'')}">${inner}</td>`;
+    }).join('')+'</tr>';
+    if (open) for (const x of [...ch].sort((a,b)=>kc.v(b)>kc.v(a)?1:kc.v(b)<kc.v(a)?-1:0))
+      h += '<tr class="child">'+all.map((c,i)=> c.left ? (i===0 ? `<td class="l ind">↳ ${esc(x.act||x.name)}</td>` : '<td class="l"></td>') : `<td>${c.f(x)}</td>`).join('')+'</tr>';
+  }
   if (!rows.length) h += `<tr><td class="l msg" colspan="${all.length}">${esc(opts.empty||'No data for the current selection.')}</td></tr>`;
   h += '</tbody>';
+  EXPKEYS[id] = keys;
   $(id).innerHTML = h;
   $(id).querySelectorAll('th').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k, cur=SORT[id]; SORT[id] = {k, d: cur&&cur.k===k ? -cur.d : -1}; render();
   });
+  $(id).querySelectorAll('.tg').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const k=b.dataset.rk; EXP.has(k)?EXP.delete(k):EXP.add(k); render(); });
 }
 
 function cards(id, items){ $(id).innerHTML = items.map(([v,l])=>`<div class="card"><b>${v}</b><span>${esc(l)}</span></div>`).join(''); }
@@ -407,35 +436,40 @@ const byMonthCharts = rows => {
 };
 
 /* ---------- Journeys / Categories ---------- */
+function childMap(list, monthly){
+  const km = new Map();
+  for (const a of list){ const k = a.name+'|'+a.month; if(!km.has(k)) km.set(k,[]); km.get(k).push(a); }
+  return r => km.get(r.name+'|'+r.month);
+}
 function viewKpi(dim){
-  const detail = S.tab==='journeys' && S.det==='activity';
-  const src = detail ? D.email : D.kpi;
-  const rows = src.filter(r=>inScope(r.JourneyName,r.Month));
   const monthly = S.gran==='month';
-  const grouped = group(rows, r => [dimVal(r,dim), monthly ? r.Month : '', detail ? parseEmail(r.EmailName).label : '']);
+  const rows = D.kpi.filter(r=>inScope(r.JourneyName,r.Month));
+  const grouped = group(rows, r => [dimVal(r,dim), monthly ? r.Month : '']);
   const tot = group(rows, r=>['','']) [0] || ZERO();
   cards('cards', kpiCards(tot));
-  const keyCols = dim==='journey' ? journeyCols(detail, monthly)
+  const isJ = dim==='journey';
+  const keyCols = isJ ? journeyCols(false, monthly)
     : [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}].concat(monthly?[{k:'month',l:'Month',v:a=>a.month,f:a=>esc(a.month)}]:[]);
-  renderTable('tbl', keyCols, KPI_COLS, grouped, tot, dim==='journey' ? {cmp:recentCmp, empty: detail&&!D.email.length?'Email-level data not available yet (DASH_Email_KPI_Monthly).':''} : {defK:monthly?'month':null});
+  let opts = {defK:monthly?'month':null};
+  if (isJ){
+    const acts = S.tab==='journeys' && D.email.length ? group(D.email.filter(r=>inScope(r.JourneyName,r.Month)), r=>[r.JourneyName, monthly?r.Month:'', parseEmail(r.EmailName).label]) : [];
+    opts = {cmp:recentCmp, children:childMap(acts, monthly)};
+  }
+  renderTable('tbl', keyCols, KPI_COLS, grouped, tot, opts);
   drawCharts(byMonthCharts(rows));
-  $('note').textContent = (S.tab==='journeys' ? "Most recent first (latest send month, then covered month). " : "") +
-    "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens. In the email activity split, FR/NL versions are merged and anything after a \"-\" in the campaign name is ignored.";
+  $('note').textContent = (S.tab==='journeys' ? "Most recent first (latest send month, then covered month). Click the arrow in front of a journey to show its email activities (FR/NL versions merged; anything after a \"-\" in the campaign name is ignored). " : "") +
+    "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens." +
+    (S.tab==='journeys' && !D.email.length ? " Email-level data not available yet (DASH_Email_KPI_Monthly)." : "");
 }
 
 /* ---------- Conversions ---------- */
-function viewConv(){
-  const dim = S.grp, monthly = S.gran==='month', act = dim==='activity';
-  const keyOf = r => [dimVal(r,dim), act ? parseEmail(r.EmailName).label : ''];
-  const rows = D.conv.filter(r=>inScope(r.JourneyName,r.SendMonth));
-  const kRows = (act ? D.email : D.kpi).filter(r=>inScope(r.JourneyName,r.Month));
-  const kg = group(kRows, r=>[dimVal(r,dim), monthly?r.Month:'', act?parseEmail(r.EmailName).label:'']);
+function convAgg(rows, dim, monthly, act){
+  const src = (act ? D.email : D.kpi).filter(r=>inScope(r.JourneyName,r.Month));
+  const kg = group(src, r=>[dimVal(r,dim), monthly?r.Month:'', act?parseEmail(r.EmailName).label:'']);
   const dmap = new Map(kg.map(a=>[a.name+'|'+a.act+'|'+a.month, deliv(a)]));
-  const statuses = {}; rows.forEach(r=>statuses[r.LeadStatus||'(empty)']=(statuses[r.LeadStatus||'(empty)']||0)+1);
-  const stList = Object.keys(statuses).sort((a,b)=>statuses[b]-statuses[a]);
   const m = new Map();
   for (const r of rows){
-    const [nm,ac] = keyOf(r), mo = monthly?r.SendMonth:'', key = nm+'|'+ac+'|'+mo;
+    const nm = dimVal(r,dim), ac = act ? parseEmail(r.EmailName).label : '', mo = monthly?r.SendMonth:'', key = nm+'|'+ac+'|'+mo;
     let a = m.get(key);
     if(!a){ a={name:nm,act:ac,month:mo,last:r.SendMonth,Leads:0,Conv:0,Open:0,Click:0,Days:0,St:{}}; m.set(key,a); }
     if (r.SendMonth>a.last) a.last=r.SendMonth;
@@ -443,12 +477,21 @@ function viewConv(){
     const s=r.LeadStatus||'(empty)'; a.St[s]=(a.St[s]||0)+1;
   }
   const out = [...m.values()]; out.forEach(a=>a.Deliv=dmap.get(a.name+'|'+a.act+'|'+a.month)||0);
+  return {out, dmap};
+}
+function viewConv(){
+  const dim = S.grp, monthly = S.gran==='month';
+  const rows = D.conv.filter(r=>inScope(r.JourneyName,r.SendMonth));
+  const {out, dmap} = convAgg(rows, dim, monthly, false);
+  const statuses = {}; rows.forEach(r=>statuses[r.LeadStatus||'(empty)']=(statuses[r.LeadStatus||'(empty)']||0)+1);
+  const stList = Object.keys(statuses).sort((a,b)=>statuses[b]-statuses[a]);
   const tot = {name:'',Leads:0,Conv:0,Open:0,Click:0,Days:0,St:{},Deliv:[...dmap.values()].reduce((x,y)=>x+y,0)};
   out.forEach(a=>{tot.Leads+=a.Leads;tot.Conv+=a.Conv;tot.Open+=a.Open;tot.Click+=a.Click;tot.Days+=a.Days;for(const s in a.St)tot.St[s]=(tot.St[s]||0)+a.St[s];});
   cards('cards', [[n(tot.Leads),'Leads generated after send'],[n(tot.Conv),'Converted leads (Signed)'],[pct(tot.Conv,tot.Leads),'Conversion rate'],
          [tot.Deliv?(tot.Leads/tot.Deliv*1000).toFixed(2).replace('.',','):'–','Leads / 1,000 delivered'],[pct(tot.Open,tot.Leads),'Leads who opened'],[pct(tot.Click,tot.Leads),'Leads who clicked'],
          [tot.Leads?(tot.Days/tot.Leads).toFixed(1).replace('.',','):'–','Avg. delay (days)']]);
-  const keyCols = (dim==='journey'||act) ? journeyCols(act, monthly)
+  const isJ = dim==='journey';
+  const keyCols = isJ ? journeyCols(false, monthly)
     : [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}].concat(monthly?[{k:'month',l:'Send month',v:a=>a.month,f:a=>esc(a.month)}]:[]);
   const cols = [
     {k:'Deliv',l:'Delivered',v:a=>a.Deliv,f:a=>n(a.Deliv)},
@@ -461,14 +504,19 @@ function viewConv(){
     {k:'Days',l:'Avg. delay (d)',v:a=>a.Leads?a.Days/a.Leads:-1,f:a=>a.Leads?(a.Days/a.Leads).toFixed(1).replace('.',','):'–'},
     ...stList.map(s=>({k:'st_'+s,l:'Status: '+s,v:a=>a.St[s]||0,f:a=>n(a.St[s]||0)}))
   ];
-  renderTable('tbl', keyCols, cols, out, tot, (dim==='journey'||act) ? {cmp:recentCmp, empty: act&&!D.email.length?'Email-level data not available yet (DASH_Email_KPI_Monthly).':''} : {defK:monthly?'month':null});
+  let opts = {defK:monthly?'month':null};
+  if (isJ){
+    const acts = D.email.length ? convAgg(rows, 'journey', monthly, true).out : [];
+    opts = {cmp:recentCmp, children:childMap(acts, monthly)};
+  }
+  renderTable('tbl', keyCols, cols, out, tot, opts);
   const byM = {}; rows.forEach(r=>{(byM[r.SendMonth]=byM[r.SendMonth]||{l:0,c:0}); byM[r.SendMonth].l++; byM[r.SendMonth].c+=r.IsConverted;});
   const ms = Object.keys(byM).sort();
   drawCharts([
     {title:'Leads by send month',labels:ms,sets:[{l:'Leads',d:ms.map(x=>byM[x].l)},{l:'Signed',d:ms.map(x=>byM[x].c)}]},
     {title:'Leads by status (period)',type:'bar',labels:stList,sets:[{l:'Leads',d:stList.map(s=>statuses[s])}]}
   ]);
-  $('note').textContent = "Only journeys MKT_XSELL, MKT_PROMO, MKT_NEWS, ODO_, OCL_, ODD_OFF_ and OCX_XSELL_. A lead is attributed to the last send received in the 30 days before its creation (email match), only if the journey product equals the lead product (or the journey product is ALL), and only for statuses that trigger emails (Incomplete: ODO_BANK_CAR_DropOut only; Offer Created: ODD_OFF only) plus Signed (converted). Each lead counts for one journey only.";
+  $('note').textContent = "Only journeys MKT_XSELL, MKT_PROMO, MKT_NEWS, ODO_, OCL_, ODD_OFF_ and OCX_XSELL_. A lead is attributed to the last send received in the 30 days before its creation (email match), only if the journey product equals the lead product (or the journey product is ALL), and only for statuses that trigger emails (Incomplete: ODO_BANK_CAR_DropOut only; Offer Created: ODD_OFF only) plus Signed (converted). Each lead counts for one journey only. Click the arrow in front of a journey to show the split by email activity.";
 }
 
 /* ---------- Alerts ---------- */
@@ -595,6 +643,7 @@ function viewSms(){
 function render(){
   const cfg = TABS[S.tab];
   document.querySelectorAll('.ctl').forEach(el=>el.hidden = !cfg.ctl.includes(el.id));
+  if (S.tab==='conv' && S.grp!=='journey') $('lExp').hidden = true;
   $('bCsv').hidden = !cfg.csv;
   ['main','ana','ins','alerts','sms'].forEach(v=>$('v-'+v).hidden = v!==cfg.view);
   if (S.tab==='journeys') viewKpi('journey'); else if (S.tab==='cats') viewKpi(S.view); else if (S.tab==='conv') viewConv();
@@ -631,8 +680,10 @@ function setup(){
   S.j = js[0] || '';
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
-  on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fDet',v=>S.det=v); on('fGrp',v=>S.grp=v);
+  on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
   on('fJ',v=>S.j=v); on('fAlert',v=>S.alert=v);
+  $('bExp').onclick = ()=>{ (EXPKEYS.tbl||[]).forEach(k=>EXP.add(k)); render(); };
+  $('bCol').onclick = ()=>{ (EXPKEYS.tbl||[]).forEach(k=>EXP.delete(k)); render(); };
   $('fQ').oninput = e=>{S.q=e.target.value;render();};
   document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
     document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===b));
