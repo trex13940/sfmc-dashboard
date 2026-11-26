@@ -5,8 +5,8 @@
      3. _Open / _Click ne sont joints que pour l'envoi retenu de chaque lead
      4. conversions de fuseau (AT TIME ZONE) uniquement sur les lignes finales ; plus de LOWER() sur l'email
         (collation SFMC insensible à la casse par défaut ; si la vôtre est sensible, remettre LOWER() des 2 côtés)
-   Hypothèses À ADAPTER : DE synchronisée "Lead_Salesforce" (Id, Email, Status, IsConverted, CreatedDate) ;
-     CreatedDate supposé en CST (UTC-6) ; si UTC, remplacer '-06:00' par '+00:00' pour t.LeadCreated ;
+   Hypothèses À ADAPTER : DE synchronisée "Lead_Salesforce" (Id, Email, Status, CreatedDate) ;
+     IsConverted = 1 quand Status = 'Signed' (modifier ce libellé si besoin) ; CreatedDate (champ date) supposé en CST (UTC-6) ; si UTC, remplacer '-06:00' par '+00:00' pour t.LeadCreated ;
      fenêtre d'attribution 30 jours ; attribution last-touch (un lead = un seul envoi).
    Dates de sortie en CET/CEST (Europe/Brussels). */
 SELECT
@@ -17,7 +17,7 @@ SELECT
     CONVERT(char(10), CAST(TODATETIMEOFFSET(t.EventDate,   '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS SendDate,
     CONVERT(char(10), CAST(TODATETIMEOFFSET(t.LeadCreated, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS LeadCreatedDate,
     t.LeadStatus                                     AS LeadStatus,
-    CASE WHEN CAST(t.IsConverted AS varchar(10)) IN ('1','true','True','TRUE') THEN 1 ELSE 0 END    AS IsConverted,
+    CASE WHEN t.LeadStatus = 'Signed' THEN 1 ELSE 0 END  AS IsConverted   /* converti = statut 'Signed' */,
     DATEDIFF(day,
         CAST(CAST(TODATETIMEOFFSET(t.EventDate,   '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2) AS date),
         CAST(CAST(TODATETIMEOFFSET(t.LeadCreated, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2) AS date)) AS DaysToLead,
@@ -25,18 +25,16 @@ SELECT
     CASE WHEN c.SubscriberID IS NOT NULL THEN 1 ELSE 0 END AS Clicked
 FROM (
     /* 2) un seul envoi par lead : le dernier avant sa création (last touch) - colonnes minimales */
-    SELECT x.LeadId, x.LeadStatus, x.IsConverted, x.LeadCreated, x.EventDate, x.JobID, x.ListID, x.BatchID, x.SubscriberID, x.JourneyName,
+    SELECT x.LeadId, x.LeadStatus, x.LeadCreated, x.EventDate, x.JobID, x.ListID, x.BatchID, x.SubscriberID, x.JourneyName,
            ROW_NUMBER() OVER (PARTITION BY x.LeadId ORDER BY x.EventDate DESC) AS rn
     FROM (
         /* 1) on part des LEADS (peu nombreux), puis email -> subscriber -> envois de journeys MKT_/Oxx_ */
-        SELECT l.Id AS LeadId, l.Status AS LeadStatus, l.IsConverted AS IsConverted, l.CreatedDate AS LeadCreated,
+        SELECT l.Id AS LeadId, l.Status AS LeadStatus, l.CreatedDate AS LeadCreated,
                s.EventDate, s.JobID, s.ListID, s.BatchID, s.SubscriberID, j.JourneyName
-        FROM (SELECT Id, Email, Status, IsConverted, CreatedDate
-              FROM (SELECT Id, Email, Status, IsConverted,
-                           TRY_CONVERT(datetime, REPLACE(CONVERT(varchar(19), CreatedDate, 126), 'T', ' '), 120) AS CreatedDate   /* CreatedDate texte OU date -> datetime, NULL si illisible */
-                    FROM Lead_Salesforce
-                    WHERE Email IS NOT NULL AND Email <> '') z
-              WHERE CreatedDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 3, 0) AND CreatedDate < DATEADD(day, 1, GETDATE())) l
+        FROM (SELECT Id, Email, Status, CreatedDate
+              FROM Lead_Salesforce
+              WHERE CreatedDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 3, 0) AND CreatedDate < DATEADD(day, 1, GETDATE())
+                AND Email IS NOT NULL AND Email <> '') l
         JOIN _Subscribers sub ON sub.EmailAddress = l.Email
         JOIN _Sent s ON s.SubscriberID = sub.SubscriberID
                     AND s.EventDate >= DATEADD(day, -30, DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 3, 0))

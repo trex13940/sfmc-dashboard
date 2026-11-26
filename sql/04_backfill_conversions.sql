@@ -21,7 +21,7 @@ SELECT
     CONVERT(char(10), CAST(TODATETIMEOFFSET(t.EventDate,   '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS SendDate,
     CONVERT(char(10), CAST(TODATETIMEOFFSET(t.LeadCreated, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS LeadCreatedDate,
     t.LeadStatus                                     AS LeadStatus,
-    CASE WHEN CAST(t.IsConverted AS varchar(10)) IN ('1','true','True','TRUE') THEN 1 ELSE 0 END    AS IsConverted,
+    CASE WHEN t.LeadStatus = 'Signed' THEN 1 ELSE 0 END  AS IsConverted   /* converti = statut 'Signed' */,
     DATEDIFF(day,
         CAST(CAST(TODATETIMEOFFSET(t.EventDate,   '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2) AS date),
         CAST(CAST(TODATETIMEOFFSET(t.LeadCreated, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2) AS date)) AS DaysToLead,
@@ -29,18 +29,16 @@ SELECT
     CASE WHEN c.SubscriberID IS NOT NULL THEN 1 ELSE 0 END AS Clicked
 FROM (
     /* 2) un seul envoi par lead : le dernier avant sa création (last touch) - colonnes minimales */
-    SELECT x.LeadId, x.LeadStatus, x.IsConverted, x.LeadCreated, x.EventDate, x.JobID, x.ListID, x.BatchID, x.SubscriberID, x.JourneyName,
+    SELECT x.LeadId, x.LeadStatus, x.LeadCreated, x.EventDate, x.JobID, x.ListID, x.BatchID, x.SubscriberID, x.JourneyName,
            ROW_NUMBER() OVER (PARTITION BY x.LeadId ORDER BY x.EventDate DESC) AS rn
     FROM (
         /* 1) on part des LEADS (peu nombreux), puis email -> subscriber -> envois de journeys MKT_/Oxx_ */
-        SELECT l.Id AS LeadId, l.Status AS LeadStatus, l.IsConverted AS IsConverted, l.CreatedDate AS LeadCreated,
+        SELECT l.Id AS LeadId, l.Status AS LeadStatus, l.CreatedDate AS LeadCreated,
                s.EventDate, s.JobID, s.ListID, s.BatchID, s.SubscriberID, j.JourneyName
-        FROM (SELECT Id, Email, Status, IsConverted, CreatedDate
-              FROM (SELECT Id, Email, Status, IsConverted,
-                           TRY_CONVERT(datetime, REPLACE(CONVERT(varchar(19), CreatedDate, 126), 'T', ' '), 120) AS CreatedDate   /* CreatedDate texte OU date -> datetime, NULL si illisible */
-                    FROM Lead_Salesforce
-                    WHERE Email IS NOT NULL AND Email <> '') z
-              WHERE CreatedDate >= '20260531 16:00:00' AND CreatedDate < '20261201 00:00:00') l
+        FROM (SELECT Id, Email, Status, CreatedDate
+              FROM Lead_Salesforce
+              WHERE CreatedDate >= '20260531 16:00:00' AND CreatedDate < '20261201 00:00:00'
+                AND Email IS NOT NULL AND Email <> '') l
         JOIN _Subscribers sub ON sub.EmailAddress = l.Email
         JOIN _Sent s ON s.SubscriberID = sub.SubscriberID
                     AND s.EventDate >= '20260501 00:00:00'
