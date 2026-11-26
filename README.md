@@ -8,8 +8,22 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 |---|---|
 | DASH_Journey_KPI_Monthly | **JourneyName** Text(200), **Month** Text(7), Category Text(3), Sends, Bounces, Opens, UniqueClicks, Unsubscribes, Complaints (Number) |
 | DASH_Conversions | **LeadId** Text(18), JourneyName Text(200), Category Text(3), SendMonth Text(7), SendDate Text(10), LeadCreatedDate Text(10), LeadStatus Text(100), IsConverted, DaysToLead, Opened, Clicked (Number) |
-| DASH_Config | **ConfigKey** Text(50), Value Text(200) → une ligne `token` / secret aléatoire |
+| DASH_Config | **ConfigKey** Text(50), Value Text(200) → voir « Token d'accès » ci-dessous |
 | DASH_IP_Allowlist | **IPAddress** Text(50), Description Text(200) → une ligne par IP (`203.0.113.7`) ou plage IPv4 CIDR (`203.0.113.0/24`) ; IPv6 en correspondance exacte |
+
+## Token d'accès (DASH_Config)
+La DE a deux colonnes. Ajoutez **une seule ligne** :
+
+| ConfigKey | Value |
+|---|---|
+| `token` | votre secret, par ex. `k7Xp92QmZ4aTr8LwB3` |
+
+- `ConfigKey` doit contenir exactement le mot `token` (minuscules) : c'est le nom du réglage que l'API cherche.
+- `Value` contient la clé secrète de votre choix (chaîne aléatoire longue, sans espace).
+- Le dashboard s'ouvre ensuite avec ce secret dans l'URL : `https://.../dashboard?k=k7Xp92QmZ4aTr8LwB3`. Sans `?k=` ou avec une autre valeur, l'API répond `unauthorized`.
+- Pour changer le secret : modifiez `Value`, puis mettez à jour le lien enregistré dans vos favoris.
+
+Si les DE n'ont pas une Customer Key identique à leur nom, adaptez `IP_DE_KEY`/`IP_DE_NAME` (allowlist) et `CFG_DE_KEY`/`CFG_DE_NAME` (token) en haut des scripts des CloudPages.
 
 ## Automation Studio (quotidienne)
 1. SQL `sql/01_journey_kpi_monthly.sql` → DASH_Journey_KPI_Monthly, **Update**
@@ -24,7 +38,7 @@ Premier chargement : retirer temporairement le filtre de date (`DATEADD(...)`) p
 
 ## Contrôle IP
 Les deux pages (dashboard + API) vérifient `Platform.Request.ClientIP` contre `DASH_IP_Allowlist` à chaque requête (fail closed : DE vide/absente = accès refusé). Pour autoriser une IP : ajouter une ligne dans la DE (Contact Builder / import). La page de refus affiche l'IP détectée.
-Le token `?k=` reste exigé en plus.
+Le token `?k=` (voir « Token d'accès ») reste exigé en plus : l'IP et le token doivent être valides.
 
 ## Fuseau horaire
 Data Views et `GETDATE()` = CST fixe (UTC-6, sans DST). Les requêtes convertissent en CET/CEST (Europe/Brussels, DST inclus) via `TODATETIMEOFFSET(..., '-06:00') AT TIME ZONE 'Central European Standard Time'` : mois d'envoi, dates de leads et délais en jours calendaires sont en heure belge. L'horodatage « Data as of » est affiché en Europe/Brussels côté navigateur.
