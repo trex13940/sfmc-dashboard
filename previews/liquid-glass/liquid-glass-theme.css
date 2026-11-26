@@ -1,0 +1,94 @@
+/* Liquid Glass theme (apercu) - principes du skill liquid-glass adaptes au web :
+   - le verre n est utilise que sur la couche fonctionnelle (barre du haut, onglets, filtres, boutons)
+   - le contenu (cartes, graphiques, tableaux) reste opaque
+   - pas de verre sur du verre : les champs dans la barre de filtres sont de simples champs en creux
+   - fond colore + barre fixe pour que le verre ait quelque chose a deformer
+   - replis : reduction de transparence, contraste renforce, navigateur sans backdrop-filter */
+:root{
+  --lg-blur:22px; --lg-sat:180%;
+  --glass:rgba(255,255,255,.38); --glass-brd:rgba(255,255,255,.7); --glass-hi:rgba(255,255,255,.9);
+  --glass-shadow:0 12px 34px rgba(140,25,60,.18),0 2px 6px rgba(16,24,32,.06);
+  --card:rgba(255,255,255,.9); --card-solid:#ffffff; --ctl:rgba(255,255,255,.62); --tab-sel:rgba(255,255,255,.92);
+  --on-glass:#101820; --title:#8c193c; --sel-text:#c30045;
+}
+@media (prefers-color-scheme:dark){:root{
+  --glass:rgba(34,40,52,.46); --glass-brd:rgba(255,255,255,.17); --glass-hi:rgba(255,255,255,.3);
+  --glass-shadow:0 12px 34px rgba(0,0,0,.55);
+  --card:rgba(24,33,43,.92); --card-solid:#18212b; --ctl:rgba(255,255,255,.10); --tab-sel:rgba(255,255,255,.22);
+  --on-glass:#eef0f2; --title:#ffc2d7; --sel-text:#ffc2d7;
+}}
+body{background:#fdf0f4}
+body::before{content:"";position:fixed;inset:-10%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(42% 36% at 10% 8%,rgba(195,0,69,.50),transparent 70%),
+    radial-gradient(36% 42% at 90% 10%,rgba(173,12,223,.34),transparent 70%),
+    radial-gradient(46% 46% at 82% 88%,rgba(255,122,168,.55),transparent 70%),
+    radial-gradient(42% 40% at 8% 92%,rgba(255,194,215,.95),transparent 70%)}
+@media (prefers-color-scheme:dark){
+  body{background:#120a10}
+  body::before{background:
+    radial-gradient(42% 36% at 10% 8%,rgba(195,0,69,.55),transparent 70%),
+    radial-gradient(36% 42% at 90% 10%,rgba(120,20,170,.45),transparent 70%),
+    radial-gradient(46% 46% at 82% 88%,rgba(140,25,60,.55),transparent 70%),
+    radial-gradient(42% 40% at 8% 92%,rgba(80,20,60,.7),transparent 70%)}}
+
+/* ---- couche fonctionnelle : verre ---- */
+header,.bar{
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(var(--lg-blur)) saturate(var(--lg-sat));
+  backdrop-filter:blur(var(--lg-blur)) saturate(var(--lg-sat));
+  border:1px solid var(--glass-brd);
+  box-shadow:var(--glass-shadow),inset 0 1px 0 var(--glass-hi),inset 0 -1px 0 rgba(255,255,255,.14);
+}
+header{position:sticky;top:12px;z-index:50;width:calc(100% - 32px);max-width:1468px;margin:12px auto 0;padding:14px 20px 14px;border-radius:30px;color:var(--on-glass)}
+header::before,.bar::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,0) 42%)}
+.bar{position:relative;border-radius:26px}
+h1{color:var(--title)}
+.sub{color:var(--on-glass);opacity:.72}
+header .tabs{width:fit-content;max-width:100%;margin:12px 0 0;border:0;background:rgba(255,255,255,.26);border-radius:999px;padding:4px;gap:2px;box-shadow:inset 0 1px 3px rgba(16,24,32,.10)}
+@media (prefers-color-scheme:dark){header .tabs{background:rgba(255,255,255,.07)}}
+.tab{border-radius:999px;border:0;padding:8px 16px;color:var(--on-glass);opacity:.82}
+.tab:hover{background:rgba(255,255,255,.32);opacity:1}
+.tab[aria-selected=true]{background:var(--tab-sel);color:var(--sel-text);opacity:1;box-shadow:0 1px 4px rgba(16,24,32,.16),inset 0 1px 0 rgba(255,255,255,.9)}
+.tab:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.badge{background:var(--red);color:#fff}
+header>*{max-width:none}
+
+/* champs en creux : pas de verre sur du verre */
+.bar label{color:var(--on-glass);opacity:.8}
+select,input{background:var(--ctl);border:1px solid var(--glass-brd);border-radius:999px;padding:8px 14px;box-shadow:inset 0 1px 3px rgba(16,24,32,.08)}
+select:hover,input:hover{border-color:var(--pink-soft)}
+button.btn{background:linear-gradient(180deg,rgba(226,0,92,.95),rgba(195,0,69,.97));border:1px solid rgba(255,255,255,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 6px 16px rgba(195,0,69,.32)}
+button.btn:hover{background:linear-gradient(180deg,rgba(236,20,110,.97),rgba(205,10,79,1));border-color:rgba(255,255,255,.7)}
+button.btn:active{transform:scale(.97)}
+.btn2{background:var(--ctl);border:1px solid var(--glass-brd);color:var(--sel-text);box-shadow:inset 0 1px 0 var(--glass-hi)}
+.btn2:hover{border-color:var(--red)}
+.btn2:active{transform:scale(.97)}
+
+/* ---- couche contenu : opaque ---- */
+.card,.top{background:var(--card);border:1px solid rgba(255,255,255,.75);border-radius:22px;box-shadow:0 6px 22px rgba(140,25,60,.09)}
+@media (prefers-color-scheme:dark){.card,.top{border-color:rgba(255,255,255,.08)}
+  tr.tot td,.card b,.top .vl,thead th.sorted,thead th:hover{color:var(--sel-text)}
+  .tg{color:var(--sel-text);background:rgba(255,255,255,.10)}
+  .tg:hover{background:rgba(255,255,255,.2)}}
+.wrap{background:var(--card);border:1px solid rgba(255,255,255,.75);border-radius:24px;box-shadow:0 6px 22px rgba(140,25,60,.09)}
+@media (prefers-color-scheme:dark){.wrap{border-color:rgba(255,255,255,.08)}}
+thead th{background:var(--card-solid)}
+.note,.h2{color:var(--on-glass)}
+.note{opacity:.78}
+.warn{background:var(--card)}
+
+/* ---- replis d accessibilite ---- */
+@media (prefers-reduced-transparency:reduce){
+  header,.bar{background:var(--card-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  header::before,.bar::before{display:none}
+  body::before{opacity:.35}
+}
+@media (prefers-contrast:more){
+  header,.bar{border:2px solid var(--fg);background:var(--card-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  select,input{border:2px solid var(--fg)}
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  header,.bar{background:var(--card-solid)}
+}
+@media (max-width:768px){header{position:static;top:8px;width:calc(100% - 16px);border-radius:24px;padding:12px 14px}header .tabs{max-width:100%}}
