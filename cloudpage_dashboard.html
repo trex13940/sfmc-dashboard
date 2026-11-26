@@ -87,12 +87,12 @@ Variable.SetValue("@ipDiag", String(ipDiag || ""));
 /* Design tokens inspirés du funnel Belfius Direct (couleurs, rayons, ombres, boutons en pilule) */
 :root{
   --red:#c30045; --red-dark:#8c193c; --pink-bg:#fff5f8; --pink-light:#f6d8e3; --pink-mid:#f6c4d6; --pink-soft:#ffc2d7;
-  --ink:#101820; --grey-dark:#51626f; --grey-light:#e8ebed; --grey-track:#e9eaeb; --focus:#ad0cdf; --err:#f5002d; --ok:#4b9b30;
+  --ink:#101820; --grey-dark:#51626f; --grey-light:#e8ebed; --grey-track:#e9eaeb; --focus:#ad0cdf; --err:#f5002d; --ok:#4b9b30; --tx-red:#c30045; --err-text:#c40026; --ok-text:#2f7a1c; --ctl-brd:#7b8794;
   --bg:#f6f7f8; --card:#fff; --fg:#101820; --mute:#51626f; --line:#e8ebed; --acc:#c30045;
   --shadow:0 0 18px rgba(0,0,0,.10); --shadow-tile:0 5px 5px rgba(0,0,0,.10);
   --font:'Belfius21',Helvetica,Arial,sans-serif;
 }
-@media (prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#18212b;--fg:#eef0f2;--mute:#9aa8b4;--line:#2b3744;--pink-bg:#2a1a22;--shadow:0 0 18px rgba(0,0,0,.4);--acc:#ff5c8a}}
+@media (prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#18212b;--fg:#eef0f2;--mute:#9aa8b4;--line:#2b3744;--pink-bg:#2a1a22;--shadow:0 0 18px rgba(0,0,0,.4);--acc:#ff5c8a;--tx-red:#ff7da3;--err-text:#ff6b85;--ok-text:#7fd36a;--ctl-brd:#7e8c99}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
@@ -101,7 +101,7 @@ header>*{max-width:1500px;margin-left:auto;margin-right:auto}
 h1{font-size:1.25rem;font-weight:700;margin:0 auto 2px}
 .sub{color:rgba(255,255,255,.85);font-size:.8rem}
 .tabs{display:flex;gap:6px;margin-top:14px;border-bottom:1px solid rgba(255,255,255,.3);overflow-x:auto}
-.tab{padding:10px 18px;border:0;background:none;color:rgba(255,255,255,.8);cursor:pointer;font:inherit;font-weight:600;border-bottom:3px solid transparent;border-radius:12px 12px 0 0;transition:background .15s;white-space:nowrap}
+.tab{padding:10px 18px;border:0;background:none;color:rgba(255,255,255,.92);cursor:pointer;font:inherit;font-weight:600;border-bottom:3px solid transparent;border-radius:12px 12px 0 0;transition:background .15s;white-space:nowrap}
 .tab:hover{background:rgba(255,255,255,.12)}
 .tab[aria-selected=true]{color:#fff;border-color:#fff}
 .tab:focus-visible{outline:2px solid #fff;outline-offset:-4px}
@@ -109,7 +109,7 @@ h1{font-size:1.25rem;font-weight:700;margin:0 auto 2px}
 main{max-width:1500px;margin:auto;padding:20px 24px 48px}
 .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:0 0 16px;background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px 20px}
 .bar label{display:flex;flex-direction:column;font-size:.75rem;color:var(--mute);gap:4px;font-weight:600}
-select,input{font:inherit;color:var(--fg);padding:9px 12px;border:2px solid var(--line);border-radius:12px;background:var(--card);min-width:120px;transition:border-color .15s;max-width:420px}
+select,input{font:inherit;color:var(--fg);padding:9px 12px;border:2px solid var(--ctl-brd);border-radius:12px;background:var(--card);min-width:120px;transition:border-color .15s;max-width:420px}
 select:hover,input:hover{border-color:var(--pink-soft)}
 select:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--red)}
 button.btn{font:inherit;font-weight:600;padding:10px 24px;border-radius:25px;cursor:pointer;background:var(--red);color:#fff;border:2px solid var(--red);transition:border-color .15s}
@@ -118,7 +118,7 @@ button.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;margin-bottom:16px}
 .card{background:var(--card);border:2px solid transparent;border-radius:16px;padding:14px 16px;box-shadow:var(--shadow-tile);transition:transform .15s,border-color .15s}
 .card:hover{transform:scale(1.015);border-color:var(--red)}
-.card b{display:block;font-size:1.5rem;line-height:1.1;font-weight:600;color:var(--red);margin-bottom:4px}
+.card b{display:block;font-size:1.5rem;line-height:1.1;font-weight:600;color:var(--tx-red);margin-bottom:4px}
 .card span{font-size:.75rem;color:var(--mute)}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:16px}
 .charts .card{height:260px}.charts .card:hover{transform:none;border-color:transparent}
@@ -129,15 +129,16 @@ th.l,td.l{text-align:left}
 td.wrapcell{white-space:normal;min-width:180px;max-width:420px;word-break:break-word}
 thead th{position:sticky;top:0;background:var(--card);cursor:pointer;font-size:.75rem;font-weight:700;color:var(--grey-dark);z-index:1;border-bottom:2px solid var(--line)}
 @media (prefers-color-scheme:dark){thead th{color:var(--mute)}}
-thead th:hover{color:var(--red)}
-thead th.sorted{color:var(--red)}
-thead th.sorted::after{content:attr(data-arrow)}
+thead th:hover{color:var(--tx-red)}
+thead th.sorted{color:var(--tx-red)}
+.thb{display:block;width:100%;font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:inherit}
+.thb:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:4px}
 tbody tr:hover td{background:var(--pink-bg)}
-tr.tot td{font-weight:700;background:var(--pink-bg);color:var(--red)}
-.btn2{font:inherit;font-size:.8rem;font-weight:600;padding:8px 14px;margin-right:6px;border-radius:20px;cursor:pointer;background:var(--card);color:var(--red);border:2px solid var(--pink-mid)}
+tr.tot td{font-weight:700;background:var(--pink-bg);color:var(--tx-red)}
+.btn2{font:inherit;font-size:.8rem;font-weight:600;padding:8px 14px;margin-right:6px;border-radius:20px;cursor:pointer;background:var(--card);color:var(--tx-red);border:2px solid var(--pink-mid)}
 .btn2:hover{border-color:var(--red)}
 .btn2:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.tg{border:0;background:var(--pink-bg);color:var(--red);width:22px;height:22px;border-radius:50%;cursor:pointer;margin-right:8px;font-size:.75rem;line-height:22px;padding:0;vertical-align:middle;transition:transform .15s}
+.tg{border:0;background:var(--pink-bg);color:var(--tx-red);width:28px;height:28px;border-radius:50%;cursor:pointer;margin-right:8px;font-size:.8rem;line-height:28px;padding:0;vertical-align:middle;transition:transform .15s}
 .tg:hover{background:var(--pink-mid)}
 .tg:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 .tg[aria-expanded=true]{transform:rotate(90deg)}
@@ -160,29 +161,49 @@ tr.child:hover td{background:var(--pink-light)}
 .top .rk{color:var(--mute);font-weight:700}
 .top .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top .nm small{display:block;color:var(--mute);font-weight:400;font-size:.72rem}
-.top .vl{font-weight:700;color:var(--red);font-variant-numeric:tabular-nums;text-align:right}
+.top .vl{font-weight:700;color:var(--tx-red);font-variant-numeric:tabular-nums;text-align:right}
 .top .vl small{display:block;color:var(--mute);font-weight:400;font-size:.72rem}
 .top .bar2{grid-column:2/4;height:6px;border-radius:3px;background:var(--grey-track);overflow:hidden}
 .top .bar2 i{display:block;height:100%;background:var(--red);border-radius:3px}
-td.bad{color:var(--err);font-weight:700}
+td.bad{color:var(--err-text);font-weight:700}
 @media (max-width:768px){header{padding:12px 16px 0}main{padding:16px}.bar{padding:12px}.tab{padding:8px 12px}}
+/* ---- accessibilité et confort laptop ---- */
+.skip{position:absolute;left:12px;top:-60px;background:#fff;color:#8c193c;padding:8px 14px;border-radius:0 0 12px 12px;z-index:100;font-weight:700;text-decoration:none}
+.skip:focus{top:0}
+.wrap th:first-child,.wrap td:first-child{position:sticky;left:0;z-index:2;background:var(--card);box-shadow:1px 0 0 var(--line)}
+.wrap thead th:first-child{z-index:4}
+.wrap tr.tot td:first-child,.wrap tr.child td:first-child,.wrap tbody tr:hover td:first-child{background:var(--pink-bg)}
+.wrap tr.child:hover td:first-child{background:var(--pink-light)}
+@media (prefers-color-scheme:dark){.wrap tr.child:hover td:first-child{background:#3a2430}}
+.dl{display:block;font-size:.72rem;font-style:normal;font-weight:600;margin-top:3px;color:var(--mute)}
+.dl.good{color:var(--ok-text)}.dl.bad{color:var(--err-text)}
+.sum{font-size:.8rem;color:var(--mute);margin:0 0 8px 4px}
+.errbox{background:var(--card);border:2px solid var(--err-text);border-radius:16px;padding:18px 22px;margin-bottom:16px}
+.errbox b{display:block;font-size:1rem;margin-bottom:4px}
+.errbox p{margin:0 0 12px;font-size:.75rem;color:var(--mute);word-break:break-word}
+body.failed .bar,body.failed main>section{display:none!important}
+a.jl{color:inherit;text-decoration:none;border-bottom:1px dotted var(--mute)}
+a.jl:hover{color:var(--tx-red);border-bottom-color:var(--tx-red)}
+a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:3px}
 </style>
 </head>
 <body>
+<a class="skip" href="#content">Skip to the data</a>
 <header>
   <h1>Journeys – Email KPIs</h1>
-  <div class="sub" id="gen">Loading…</div>
-  <div class="tabs" role="tablist">
-    <button class="tab" role="tab" data-tab="journeys" aria-selected="true">Journeys</button>
-    <button class="tab" role="tab" data-tab="cats" aria-selected="false">Categories</button>
-    <button class="tab" role="tab" data-tab="conv" aria-selected="false">Conversions (leads)</button>
-    <button class="tab" role="tab" data-tab="ana" aria-selected="false">Journey analysis</button>
-    <button class="tab" role="tab" data-tab="ins" aria-selected="false">Insights</button>
-    <button class="tab" role="tab" data-tab="alerts" aria-selected="false">Alerts<span id="badge" class="badge" hidden></span></button>
-    <button class="tab" role="tab" data-tab="sms" aria-selected="false">SMS</button>
+  <div class="sub" id="gen" role="status" aria-live="polite">Loading…</div>
+  <div class="tabs" role="tablist" aria-label="Dashboard sections">
+    <button class="tab" role="tab" id="tab-journeys" data-tab="journeys" aria-selected="true" aria-controls="v-main" tabindex="0">Journeys</button>
+    <button class="tab" role="tab" id="tab-cats" data-tab="cats" aria-selected="false" aria-controls="v-main" tabindex="-1">Categories</button>
+    <button class="tab" role="tab" id="tab-conv" data-tab="conv" aria-selected="false" aria-controls="v-main" tabindex="-1">Conversions (leads)</button>
+    <button class="tab" role="tab" id="tab-ana" data-tab="ana" aria-selected="false" aria-controls="v-ana" tabindex="-1">Journey analysis</button>
+    <button class="tab" role="tab" id="tab-ins" data-tab="ins" aria-selected="false" aria-controls="v-ins" tabindex="-1">Insights</button>
+    <button class="tab" role="tab" id="tab-alerts" data-tab="alerts" aria-selected="false" aria-controls="v-alerts" tabindex="-1">Alerts<span id="badge" class="badge" hidden></span></button>
+    <button class="tab" role="tab" id="tab-sms" data-tab="sms" aria-selected="false" aria-controls="v-sms" tabindex="-1">SMS</button>
   </div>
 </header>
-<main>
+<main id="content" tabindex="-1">
+  <div id="errBox" class="errbox" role="alert" hidden><b id="errMsg"></b><p id="errDetail"></p><button class="btn" id="bRetry" type="button">Retry</button></div>
   <div class="bar">
     <label class="ctl" id="lFam">Family<select id="fFam"><option value="ALL">All</option><option value="MKT">Marketing (MKT_)</option><option value="OPS">Operational (Oxx_)</option></select></label>
     <label class="ctl" id="lType">Campaign type<select id="fType"><option value="">All</option></select></label>
@@ -191,18 +212,21 @@ td.bad{color:var(--err);font-weight:700}
     <label class="ctl" id="lFrom">From month<select id="fFrom"></select></label>
     <label class="ctl" id="lTo">To month<select id="fTo"></select></label>
     <label class="ctl" id="lGran">Granularity<select id="fGran"><option value="total">Period total</option><option value="month">By month</option></select></label>
+    <span class="ctl" id="lCompact"><button class="btn2" id="bCompact" type="button" aria-pressed="false">Rates only</button></span>
     <span class="ctl" id="lExp"><button class="btn2" id="bExp" type="button">Expand all</button><button class="btn2" id="bCol" type="button">Collapse all</button></span>
     <label class="ctl" id="lGrp">Group by<select id="fGrp"><option value="journey">Journey</option><option value="cat">Category</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
     <label class="ctl" id="lView">View by<select id="fView"><option value="cat">Category (prefix)</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
     <label class="ctl" id="lAlert">Alert scope<select id="fAlert"><option value="ongoing">Ongoing journeys only</option><option value="all">All journeys</option></select></label>
     <label class="ctl" id="lQ">Search<input id="fQ" placeholder="journey name…"></label>
+    <button class="btn2" id="bReset" type="button" hidden>Reset filters</button>
     <button class="btn" id="bCsv">Export CSV</button>
   </div>
-  <div id="warn" class="warn" hidden></div>
+  <div id="warn" class="warn" role="status" hidden></div>
 
   <section id="v-main">
     <div id="cards" class="cards"></div>
     <div id="charts" class="charts"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div></div>
+    <div class="sum" id="sum" aria-live="polite"></div>
     <div class="wrap"><table id="tbl"></table></div>
     <div class="note" id="note"></div>
   </section>
@@ -248,17 +272,20 @@ const ALERT_DROP = 0.15;      /* alert when volume is more than 15 % below the e
 const ALERT_MIN = 500;        /* only for journeys with more than 500 sends last month */
 const ALERT_MIN_DAYS = 3;     /* do not alert before 3 full days of data in the month */
 
-const PALETTE=['#c30045','#101820','#dc0078','#51626f','#4b9b30','#ad0cdf'];
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing'};
+const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
+const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:false};
+let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
 const EXPKEYS = {};      /* keys of the rows that can be expanded, per table */
 
 const TABS = {
-  journeys:{view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lExp','lQ'], csv:'tbl'},
-  cats:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lView','lQ'], csv:'tbl'},
+  journeys:{view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lCompact','lExp','lQ'], csv:'tbl'},
+  cats:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lCompact','lView','lQ'], csv:'tbl'},
   conv:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lGrp','lExp','lQ'], csv:'tbl'},
-  ana:     {view:'ana',  ctl:['lJ','lFrom','lTo'], csv:'tEmail'},
+  ana:     {view:'ana',  ctl:['lJ','lFrom','lTo','lCompact'], csv:'tEmail'},
   ins:     {view:'ins',  ctl:['lFam','lType','lProd','lFrom','lTo'], csv:null},
   alerts:  {view:'alerts', ctl:['lAlert'], csv:'tAlerts'},
   sms:     {view:'sms',  ctl:['lFrom','lTo','lQ'], csv:'tSms'}
@@ -318,11 +345,14 @@ const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>
 const famOf = name => /^MKT_/i.test(name) ? 'MKT' : 'OPS';
 
 /* ---------- filtres ---------- */
-const inScope = (name, month) =>
+const baseOk = name =>
   (S.fam==='ALL' || famOf(name)===S.fam) &&
   (!S.type || parse(name).type===S.type) && (!S.prod || parse(name).product===S.prod) &&
-  (!S.from || month>=S.from) && (!S.to || month<=S.to) &&
   (!S.q || name.toLowerCase().includes(S.q.toLowerCase()));
+const inScope = (name, month) => baseOk(name) && (!S.from || month>=S.from) && (!S.to || month<=S.to);
+const mIdx = m => { const [y,mo] = m.split('-').map(Number); return y*12+mo-1; };
+const mStr = i => Math.floor(i/12)+'-'+String(i%12+1).padStart(2,'0');
+const prevRange = () => { if(!S.from||!S.to) return null; const a=mIdx(S.from), len=mIdx(S.to)-a+1; return len>0 ? {from:mStr(a-len), to:mStr(a-1)} : null; };
 const inMonths = m => (!S.from || m>=S.from) && (!S.to || m<=S.to);
 
 function group(rows, keyFn){
@@ -337,6 +367,7 @@ function group(rows, keyFn){
   return [...m.values()];
 }
 const deliv = a => a.Sends - a.Bounces;
+const COMPACT_KEYS = ['Sends','rDel','rBnc','rOpen','rCtr','rCtor','rUns','rCmp'];
 const ZERO = () => ({Sends:0,Bounces:0,Opens:0,Clicks:0,Unsubs:0,Compl:0});
 
 /* ---------- colonnes KPI ---------- */
@@ -357,11 +388,13 @@ const KPI_COLS = [
   {k:'rCmp',   l:'Complaint %',v:a=>deliv(a)?a.Compl/deliv(a):-1,  f:a=>pct(a.Compl,deliv(a))},
 ];
 
+const kpiCols = () => S.compact ? KPI_COLS.filter(c=>COMPACT_KEYS.includes(c.k)) : KPI_COLS;
+
 /* colonnes d'identité d'une journey : Campaign > Month (covered) > Family > Type > Product (+ activity, + send month) */
 function journeyCols(withAct, monthly, monthLabel){
   const pj = a => parse(a.name);
   const c = [
-    {k:'campaign',l:'Campaign',v:a=>pj(a).campaign.toLowerCase(),f:a=>`<span title="${esc(a.name)}">${esc(pj(a).campaign)}</span>`},
+    {k:'campaign',l:'Campaign',v:a=>pj(a).campaign.toLowerCase(),f:a=>JSET.has(a.name) ? `<a href="#" class="jl" data-j="${esc(a.name)}" title="${esc(a.name)} – open the journey analysis">${esc(pj(a).campaign)}</a>` : `<span title="${esc(a.name)}">${esc(pj(a).campaign)}</span>`},
     {k:'covered',l:'Month',v:a=>pj(a).covered,f:a=>esc(pj(a).covered||'–')},
     {k:'fam',l:'Family',v:a=>pj(a).fam,f:a=>esc(pj(a).fam)},
     {k:'type',l:'Type',v:a=>pj(a).type,f:a=>esc(lab('type',pj(a).type))},
@@ -389,14 +422,14 @@ function renderTable(id, keyCols, cols, rows, total, opts){
   const kc = (sk && cols.find(c=>c.k===sk)) || cols[0];
   const rowKey = r => id+'|'+r.name+'|'+(r.month||'');
   const keys = [];
-  let h = '<thead><tr>'+all.map(c=>`<th class="${c.left?'l':''} ${c.k===sk?'sorted':''}" data-k="${c.k}" data-arrow="${dir>0?' ▲':' ▼'}">${esc(c.l)}</th>`).join('')+'</tr></thead><tbody>';
+  let h = '<thead><tr>'+all.map(c=>`<th scope="col" class="${c.left?'l':''} ${c.k===sk?'sorted':''}" data-k="${c.k}"${c.k===sk?` aria-sort="${dir>0?'ascending':'descending'}"`:''}><button type="button" class="thb" title="Sort by ${esc(c.l)}">${esc(c.l)}<span aria-hidden="true">${c.k===sk?(dir>0?' ▲':' ▼'):''}</span></button></th>`).join('')+'</tr></thead><tbody>';
   if (total) h += '<tr class="tot">'+all.map(c=>`<td class="${c.left?'l':''}">${c.left? (c===all[0]?'TOTAL':'') : c.f(total)}</td>`).join('')+'</tr>';
   for (const r of rows){
     const ch = opts.children ? opts.children(r) : null, rk = rowKey(r), open = !!(ch && ch.length && EXP.has(rk));
     if (ch && ch.length) keys.push(rk);
     h += '<tr>'+all.map((c,i)=>{
       let inner = c.f(r);
-      if (i===0 && ch && ch.length) inner = `<button type="button" class="tg" data-rk="${esc(rk)}" aria-expanded="${open}" title="Show / hide email activities" aria-label="Show or hide email activities">▸</button>`+inner;
+      if (i===0 && ch && ch.length) inner = `<button type="button" class="tg" data-rk="${esc(rk)}" aria-expanded="${open}" title="Show / hide email activities" aria-label="Email activities of ${esc(r.name)}">▸</button>`+inner;
       return `<td class="${(c.left?'l ':'')+(c.cls?c.cls(r):'')}">${inner}</td>`;
     }).join('')+'</tr>';
     if (open) for (const x of [...ch].sort((a,b)=>kc.v(b)>kc.v(a)?1:kc.v(b)<kc.v(a)?-1:0))
@@ -407,31 +440,70 @@ function renderTable(id, keyCols, cols, rows, total, opts){
   EXPKEYS[id] = keys;
   $(id).innerHTML = h;
   $(id).querySelectorAll('th').forEach(th=>th.onclick=()=>{
-    const k=th.dataset.k, cur=SORT[id]; SORT[id] = {k, d: cur&&cur.k===k ? -cur.d : -1}; render();
+    const k=th.dataset.k, cur=SORT[id]; SORT[id] = {k, d: cur&&cur.k===k ? -cur.d : -1}; FOCUS={id,k}; render();
   });
-  $(id).querySelectorAll('.tg').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const k=b.dataset.rk; EXP.has(k)?EXP.delete(k):EXP.add(k); render(); });
+  $(id).querySelectorAll('.tg').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const k=b.dataset.rk; EXP.has(k)?EXP.delete(k):EXP.add(k); FOCUS={id,rk:k}; render(); });
+  if (FOCUS && FOCUS.id===id){   /* keep keyboard focus after the table is redrawn */
+    const f=FOCUS; FOCUS=null;
+    const el = f.k ? [...$(id).querySelectorAll('th')].find(x=>x.dataset.k===f.k)?.querySelector('.thb') : [...$(id).querySelectorAll('.tg')].find(x=>x.dataset.rk===f.rk);
+    if (el) el.focus();
+  }
 }
 
-function cards(id, items){ $(id).innerHTML = items.map(([v,l])=>`<div class="card"><b>${v}</b><span>${esc(l)}</span></div>`).join(''); }
-const kpiCards = tot => [[n(tot.Sends),'Sends'],[n(deliv(tot)),'Delivered'],[pct(deliv(tot),tot.Sends),'Delivery rate'],[pct(tot.Opens,deliv(tot)),'Open rate'],
-  [pct(tot.Clicks,deliv(tot)),'CTR (unique)'],[pct(tot.Clicks,tot.Opens),'CTOR'],[pct(tot.Bounces,tot.Sends),'Bounce rate'],[pct(tot.Unsubs,deliv(tot)),'Unsub rate'],[pct(tot.Compl,deliv(tot)),'Complaint rate']];
+function cards(id, items){
+  $(id).innerHTML = items.map(([v,l,d,c,ttl])=>`<div class="card"><b>${v}</b><span>${esc(l)}</span>${d?`<em class="dl ${c||''}" title="${esc(ttl||'')}">${esc(d)}</em>`:''}</div>`).join('');
+}
+const KPI_CARDS = [
+  {l:'Sends',        v:t=>t.Sends,                          kind:'vol'},
+  {l:'Delivered',    v:t=>deliv(t),                         kind:'vol'},
+  {l:'Delivery rate',v:t=>t.Sends?deliv(t)/t.Sends:null,    kind:'rate',good:'up'},
+  {l:'Open rate',    v:t=>deliv(t)?t.Opens/deliv(t):null,   kind:'rate',good:'up'},
+  {l:'CTR (unique)', v:t=>deliv(t)?t.Clicks/deliv(t):null,  kind:'rate',good:'up'},
+  {l:'CTOR',         v:t=>t.Opens?t.Clicks/t.Opens:null,    kind:'rate',good:'up'},
+  {l:'Bounce rate',  v:t=>t.Sends?t.Bounces/t.Sends:null,   kind:'rate',good:'down'},
+  {l:'Unsub rate',   v:t=>deliv(t)?t.Unsubs/deliv(t):null,  kind:'rate',good:'down'},
+  {l:'Complaint rate',v:t=>deliv(t)?t.Compl/deliv(t):null,  kind:'rate',good:'down'}
+];
+const fx1 = x => x.toFixed(1).replace('.',',');
+function kpiCards(tot, prev, pr){
+  return KPI_CARDS.map(c=>{
+    const v = c.v(tot), val = c.kind==='vol' ? n(v) : (v==null ? '–' : PF.format(v));
+    let d = '', cls = '';
+    const p = prev ? c.v(prev) : null;
+    if (prev && p!=null && v!=null){
+      let x, txt;
+      if (c.kind==='vol'){ if (p>0){ x = v/p-1; const flat = Math.abs(x)*100<0.05; txt = (flat?'= ':x>0?'▲ +':'▼ −')+(flat?'0,0':fx1(Math.abs(x)*100))+' %'; } }
+      else { x = (v-p)*100; txt = (Math.abs(x)<0.05?'= ':x>0?'▲ +':'▼ −')+(Math.abs(x)<0.05?'0,0':fx1(Math.abs(x)))+' pt'; }
+      if (txt){ d = txt; if (c.good && (c.kind==='vol'?Math.abs(x)*100:Math.abs(x))>=0.05) cls = (x>0)===(c.good==='up') ? 'good' : 'bad'; }
+    }
+    return [val, c.l, d, cls, pr ? 'vs '+pr.from+' → '+pr.to : ''];
+  });
+}
 
 function drawCharts(defs, ids){
   ids = ids || ['c1','c2'];
   charts.forEach(c=>c.destroy()); charts=[];
   if(!window.Chart) return;
+  const dark = DARK(), PAL = dark ? PAL_D : PAL_L;
+  Chart.defaults.color = dark ? '#b4c0ca' : '#51626f';
+  Chart.defaults.borderColor = dark ? 'rgba(255,255,255,.14)' : 'rgba(16,24,32,.12)';
   defs.forEach((d,i)=>{
-    charts.push(new Chart($(ids[i]),{type:d.type||'line',data:{labels:d.labels,datasets:d.sets.map((s,j)=>({label:s.l,data:s.d,borderWidth:2.5,tension:.25,pointRadius:3,yAxisID:'y',borderColor:PALETTE[j%PALETTE.length],backgroundColor:PALETTE[j%PALETTE.length]}))},
-      options:{maintainAspectRatio:false,plugins:{title:{display:true,text:d.title},legend:{position:'bottom'}},
-               scales:{y:{beginAtZero:true,ticks:{callback:v=>d.pct?(v*100).toFixed(0)+' %':NF.format(v)}}},
-               interaction:{mode:'index',intersect:false}}}));
+    const cv = $(ids[i]), fmt = v => d.pct ? fx1(v*100)+' %' : NF.format(v), last = d.labels.length-1;
+    cv.setAttribute('role','img');
+    cv.setAttribute('aria-label', d.title+'. '+(last>=0 ? d.sets.map(s=>s.l+': '+fmt(s.d[0])+' in '+d.labels[0]+(last>0?' to '+fmt(s.d[last])+' in '+d.labels[last]:'')).join('; ') : 'No data.'));
+    const two = d.sets.some(s=>s.right), tick = v => d.pct ? (v*100).toFixed(0)+' %' : NF.format(v);
+    const scales = {y:{beginAtZero:true,position:'left',title:{display:two,text:d.axisL||''},ticks:{callback:tick}}};
+    if (two) scales.y1 = {beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:d.axisR||''},ticks:{callback:tick}};
+    charts.push(new Chart(cv,{type:d.type||'line',data:{labels:d.labels,datasets:d.sets.map((s,j)=>({label:s.l,data:s.d,borderWidth:2.5,tension:.25,pointRadius:4,pointStyle:PTS[j%PTS.length],borderDash:(d.type==='bar')?undefined:DASHES[j%DASHES.length],yAxisID:s.right?'y1':'y',borderColor:PAL[j%PAL.length],backgroundColor:PAL[j%PAL.length]}))},
+      options:{maintainAspectRatio:false,plugins:{title:{display:true,text:d.title},legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:10}}},
+               scales, interaction:{mode:'index',intersect:false}}}));
   });
 }
 const byMonthCharts = rows => {
   const byM = group(rows, r=>['',r.Month]).sort((a,b)=>a.month<b.month?-1:1);
   return [
-    {title:'Volumes by month',labels:byM.map(a=>a.month),sets:[{l:'Sends',d:byM.map(a=>a.Sends)},{l:'Delivered',d:byM.map(deliv)},{l:'Opens',d:byM.map(a=>a.Opens)},{l:'Unique clicks',d:byM.map(a=>a.Clicks)}]},
-    {title:'Rates by month',pct:true,labels:byM.map(a=>a.month),sets:[{l:'Open %',d:byM.map(a=>deliv(a)?a.Opens/deliv(a):0)},{l:'CTR %',d:byM.map(a=>deliv(a)?a.Clicks/deliv(a):0)},{l:'Bounce %',d:byM.map(a=>a.Sends?a.Bounces/a.Sends:0)}]}
+    {title:'Volumes by month',labels:byM.map(a=>a.month),sets:[{l:'Sends',d:byM.map(a=>a.Sends)},{l:'Opens',d:byM.map(a=>a.Opens)},{l:'Unique clicks',d:byM.map(a=>a.Clicks)}]},
+    {title:'Rates by month',pct:true,axisL:'Open %',axisR:'CTR % and Bounce %',labels:byM.map(a=>a.month),sets:[{l:'Open % (left axis)',d:byM.map(a=>deliv(a)?a.Opens/deliv(a):0)},{l:'CTR % (right axis)',right:true,d:byM.map(a=>deliv(a)?a.Clicks/deliv(a):0)},{l:'Bounce % (right axis)',right:true,d:byM.map(a=>a.Sends?a.Bounces/a.Sends:0)}]}
   ];
 };
 
@@ -446,19 +518,22 @@ function viewKpi(dim){
   const rows = D.kpi.filter(r=>inScope(r.JourneyName,r.Month));
   const grouped = group(rows, r => [dimVal(r,dim), monthly ? r.Month : '']);
   const tot = group(rows, r=>['','']) [0] || ZERO();
-  cards('cards', kpiCards(tot));
+  const pr = prevRange(), prevRows = pr ? D.kpi.filter(r=>baseOk(r.JourneyName) && r.Month>=pr.from && r.Month<=pr.to) : [];
+  cards('cards', kpiCards(tot, prevRows.length ? group(prevRows, r=>['','']) [0] : null, pr));
   const isJ = dim==='journey';
   const keyCols = isJ ? journeyCols(false, monthly)
     : [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}].concat(monthly?[{k:'month',l:'Month',v:a=>a.month,f:a=>esc(a.month)}]:[]);
-  let opts = {defK:monthly?'month':null};
+  const empty = D.kpi.length ? 'No data for the current selection. Try "Reset filters".' : 'No data loaded yet. Check that the nightly automations have run.';
+  setSummary(grouped.length, dim);
+  let opts = {defK:monthly?'month':null, empty};
   if (isJ){
     const acts = S.tab==='journeys' && D.email.length ? group(D.email.filter(r=>inScope(r.JourneyName,r.Month)), r=>[r.JourneyName, monthly?r.Month:'', parseEmail(r.EmailName).label]) : [];
-    opts = {cmp:recentCmp, children:childMap(acts, monthly)};
+    opts = {cmp:recentCmp, children:childMap(acts, monthly), empty};
   }
-  renderTable('tbl', keyCols, KPI_COLS, grouped, tot, opts);
+  renderTable('tbl', keyCols, kpiCols(), grouped, tot, opts);
   drawCharts(byMonthCharts(rows));
   $('note').textContent = (S.tab==='journeys' ? "Most recent first (latest send month, then covered month). Click the arrow in front of a journey to show its email activities (FR/NL versions merged; anything after a \"-\" in the campaign name is ignored). " : "") +
-    "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens." +
+    "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens. The arrows on the cards compare with the previous period of the same length (percentage points for rates; green = better, red = worse). In the rates chart, Open % uses the left axis and CTR / Bounce % the right axis." +
     (S.tab==='journeys' && !D.email.length ? " Email-level data not available yet (DASH_Email_KPI_Monthly)." : "");
 }
 
@@ -509,6 +584,8 @@ function viewConv(){
     const acts = D.email.length ? convAgg(rows, 'journey', monthly, true).out : [];
     opts = {cmp:recentCmp, children:childMap(acts, monthly)};
   }
+  opts.empty = D.conv.length ? 'No data for the current selection. Try "Reset filters".' : 'No leads loaded yet (DASH_Conversions).';
+  setSummary(out.length, dim);
   renderTable('tbl', keyCols, cols, out, tot, opts);
   const byM = {}; rows.forEach(r=>{(byM[r.SendMonth]=byM[r.SendMonth]||{l:0,c:0}); byM[r.SendMonth].l++; byM[r.SendMonth].c+=r.IsConverted;});
   const ms = Object.keys(byM).sort();
@@ -559,7 +636,7 @@ function viewAlerts(){
   $('alNote').textContent = "Compares sends so far this month with last month's volume pro-rated to the days elapsed (data is refreshed nightly, up to yesterday). Alert when more than "+(ALERT_DROP*100)+" % below, for journeys with more than "+n(ALERT_MIN)+" sends last month. A journey with no send this month shows −100 %. Dated campaign journeys are excluded unless the scope is set to all journeys.";
   const b = $('badge'); const cnt = list.length; b.textContent = cnt; b.hidden = !cnt;
 }
-function updateBadge(){ const A=computeAlerts(); const c=A.rows.filter(a=>a.alert).length; $('badge').textContent=c; $('badge').hidden=!c; }
+function updateBadge(){ const A=computeAlerts(); const c=A.rows.filter(a=>a.alert).length; const b=$('badge'); b.textContent=c; b.hidden=!c; b.setAttribute('aria-label', ', '+c+' journey'+(c>1?'s':'')+' in alert'); }
 
 /* ---------- Journey analysis ---------- */
 async function viewAna(){
@@ -572,11 +649,11 @@ async function viewAna(){
   const keyL = [{k:'name',l:'Language',v:a=>a.name,f:a=>esc(a.name)}];
   const byLang = group(eRows, r=>[parseEmail(r.EmailName).lang||'n/a','']);
   const empty = 'Email-level data not available yet (DASH_Email_KPI_Monthly).';
-  renderTable('tLang', keyL, KPI_COLS, byLang, byLang.length>1?tot:null, {defK:'Sends', empty});
+  renderTable('tLang', keyL, kpiCols(), byLang, byLang.length>1?tot:null, {defK:'Sends', empty});
   const keyE = [{k:'name',l:'Email',v:a=>a.name.toLowerCase(),f:a=>`<span title="${esc(parseEmail(a.name).label)}">${esc(a.name)}</span>`},
                 {k:'lang',l:'Lang',v:a=>parseEmail(a.name).lang,f:a=>esc(parseEmail(a.name).lang||'–')}];
   const byEmail = group(eRows, r=>[r.EmailName||'(unknown)','']);
-  renderTable('tEmail', keyE, KPI_COLS, byEmail, byEmail.length>1?tot:null, {defK:'Sends', empty});
+  renderTable('tEmail', keyE, kpiCols(), byEmail, byEmail.length>1?tot:null, {defK:'Sends', empty});
   /* links : chargés à la demande */
   const lc = [{k:'email',l:'Email',v:a=>a.email.toLowerCase(),f:a=>esc(a.email)},{k:'lang',l:'Lang',v:a=>a.lang,f:a=>esc(a.lang||'–')},
               {k:'link',l:'Link name',v:a=>a.link.toLowerCase(),f:a=>esc(a.link||'–')},{k:'content',l:'Link content',v:a=>a.content.toLowerCase(),f:a=>`<span title="${esc(a.content)}">${esc(a.content.length>80?a.content.slice(0,80)+'…':a.content||'–')}</span>`}];
@@ -640,15 +717,50 @@ function viewSms(){
 }
 
 /* ---------- affichage ---------- */
+const NOUN = {journey:'journeys',cat:'categories',type:'campaign types',product:'products'};
+function setSummary(count, dim){
+  const parts = [];
+  if (S.fam!=='ALL') parts.push('Family: '+(S.fam==='MKT'?'MKT_':'Oxx_'));
+  if (S.type) parts.push('Type: '+S.type);
+  if (S.prod) parts.push('Product: '+S.prod);
+  if (S.q) parts.push('Search: "'+S.q+'"');
+  parts.push(S.gran==='month' ? 'by month' : 'period total');
+  $('sum').textContent = n(count)+' '+(S.gran==='month' ? 'rows' : (NOUN[dim]||'rows'))+' · '+(S.from||'…')+' → '+(S.to||'…')+' · '+parts.join(' · ');
+}
+const FILTERS = ['fam','type','prod','q','gran','from','to'];
+const HSEL = {fam:'fFam',type:'fType',prod:'fProd',from:'fFrom',to:'fTo',gran:'fGran',grp:'fGrp',view:'fView',j:'fJ',alert:'fAlert'};
+function saveHash(){
+  try{
+    const p = new URLSearchParams();
+    for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
+    if (S.compact) p.set('compact','1');
+    const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
+  }catch(e){}
+}
+function loadHash(){
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (TABS[p.get('tab')]) S.tab = p.get('tab');
+  for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
+  if (p.get('q')){ S.q=p.get('q'); $('fQ').value=S.q; }
+  S.compact = p.get('compact')==='1';
+}
+function selectTab(t, focus){
+  S.tab = t; SORT.tbl = null;
+  document.querySelectorAll('.tab').forEach(x=>{ const on = x.dataset.tab===t; x.setAttribute('aria-selected',on); x.tabIndex = on?0:-1; if (on && focus) x.focus(); });
+  render();
+}
 function render(){
   const cfg = TABS[S.tab];
   document.querySelectorAll('.ctl').forEach(el=>el.hidden = !cfg.ctl.includes(el.id));
   if (S.tab==='conv' && S.grp!=='journey') $('lExp').hidden = true;
   $('bCsv').hidden = !cfg.csv;
+  $('bReset').hidden = !(FILTERS.some(k=>S[k]!==DEF[k]) && ['journeys','cats','conv','ins','sms'].includes(S.tab));
+  $('bCompact').setAttribute('aria-pressed', S.compact); $('bCompact').textContent = S.compact ? 'All columns' : 'Rates only';
   ['main','ana','ins','alerts','sms'].forEach(v=>$('v-'+v).hidden = v!==cfg.view);
+  $('v-'+cfg.view).setAttribute('aria-labelledby','tab-'+S.tab);
   if (S.tab==='journeys') viewKpi('journey'); else if (S.tab==='cats') viewKpi(S.view); else if (S.tab==='conv') viewConv();
   else if (S.tab==='ana') viewAna(); else if (S.tab==='ins') viewIns(); else if (S.tab==='alerts') viewAlerts(); else viewSms();
-  updateBadge();
+  updateBadge(); saveHash();
 }
 
 async function api(part){
@@ -677,18 +789,19 @@ function setup(){
   const last = new Map(); D.kpi.forEach(r=>{ if((last.get(r.JourneyName)||'')<r.Month) last.set(r.JourneyName,r.Month); });
   const js = [...last.keys()].sort((a,b)=>(last.get(b)>last.get(a)?1:last.get(b)<last.get(a)?-1:0)||(covKey(b)>covKey(a)?1:covKey(b)<covKey(a)?-1:0)||(a<b?-1:1));
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
-  S.j = js[0] || '';
+  S.j = js[0] || ''; JSET = new Set(js);
+  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
   on('fJ',v=>S.j=v); on('fAlert',v=>S.alert=v);
   $('bExp').onclick = ()=>{ (EXPKEYS.tbl||[]).forEach(k=>EXP.add(k)); render(); };
   $('bCol').onclick = ()=>{ (EXPKEYS.tbl||[]).forEach(k=>EXP.delete(k)); render(); };
+  $('bCompact').onclick = ()=>{ S.compact = !S.compact; render(); };
+  $('bReset').onclick = ()=>{ for (const k of ['fam','type','prod','gran','from','to']){ S[k]=DEF[k]; $(HSEL[k]).value=DEF[k]; } S.q=''; $('fQ').value=''; SORT.tbl=null; render(); };
   $('fQ').oninput = e=>{S.q=e.target.value;render();};
-  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
-    document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===b));
-    S.tab=b.dataset.tab; SORT.tbl=null; render();
-  });
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab));
+  loadHash();
   $('bCsv').onclick = ()=>{
     const id = TABS[S.tab].csv; if(!id) return;
     const csv = [...$(id).rows].map(r=>[...r.cells].map(c=>'"'+c.textContent.replace(/"/g,'""')+'"').join(';')).join('\n');
@@ -697,17 +810,41 @@ function setup(){
   };
 }
 
-(async()=>{
+/* listeners installed once */
+document.querySelectorAll('main > section').forEach(s=>s.setAttribute('role','tabpanel'));
+document.querySelector('.tabs').addEventListener('keydown', e=>{
+  const tabs = [...document.querySelectorAll('.tab')], i = tabs.indexOf(document.activeElement);
+  if (i<0) return;
+  const to = e.key==='ArrowRight' ? (i+1)%tabs.length : e.key==='ArrowLeft' ? (i-1+tabs.length)%tabs.length : e.key==='Home' ? 0 : e.key==='End' ? tabs.length-1 : -1;
+  if (to>=0){ e.preventDefault(); selectTab(tabs[to].dataset.tab, true); }
+});
+document.addEventListener('click', e=>{
+  const a = e.target.closest && e.target.closest('a.jl'); if (!a) return;
+  e.preventDefault(); S.j = a.dataset.j; $('fJ').value = S.j; selectTab('ana', false); window.scrollTo(0,0);
+});
+$('bRetry').onclick = () => load();
+
+function friendly(msg){
+  if (/^forbidden/i.test(msg)) return 'Access denied for this IP address.';
+  if (/^unauthorized/i.test(msg)) return 'The access key is missing or invalid. Open the dashboard with the full link (it ends with ?k=…) or ask the Marketing Cloud admin.';
+  return 'The dashboard could not load its data. Please retry in a moment.';
+}
+async function load(){
+  $('errBox').hidden = true; document.body.classList.remove('failed'); $('gen').textContent = 'Loading…';
   try{
     const j = await api('');
     D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], links:null, sms:null, generatedMs:j.generatedMs||0};
+    LOADING = {}; $('warn').hidden = true;
     $('gen').textContent = 'Data as of '+(j.generatedMs ? new Intl.DateTimeFormat('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels',timeZoneName:'short'}).format(new Date(j.generatedMs)) : '–')+' · months in CET/CEST';
     showWarn(j.warnings);
-    setup(); render();
+    setup(); selectTab(S.tab);
   }catch(e){
-    $('gen').innerHTML = '<span class="err">Error: '+esc(e.message)+'</span>';
+    document.body.classList.add('failed');
+    $('errMsg').textContent = friendly(String(e.message||e)); $('errDetail').textContent = 'Technical detail: '+String(e.message||e);
+    $('errBox').hidden = false; $('gen').textContent = 'Data unavailable';
   }
-})();
+}
+load();
 </script>
 </body>
 </html>

@@ -70,3 +70,11 @@ L'API (`cloudpage_api.html`) renvoie les données principales par défaut ; `&pa
 
 ## Convention de nommage des emails (activités)
 `MKT|Oxx_Type_Produit_Campagne[-info]_FR|NL_EMx_mmyyyy|ongoing`. Le split par activité ignore la langue, `EMx`, la période et tout ce qui suit un `-` dans le nom de campagne. BIKE devient BIK. Pour les produits PET et HOM, le détail cat/dog ou renters/owner est lu dans le nom.
+
+## Accessibilité et confort (audit)
+- Contrastes corrigés (thème sombre, bordures des champs, onglets) ; séries des graphiques distinguées par la forme et le style de trait ; axe de droite pour CTR % et Bounce % ; texte alternatif sur chaque graphique.
+- Clavier : en-têtes de colonnes triables (boutons, `aria-sort`), onglets avec flèches / Début / Fin, lien « Skip to the data », focus conservé après un tri ou un dépliage.
+- États : chargement et erreurs annoncés (`role=status` / `role=alert`), message lisible avec bouton *Retry* (le détail technique reste affiché en petit).
+- Confort laptop : première colonne figée, bouton *Rates only* (colonnes de taux seulement), résumé des filtres avec nombre de lignes, bouton *Reset filters*, cartes KPI avec écart par rapport à la période précédente de même durée (flèche et couleur), nom de journey cliquable vers *Journey analysis*.
+- Les filtres, l'onglet et le mode *Rates only* sont conservés dans l'adresse (après le `#`), ce qui permet de partager une vue. Le token `?k=` reste dans la partie avant le `#`.
+- Hors périmètre : l'affichage mobile n'a pas été optimisé (usage prévu sur laptop).
