@@ -1,0 +1,85 @@
+<script runat="server">
+Platform.Load("core", "1.1.1");
+Platform.Response.SetResponseHeader("Content-Type", "application/json; charset=utf-8");
+Platform.Response.SetResponseHeader("Cache-Control", "no-store");
+
+/* Lit une DE entière avec pagination WSProxy (pas de limite des 2500 lignes) */
+function fetchAll(deKey, cols) {
+  var prox = new Script.Util.WSProxy(), out = [];
+  var obj = "DataExtensionObject[" + deKey + "]";
+  var r = prox.retrieve(obj, cols);
+  while (r && r.Results) {
+    for (var i = 0; i < r.Results.length; i++) {
+      var o = {}, p = r.Results[i].Properties;
+      for (var j = 0; j < p.length; j++) { o[p[j].Name] = p[j].Value; }
+      out.push(o);
+    }
+    if (r.HasMoreRows) { r = prox.getNextBatch(obj, r.RequestID); } else { break; }
+  }
+  return out;
+}
+/* ---- IP allowlist : DE "DASH_IP_Allowlist" (IPAddress PK, Description). IPv4 exact / CIDR, IPv6 exact. Fail closed. ---- */
+function ipToNum(ip) {
+  var p = String(ip).split("."); if (p.length !== 4) return null;
+  var n = 0;
+  for (var i = 0; i < 4; i++) {
+    if (!/^\d{1,3}$/.test(p[i])) return null;
+    var x = parseInt(p[i], 10); if (x > 255) return null;
+    n = n * 256 + x;
+  }
+  return n;
+}
+function isIpAllowed(ip) {
+  if (!ip) return false;
+  ip = String(ip).replace(/^\s+|\s+$/g, "").toLowerCase();
+  var rows = DataExtension.Init("DASH_IP_Allowlist").Rows.Retrieve();
+  var ipN = ipToNum(ip);
+  for (var i = 0; i < rows.length; i++) {
+    var e = String(rows[i].IPAddress || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+    if (!e || e.charAt(0) === "#") continue;
+    if (e === ip) return true;
+    var s = e.indexOf("/");
+    if (s > 0 && ipN !== null) {
+      var base = ipToNum(e.substring(0, s)), bits = parseInt(e.substring(s + 1), 10);
+      if (base === null || isNaN(bits) || bits < 0 || bits > 32) continue;
+      var size = Math.pow(2, 32 - bits), start = Math.floor(base / size) * size;
+      if (ipN >= start && ipN < start + size) return true;
+    }
+  }
+  return false;
+}
+var clientIp = "", ipOk = false;
+try { clientIp = Platform.Request.ClientIP; ipOk = isIpAllowed(clientIp); } catch (eIp) { ipOk = false; }
+
+function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+
+try {
+  /* Auth minimale : ?k=<token> comparé à DASH_Config (ConfigKey='token') */
+  if (!ipOk) { Write(Stringify({ error: "forbidden" })); throw "STOP"; }
+  var k   = Platform.Request.GetQueryStringParameter("k");
+  var ref = Platform.Function.Lookup("DASH_Config", "Value", "ConfigKey", "token");
+  if (!k || !ref || k !== ref) {
+    Write(Stringify({ error: "unauthorized" }));
+  } else {
+    var kpi = fetchAll("DASH_Journey_KPI_Monthly",
+      ["JourneyName","Month","Category","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"]);
+    for (var i = 0; i < kpi.length; i++) {
+      var r = kpi[i];
+      r.Sends = num(r.Sends); r.Bounces = num(r.Bounces); r.Opens = num(r.Opens);
+      r.UniqueClicks = num(r.UniqueClicks); r.Unsubscribes = num(r.Unsubscribes); r.Complaints = num(r.Complaints);
+    }
+    var conv = [];
+    try {
+      conv = fetchAll("DASH_Conversions",
+        ["LeadId","JourneyName","Category","SendMonth","SendDate","LeadCreatedDate","LeadStatus","IsConverted","DaysToLead","Opened","Clicked"]);
+      for (var m = 0; m < conv.length; m++) {
+        conv[m].IsConverted = num(conv[m].IsConverted); conv[m].DaysToLead = num(conv[m].DaysToLead);
+        conv[m].Opened = num(conv[m].Opened); conv[m].Clicked = num(conv[m].Clicked);
+      }
+    } catch (e2) { conv = []; }   /* la vue conversions est optionnelle */
+    Write(Stringify({ generatedMs: new Date().getTime(), kpi: kpi, conv: conv }));
+  }
+} catch (e) {
+  if (e !== "STOP") { Write(Stringify({ error: String(e.message || e) })); }
+}
+</script>

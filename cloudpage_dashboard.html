@@ -1,0 +1,367 @@
+<script runat="server">
+Platform.Load("core", "1.1.1");
+/* ---- IP allowlist : DE "DASH_IP_Allowlist" (IPAddress PK, Description). IPv4 exact / CIDR, IPv6 exact. Fail closed. ---- */
+function ipToNum(ip) {
+  var p = String(ip).split("."); if (p.length !== 4) return null;
+  var n = 0;
+  for (var i = 0; i < 4; i++) {
+    if (!/^\d{1,3}$/.test(p[i])) return null;
+    var x = parseInt(p[i], 10); if (x > 255) return null;
+    n = n * 256 + x;
+  }
+  return n;
+}
+function isIpAllowed(ip) {
+  if (!ip) return false;
+  ip = String(ip).replace(/^\s+|\s+$/g, "").toLowerCase();
+  var rows = DataExtension.Init("DASH_IP_Allowlist").Rows.Retrieve();
+  var ipN = ipToNum(ip);
+  for (var i = 0; i < rows.length; i++) {
+    var e = String(rows[i].IPAddress || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+    if (!e || e.charAt(0) === "#") continue;
+    if (e === ip) return true;
+    var s = e.indexOf("/");
+    if (s > 0 && ipN !== null) {
+      var base = ipToNum(e.substring(0, s)), bits = parseInt(e.substring(s + 1), 10);
+      if (base === null || isNaN(bits) || bits < 0 || bits > 32) continue;
+      var size = Math.pow(2, 32 - bits), start = Math.floor(base / size) * size;
+      if (ipN >= start && ipN < start + size) return true;
+    }
+  }
+  return false;
+}
+var clientIp = "", ipOk = false;
+try { clientIp = Platform.Request.ClientIP; ipOk = isIpAllowed(clientIp); } catch (eIp) { ipOk = false; }
+Variable.SetValue("@ipOk", ipOk ? "1" : "0");
+Variable.SetValue("@clientIp", String(clientIp || ""));
+</script>
+%%[ IF @ipOk == "1" THEN ]%%
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Journeys Dashboard – Email KPIs</title>
+<style>
+/* Design tokens inspirés du funnel Belfius Direct (couleurs, rayons, ombres, boutons en pilule) */
+:root{
+  --red:#c30045; --red-dark:#8c193c; --pink-bg:#fff5f8; --pink-light:#f6d8e3; --pink-mid:#f6c4d6; --pink-soft:#ffc2d7;
+  --ink:#101820; --grey-dark:#51626f; --grey-light:#e8ebed; --grey-track:#e9eaeb; --focus:#ad0cdf; --err:#f5002d; --ok:#4b9b30;
+  --bg:#f6f7f8; --card:#fff; --fg:#101820; --mute:#51626f; --line:#e8ebed; --acc:#c30045;
+  --shadow:0 0 18px rgba(0,0,0,.10); --shadow-tile:0 5px 5px rgba(0,0,0,.10);
+  --font:'Belfius21',Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#18212b;--fg:#eef0f2;--mute:#9aa8b4;--line:#2b3744;--pink-bg:#2a1a22;--shadow:0 0 18px rgba(0,0,0,.4);--acc:#ff5c8a}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
+/* bandeau rouge */
+header{background:var(--red);color:#fff;padding:16px 24px 0}
+header>*{max-width:1500px;margin-left:auto;margin-right:auto}
+h1{font-size:1.25rem;font-weight:700;margin:0 auto 2px}
+.sub{color:rgba(255,255,255,.85);font-size:.8rem}
+.tabs{display:flex;gap:6px;margin-top:14px;border-bottom:1px solid rgba(255,255,255,.3)}
+.tab{padding:10px 18px;border:0;background:none;color:rgba(255,255,255,.8);cursor:pointer;font:inherit;font-weight:600;border-bottom:3px solid transparent;border-radius:12px 12px 0 0;transition:background .15s}
+.tab:hover{background:rgba(255,255,255,.12)}
+.tab[aria-selected=true]{color:#fff;border-color:#fff}
+.tab:focus-visible{outline:2px solid #fff;outline-offset:-4px}
+main{max-width:1500px;margin:auto;padding:20px 24px 48px}
+/* filtres dans une carte */
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:0 0 16px;background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px 20px}
+.bar label{display:flex;flex-direction:column;font-size:.75rem;color:var(--mute);gap:4px;font-weight:600}
+select,input{font:inherit;color:var(--fg);padding:9px 12px;border:2px solid var(--line);border-radius:12px;background:var(--card);min-width:120px;transition:border-color .15s}
+select:hover,input:hover{border-color:var(--pink-soft)}
+select:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--red)}
+button.btn{font:inherit;font-weight:600;padding:10px 24px;border-radius:25px;cursor:pointer;background:var(--red);color:#fff;border:2px solid var(--red);transition:border-color .15s}
+button.btn:hover{border-color:var(--red-dark);background:var(--red-dark)}
+button.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+/* cartes KPI (tuiles) */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--card);border:2px solid transparent;border-radius:16px;padding:14px 16px;box-shadow:var(--shadow-tile);transition:transform .15s,border-color .15s}
+.card:hover{transform:scale(1.015);border-color:var(--red)}
+.card b{display:block;font-size:1.5rem;line-height:1.1;font-weight:600;color:var(--red);margin-bottom:4px}
+.card span{font-size:.75rem;color:var(--mute)}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:16px}
+.charts .card{height:260px}.charts .card:hover{transform:none;border-color:transparent}
+/* tableau */
+.wrap{overflow:auto;border-radius:16px;background:var(--card);box-shadow:var(--shadow);max-height:70vh}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child,th.l,td.l{text-align:left}
+thead th{position:sticky;top:0;background:var(--card);cursor:pointer;font-size:.75rem;font-weight:700;color:var(--grey-dark);z-index:1;border-bottom:2px solid var(--line)}
+@media (prefers-color-scheme:dark){thead th{color:var(--mute)}}
+thead th:hover{color:var(--red)}
+thead th.sorted{color:var(--red)}
+thead th.sorted::after{content:attr(data-arrow)}
+tbody tr:hover td{background:var(--pink-bg)}
+tr.tot td{font-weight:700;background:var(--pink-bg);color:var(--red)}
+.msg{padding:30px;text-align:center;color:var(--mute)}.err{color:#ffd6e1;font-weight:600}
+.note{font-size:.75rem;color:var(--mute);margin-top:10px;padding-left:22px;position:relative}
+.note::before{content:"i";position:absolute;left:0;top:1px;width:14px;height:14px;border-radius:50%;background:var(--red);color:#fff;font-size:.65rem;font-weight:700;text-align:center;line-height:14px}
+@media (max-width:768px){header{padding:12px 16px 0}main{padding:16px}.bar{padding:12px}.tab{padding:8px 12px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Journeys – Email KPIs</h1>
+  <div class="sub" id="gen">Loading…</div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="journeys" aria-selected="true">Journeys</button>
+    <button class="tab" role="tab" data-tab="cats" aria-selected="false">Categories</button>
+    <button class="tab" role="tab" data-tab="conv" aria-selected="false">Conversions (leads)</button>
+  </div>
+</header>
+<main>
+  <div class="bar">
+    <label>Family<select id="fFam"><option value="ALL">All</option><option value="MKT">Marketing (MKT_)</option><option value="OPS">Operational (Oxx_)</option></select></label>
+    <label>Campaign type<select id="fType"><option value="">All</option></select></label>
+    <label>Product<select id="fProd"><option value="">All</option></select></label>
+    <label>From month<select id="fFrom"></select></label>
+    <label>To month<select id="fTo"></select></label>
+    <label id="lGran">Granularity<select id="fGran"><option value="total">Period total</option><option value="month">By month</option></select></label>
+    <label id="lGrp" hidden>Group by<select id="fGrp"><option value="journey">Journey</option><option value="cat">Category</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
+    <label id="lView" hidden>View by<select id="fView"><option value="cat">Category (prefix)</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
+    <label>Search<input id="fQ" placeholder="journey name…"></label>
+    <button class="btn" id="bCsv">Export CSV</button>
+  </div>
+  <div id="cards" class="cards"></div>
+  <div id="charts" class="charts"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div></div>
+  <div class="wrap"><table id="tbl"></table></div>
+  <div class="note" id="note"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+/* ====== CONFIG : URL de la CloudPage API (cloudpage_api.html) ====== */
+const API_URL = "https://VOTRE-SUBDOMAIN.pub.sfmc-content.com/XXXXXXXX";
+/* ==================================================================== */
+
+const PALETTE=['#c30045','#101820','#dc0078','#51626f','#4b9b30','#ad0cdf'];
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', sort:{k:null,d:-1}};
+
+/* Naming convention: MKT|Oxx _ TYPE _ PRODUCT _ Campaign name _ mmyyyy|ongoing
+   Optional friendly labels (code -> label), to fill in once the full list is known. */
+const LABELS = {
+  type:    { /* PROMO:'Promotional', DOC:'Documents' */ },
+  product: { /* CAR:'Car', ALL:'All products' */ }
+};
+const lab = (kind, code) => LABELS[kind] && LABELS[kind][code] ? LABELS[kind][code]+' ('+code+')' : code;
+const _pc = new Map();
+function parse(name){
+  if (_pc.has(name)) return _pc.get(name);
+  const p = String(name||'').split('_');
+  const o = {type:'n/a', product:'n/a', campaign:name, period:''};
+  if (p.length >= 3){
+    o.type = (p[1]||'n/a').toUpperCase(); o.product = (p[2]||'n/a').toUpperCase();
+    const last = p[p.length-1];
+    if (p.length >= 5 && /^(\d{6}|ongoing)$/i.test(last)){ o.period = last.toLowerCase(); o.campaign = p.slice(3,-1).join('_'); }
+    else o.campaign = p.slice(3).join('_');
+  }
+  _pc.set(name,o); return o;
+}
+const DIMLAB = {journey:'Journey', cat:'Category', type:'Campaign type', product:'Product'};
+const dimVal = (r,dim) => dim==='journey' ? r.JourneyName : dim==='cat' ? r.Category : dim==='type' ? parse(r.JourneyName).type : parse(r.JourneyName).product;
+const dimShow = (dim,v) => dim==='type' ? lab('type',v) : dim==='product' ? lab('product',v) : v;
+let D = {kpi:[], conv:[]}, charts = [];
+const $ = id => document.getElementById(id);
+const NF = new Intl.NumberFormat('fr-BE');
+const PF = new Intl.NumberFormat('fr-BE',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1});
+const n = v => NF.format(v||0);
+const pct = (a,b) => b>0 ? PF.format(a/b) : '–';
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const famOf = name => /^MKT_/i.test(name) ? 'MKT' : 'OPS';
+
+/* ---------- filtres ---------- */
+const inScope = (name, month) =>
+  (S.fam==='ALL' || famOf(name)===S.fam) &&
+  (!S.type || parse(name).type===S.type) && (!S.prod || parse(name).product===S.prod) &&
+  (!S.from || month>=S.from) && (!S.to || month<=S.to) &&
+  (!S.q || name.toLowerCase().includes(S.q.toLowerCase()));
+
+function group(rows, keyFn){
+  const m = new Map();
+  for (const r of rows){
+    const [name,month] = keyFn(r), key = name+'|'+month;
+    let a = m.get(key);
+    if(!a){ a={name,month,Sends:0,Bounces:0,Opens:0,Clicks:0,Unsubs:0,Compl:0}; m.set(key,a); }
+    a.Sends+=r.Sends; a.Bounces+=r.Bounces; a.Opens+=r.Opens; a.Clicks+=r.UniqueClicks; a.Unsubs+=r.Unsubscribes; a.Compl+=r.Complaints;
+  }
+  return [...m.values()];
+}
+const deliv = a => a.Sends - a.Bounces;
+
+/* ---------- colonnes KPI ---------- */
+const KPI_COLS = [
+  {k:'Sends',  l:'Sends',     v:a=>a.Sends,        f:a=>n(a.Sends)},
+  {k:'Deliv',  l:'Delivered', v:a=>deliv(a),       f:a=>n(deliv(a))},
+  {k:'rDel',   l:'Delivery %',v:a=>a.Sends?deliv(a)/a.Sends:-1,   f:a=>pct(deliv(a),a.Sends)},
+  {k:'Bounce', l:'Bounces',   v:a=>a.Bounces,      f:a=>n(a.Bounces)},
+  {k:'rBnc',   l:'Bounce %',  v:a=>a.Sends?a.Bounces/a.Sends:-1,   f:a=>pct(a.Bounces,a.Sends)},
+  {k:'Opens',  l:'Opens',     v:a=>a.Opens,        f:a=>n(a.Opens)},
+  {k:'rOpen',  l:'Open %',    v:a=>deliv(a)?a.Opens/deliv(a):-1,   f:a=>pct(a.Opens,deliv(a))},
+  {k:'Clicks', l:'Unique clicks', v:a=>a.Clicks,   f:a=>n(a.Clicks)},
+  {k:'rCtr',   l:'CTR %',     v:a=>deliv(a)?a.Clicks/deliv(a):-1,  f:a=>pct(a.Clicks,deliv(a))},
+  {k:'rCtor',  l:'CTOR %',    v:a=>a.Opens?a.Clicks/a.Opens:-1,    f:a=>pct(a.Clicks,a.Opens)},
+  {k:'Unsub',  l:'Unsubs',    v:a=>a.Unsubs,       f:a=>n(a.Unsubs)},
+  {k:'rUns',   l:'Unsub %',   v:a=>deliv(a)?a.Unsubs/deliv(a):-1,  f:a=>pct(a.Unsubs,deliv(a))},
+  {k:'Compl',  l:'Complaints',v:a=>a.Compl,        f:a=>n(a.Compl)},
+  {k:'rCmp',   l:'Complaint %',v:a=>deliv(a)?a.Compl/deliv(a):-1,  f:a=>pct(a.Compl,deliv(a))},
+];
+
+/* ---------- generic table renderer ---------- */
+function renderTable(keyCols, cols, rows, total){
+  // keyCols: left-hand columns; cols: numeric columns; total: total row (object) or null
+  const all = [...keyCols.map(c=>({...c,left:true})), ...cols];
+  const sk = S.sort.k && all.find(c=>c.k===S.sort.k) ? S.sort.k : (keyCols.length>1&&S.gran==='month'&&S.tab!=='conv' ? 'month' : (cols[0]?.k));
+  const sc = all.find(c=>c.k===sk);
+  const dir = S.sort.k ? S.sort.d : -1;
+  rows = [...rows].sort((a,b)=>{const x=sc.v(a),y=sc.v(b);return (x>y?1:x<y?-1:0)*dir;});
+  let h = '<thead><tr>'+all.map(c=>`<th class="${c.left?'l':''} ${c.k===sk?'sorted':''}" data-k="${c.k}" data-arrow="${dir>0?' ▲':' ▼'}">${esc(c.l)}</th>`).join('')+'</tr></thead><tbody>';
+  if (total) h += '<tr class="tot">'+all.map(c=>`<td class="${c.left?'l':''}">${c.left? (c===all[0]?'TOTAL':'') : c.f(total)}</td>`).join('')+'</tr>';
+  for (const r of rows) h += '<tr>'+all.map(c=>`<td class="${c.left?'l':''}">${c.f(r)}</td>`).join('')+'</tr>';
+  h += '</tbody>';
+  $('tbl').innerHTML = h;
+  $('tbl').querySelectorAll('th').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k; S.sort = {k, d: S.sort.k===k ? -S.sort.d : -1}; render();
+  });
+  if(!rows.length) $('tbl').insertAdjacentHTML('afterend','');
+}
+
+function cards(items){ $('cards').innerHTML = items.map(([v,l])=>`<div class="card"><b>${v}</b><span>${esc(l)}</span></div>`).join(''); }
+
+function drawCharts(defs){
+  charts.forEach(c=>c.destroy()); charts=[];
+  if(!window.Chart) return;
+  defs.forEach((d,i)=>{
+    charts.push(new Chart($('c'+(i+1)),{type:d.type||'line',data:{labels:d.labels,datasets:d.sets.map((s,j)=>({label:s.l,data:s.d,borderWidth:2.5,tension:.25,pointRadius:3,yAxisID:'y',borderColor:PALETTE[j%PALETTE.length],backgroundColor:PALETTE[j%PALETTE.length]}))},
+      options:{maintainAspectRatio:false,plugins:{title:{display:true,text:d.title},legend:{position:'bottom'}},
+               scales:{y:{beginAtZero:true,ticks:{callback:v=>d.pct?(v*100).toFixed(0)+' %':NF.format(v)}}},
+               interaction:{mode:'index',intersect:false}}}));
+  });
+}
+
+/* ---------- vues ---------- */
+function viewKpi(dim){
+  const rows = D.kpi.filter(r=>inScope(r.JourneyName,r.Month));
+  const monthly = S.gran==='month';
+  const grouped = group(rows, r => [dimVal(r,dim), monthly ? r.Month : '']);
+  const tot = group(rows, r=>['','']) [0] || {Sends:0,Bounces:0,Opens:0,Clicks:0,Unsubs:0,Compl:0};
+  cards([[n(tot.Sends),'Sends'],[n(deliv(tot)),'Delivered'],[pct(deliv(tot),tot.Sends),'Delivery rate'],[pct(tot.Opens,deliv(tot)),'Open rate'],
+         [pct(tot.Clicks,deliv(tot)),'CTR (unique)'],[pct(tot.Clicks,tot.Opens),'CTOR'],[pct(tot.Bounces,tot.Sends),'Bounce rate'],[pct(tot.Unsubs,deliv(tot)),'Unsub rate'],[pct(tot.Compl,deliv(tot)),'Complaint rate']]);
+  const keyCols = [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}];
+  if (dim==='journey') keyCols.push({k:'type',l:'Type',v:a=>parse(a.name).type,f:a=>esc(lab('type',parse(a.name).type))},
+                                    {k:'product',l:'Product',v:a=>parse(a.name).product,f:a=>esc(lab('product',parse(a.name).product))});
+  if (monthly) keyCols.push({k:'month',l:'Month',v:a=>a.month,f:a=>esc(a.month)});
+  renderTable(keyCols, KPI_COLS, grouped, tot);
+  const byM = group(rows, r=>['',r.Month]).sort((a,b)=>a.month<b.month?-1:1);
+  drawCharts([
+    {title:'Volumes by month',labels:byM.map(a=>a.month),sets:[{l:'Sends',d:byM.map(a=>a.Sends)},{l:'Delivered',d:byM.map(deliv)},{l:'Opens',d:byM.map(a=>a.Opens)},{l:'Unique clicks',d:byM.map(a=>a.Clicks)}]},
+    {title:'Rates by month',pct:true,labels:byM.map(a=>a.month),sets:[{l:'Open %',d:byM.map(a=>deliv(a)?a.Opens/deliv(a):0)},{l:'CTR %',d:byM.map(a=>deliv(a)?a.Clicks/deliv(a):0)},{l:'Bounce %',d:byM.map(a=>a.Sends?a.Bounces/a.Sends:0)}]}
+  ]);
+  $('note').textContent = "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens.";
+}
+
+function viewConv(){
+  const dim = S.grp, monthly = S.gran==='month';
+  const keyOf = r => dimVal(r,dim);
+  const rows = D.conv.filter(r=>inScope(r.JourneyName,r.SendMonth));
+  const kRows = D.kpi.filter(r=>inScope(r.JourneyName,r.Month));
+  const kg = group(kRows, r=>[keyOf(r), monthly?r.Month:'']);
+  const dmap = new Map(kg.map(a=>[a.name+'|'+a.month, deliv(a)]));
+  const statuses = {}; rows.forEach(r=>statuses[r.LeadStatus||'(empty)']=(statuses[r.LeadStatus||'(empty)']||0)+1);
+  const stList = Object.keys(statuses).sort((a,b)=>statuses[b]-statuses[a]);
+  const m = new Map();
+  for (const r of rows){
+    const key = keyOf(r)+'|'+(monthly?r.SendMonth:'');
+    let a = m.get(key);
+    if(!a){ a={name:keyOf(r),month:monthly?r.SendMonth:'',Leads:0,Conv:0,Open:0,Click:0,Days:0,St:{}}; m.set(key,a); }
+    a.Leads++; a.Conv+=r.IsConverted; a.Open+=r.Opened; a.Click+=r.Clicked; a.Days+=r.DaysToLead;
+    const s=r.LeadStatus||'(empty)'; a.St[s]=(a.St[s]||0)+1;
+  }
+  const out = [...m.values()]; out.forEach(a=>a.Deliv=dmap.get(a.name+'|'+a.month)||0);
+  const tot = {name:'',Leads:0,Conv:0,Open:0,Click:0,Days:0,St:{},Deliv:[...dmap.values()].reduce((x,y)=>x+y,0)};
+  out.forEach(a=>{tot.Leads+=a.Leads;tot.Conv+=a.Conv;tot.Open+=a.Open;tot.Click+=a.Click;tot.Days+=a.Days;for(const s in a.St)tot.St[s]=(tot.St[s]||0)+a.St[s];});
+  cards([[n(tot.Leads),'Leads generated after send'],[n(tot.Conv),'Converted leads'],[pct(tot.Conv,tot.Leads),'Conversion rate'],
+         [tot.Deliv?(tot.Leads/tot.Deliv*1000).toFixed(2).replace('.',','):'–','Leads / 1,000 delivered'],[pct(tot.Open,tot.Leads),'Leads who opened'],[pct(tot.Click,tot.Leads),'Leads who clicked'],
+         [tot.Leads?(tot.Days/tot.Leads).toFixed(1).replace('.',','):'–','Avg. delay (days)']]);
+  const keyCols = [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}];
+  if (monthly) keyCols.push({k:'month',l:'Send month',v:a=>a.month,f:a=>esc(a.month)});
+  const cols = [
+    {k:'Deliv',l:'Delivered',v:a=>a.Deliv,f:a=>n(a.Deliv)},
+    {k:'Leads',l:'Leads',v:a=>a.Leads,f:a=>n(a.Leads)},
+    {k:'Per1k',l:'Leads / 1,000 deliv.',v:a=>a.Deliv?a.Leads/a.Deliv:-1,f:a=>a.Deliv?(a.Leads/a.Deliv*1000).toFixed(2).replace('.',','):'–'},
+    {k:'Conv',l:'Converted',v:a=>a.Conv,f:a=>n(a.Conv)},
+    {k:'ConvR',l:'Conv. %',v:a=>a.Leads?a.Conv/a.Leads:-1,f:a=>pct(a.Conv,a.Leads)},
+    {k:'Open',l:'Leads openers',v:a=>a.Open,f:a=>n(a.Open)},
+    {k:'Click',l:'Leads clickers',v:a=>a.Click,f:a=>n(a.Click)},
+    {k:'Days',l:'Avg. delay (d)',v:a=>a.Leads?a.Days/a.Leads:-1,f:a=>a.Leads?(a.Days/a.Leads).toFixed(1).replace('.',','):'–'},
+    ...stList.map(s=>({k:'st_'+s,l:'Status: '+s,v:a=>a.St[s]||0,f:a=>n(a.St[s]||0)}))
+  ];
+  renderTable(keyCols, cols, out, tot);
+  const byM = {}; rows.forEach(r=>{(byM[r.SendMonth]=byM[r.SendMonth]||{l:0,c:0}); byM[r.SendMonth].l++; byM[r.SendMonth].c+=r.IsConverted;});
+  const ms = Object.keys(byM).sort();
+  drawCharts([
+    {title:'Leads by send month',labels:ms,sets:[{l:'Leads',d:ms.map(x=>byM[x].l)},{l:'Converted',d:ms.map(x=>byM[x].c)}]},
+    {title:'Leads by status (period)',type:'bar',labels:stList,sets:[{l:'Leads',d:stList.map(s=>statuses[s])}]}
+  ]);
+  $('note').textContent = "Lead = created within 30 days after a send (email match), attributed to the last preceding send (last touch): each lead counts for one journey only. Limited to the last 3 send months refreshed by the automation.";
+}
+
+function render(){
+  $('lGran').hidden = false; $('lGrp').hidden = S.tab!=='conv'; $('lView').hidden = S.tab!=='cats';
+  if (S.tab==='journeys') viewKpi('journey'); else if (S.tab==='cats') viewKpi(S.view); else viewConv();
+}
+
+/* ---------- init ---------- */
+function setup(){
+  const months = [...new Set([...D.kpi.map(r=>r.Month),...D.conv.map(r=>r.SendMonth)])].filter(Boolean).sort();
+  const opts = months.map(m=>`<option>${m}</option>`).join('');
+  $('fFrom').innerHTML = opts; $('fTo').innerHTML = opts;
+  S.from = months[Math.max(0,months.length-12)] || ''; S.to = months[months.length-1] || '';
+  $('fFrom').value = S.from; $('fTo').value = S.to;
+  const names = [...new Set([...D.kpi,...D.conv].map(r=>r.JourneyName))];
+  const fill = (id,kind) => { const vals=[...new Set(names.map(nm=>parse(nm)[kind]))].sort();
+    $(id).innerHTML = '<option value="">All</option>'+vals.map(v=>`<option value="${esc(v)}">${esc(lab(kind,v))}</option>`).join(''); };
+  fill('fType','type'); fill('fProd','product');
+  $('fType').onchange = e=>{S.type=e.target.value;render();};
+  $('fProd').onchange = e=>{S.prod=e.target.value;render();};
+  $('fView').onchange = e=>{S.view=e.target.value;S.sort={k:null,d:-1};render();};
+  $('fFam').onchange = e=>{S.fam=e.target.value;render();};
+  $('fFrom').onchange = e=>{S.from=e.target.value;render();};
+  $('fTo').onchange = e=>{S.to=e.target.value;render();};
+  $('fGran').onchange = e=>{S.gran=e.target.value;S.sort={k:null,d:-1};render();};
+  $('fGrp').onchange = e=>{S.grp=e.target.value;S.sort={k:null,d:-1};render();};
+  $('fQ').oninput = e=>{S.q=e.target.value;render();};
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===b));
+    S.tab=b.dataset.tab; S.sort={k:null,d:-1}; render();
+  });
+  $('bCsv').onclick = ()=>{
+    const csv = [...$('tbl').rows].map(r=>[...r.cells].map(c=>'"'+c.textContent.replace(/"/g,'""')+'"').join(';')).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));
+    a.download = 'dashboard_'+S.tab+'.csv'; a.click();
+  };
+}
+
+(async()=>{
+  try{
+    const k = new URLSearchParams(location.search).get('k')||'';
+    const res = await fetch(API_URL+'?k='+encodeURIComponent(k),{cache:'no-store'});
+    const j = await res.json();
+    if (j.error) throw new Error(j.error);
+    D = {kpi:j.kpi||[], conv:j.conv||[]};
+    $('gen').textContent = 'Data as of '+(j.generatedMs ? new Intl.DateTimeFormat('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels',timeZoneName:'short'}).format(new Date(j.generatedMs)) : '–')+' · months in CET/CEST';
+    setup(); render();
+  }catch(e){
+    $('gen').innerHTML = '<span class="err">Error: '+esc(e.message)+'</span>';
+  }
+})();
+</script>
+</body>
+</html>
+
+%%[ ELSE ]%%
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Access denied</title>
+<style>body{font:15px system-ui,sans-serif;background:#f6f7f9;color:#1c2330;display:grid;place-items:center;min-height:100vh;margin:0}@media(prefers-color-scheme:dark){body{background:#10141b;color:#e6e9ef}}div{max-width:420px;padding:24px;text-align:center}code{background:rgba(127,127,127,.2);padding:2px 6px;border-radius:4px}</style></head>
+<body><div><h1>Access denied</h1><p>Your IP address <code>%%=v(@clientIp)=%%</code> is not on the allowlist.</p><p>Ask the Marketing Cloud admin to add it to <code>DASH_IP_Allowlist</code>.</p></div></body></html>
+%%[ ENDIF ]%%
