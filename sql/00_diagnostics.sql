@@ -21,31 +21,24 @@ UNION ALL
 SELECT 'A2 _Sent avec TriggererSendDefinitionObjectID (envois de journeys)', COUNT(*)
 FROM _Sent WHERE EventDate >= DATEADD(day, -60, GETDATE()) AND TriggererSendDefinitionObjectID IS NOT NULL
 UNION ALL
-SELECT 'A3 + jointure _JourneyActivity sur ObjectID seul', COUNT(*)
+SELECT 'A3 + jointure _JourneyActivity (ObjectID)', COUNT(*)
 FROM _Sent s JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
 WHERE s.EventDate >= DATEADD(day, -60, GETDATE())
 UNION ALL
-SELECT 'A4 + condition ActivityExternalKey = TriggeredSendCustomerKey', COUNT(*)
+SELECT 'A4 + jointure _Journey (VersionID)', COUNT(*)
 FROM _Sent s JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
-                                     AND ja.ActivityExternalKey = s.TriggeredSendCustomerKey
-WHERE s.EventDate >= DATEADD(day, -60, GETDATE())
-UNION ALL
-SELECT 'A5 + jointure _Journey (VersionID)', COUNT(*)
-FROM _Sent s JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
-                                     AND ja.ActivityExternalKey = s.TriggeredSendCustomerKey
              JOIN _Journey j ON j.VersionID = ja.VersionID
 WHERE s.EventDate >= DATEADD(day, -60, GETDATE())
 UNION ALL
-SELECT 'A6 + filtre nom MKT_ ou Oxx_', COUNT(*)
+SELECT 'A5 + filtre nom MKT_ ou Oxx_', COUNT(*)
 FROM _Sent s JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
-                                     AND ja.ActivityExternalKey = s.TriggeredSendCustomerKey
              JOIN _Journey j ON j.VersionID = ja.VersionID
 WHERE s.EventDate >= DATEADD(day, -60, GETDATE())
   AND (j.JourneyName LIKE 'MKT[_]%' OR j.JourneyName LIKE 'O__[_]%')
 UNION ALL
-SELECT 'A7 _Journey : lignes au total', COUNT(*) FROM _Journey
+SELECT 'A6 _Journey : lignes au total', COUNT(*) FROM _Journey
 UNION ALL
-SELECT 'A8 _Journey : noms MKT_ ou Oxx_', COUNT(*) FROM _Journey
+SELECT 'A7 _Journey : noms MKT_ ou Oxx_', COUNT(*) FROM _Journey
 WHERE JourneyName LIKE 'MKT[_]%' OR JourneyName LIKE 'O__[_]%'
 
 
@@ -87,7 +80,7 @@ SELECT 'D2 Lead_Salesforce : lignes avec Email', COUNT(*) FROM Lead_Salesforce W
 UNION ALL
 SELECT 'D3 envois de journeys (90 j) + _Subscribers', COUNT(*)
 FROM _Sent s
-JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID AND ja.ActivityExternalKey = s.TriggeredSendCustomerKey
+JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
 JOIN _Journey j ON j.VersionID = ja.VersionID
 JOIN _Subscribers sub ON sub.SubscriberID = s.SubscriberID
 WHERE s.EventDate >= DATEADD(day, -90, GETDATE())
@@ -95,7 +88,7 @@ WHERE s.EventDate >= DATEADD(day, -90, GETDATE())
 UNION ALL
 SELECT 'D4 + même email qu''un lead (sans condition de date)', COUNT(*)
 FROM _Sent s
-JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID AND ja.ActivityExternalKey = s.TriggeredSendCustomerKey
+JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
 JOIN _Journey j ON j.VersionID = ja.VersionID
 JOIN _Subscribers sub ON sub.SubscriberID = s.SubscriberID
 JOIN Lead_Salesforce l ON LOWER(l.Email) = LOWER(sub.EmailAddress)
@@ -104,7 +97,7 @@ WHERE s.EventDate >= DATEADD(day, -90, GETDATE())
 UNION ALL
 SELECT 'D5 + lead créé APRES l''envoi, dans les 30 jours', COUNT(*)
 FROM _Sent s
-JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID AND ja.ActivityExternalKey = s.TriggeredSendCustomerKey
+JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
 JOIN _Journey j ON j.VersionID = ja.VersionID
 JOIN _Subscribers sub ON sub.SubscriberID = s.SubscriberID
 JOIN Lead_Salesforce l ON LOWER(l.Email) = LOWER(sub.EmailAddress)

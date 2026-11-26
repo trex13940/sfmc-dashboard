@@ -27,8 +27,7 @@ FROM (
         CASE WHEN c.SubscriberID IS NOT NULL THEN 1 ELSE 0 END AS Clicked,
         ROW_NUMBER() OVER (PARTITION BY l.Id ORDER BY s.EventDate DESC) AS rn
     FROM _Sent s
-    JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
-                            AND ja.ActivityExternalKey     = s.TriggeredSendCustomerKey
+    JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID   /* ObjectID seul */
     JOIN _Journey j          ON j.VersionID = ja.VersionID
     JOIN _Subscribers sub    ON sub.SubscriberID = s.SubscriberID
     JOIN Lead_Salesforce l   ON LOWER(l.Email) = LOWER(sub.EmailAddress)

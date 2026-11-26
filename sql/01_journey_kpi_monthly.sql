@@ -17,8 +17,7 @@ SELECT
     COUNT(cp.SubscriberID)                          AS Complaints
 FROM _Sent s
 JOIN _JourneyActivity ja
-     ON  ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
-     AND ja.ActivityExternalKey     = s.TriggeredSendCustomerKey
+     ON  ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID   /* ObjectID seul : ActivityExternalKey = TriggeredSendCustomerKey ne correspond pas chez nous */
 JOIN _Journey j
      ON  j.VersionID = ja.VersionID
 LEFT JOIN _Bounce b       ON b.JobID=s.JobID  AND b.ListID=s.ListID  AND b.BatchID=s.BatchID  AND b.SubscriberID=s.SubscriberID  AND b.IsUnique=1
