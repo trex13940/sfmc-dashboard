@@ -34,12 +34,13 @@ MKT_ ou Oxx_
 | 06_email_kpi_monthly.sql | KPI par email (activité) | DASH_Email_KPI_Monthly | quotidienne |
 | 08_link_clicks_monthly.sql | Clics par lien | DASH_Link_Monthly | quotidienne |
 | 10_domain_monthly.sql | Envois / bounces / complaints par domaine | DASH_Domain_Monthly | quotidienne |
-| 03, 04, 07, 09, 11 | Backfill depuis le 01/06/2026 (même cibles) | idem | une seule fois |
+| 13_sms_monthly.sql | SMS par journey et asset | DASH_SMS_Monthly | quotidienne |
+| 03, 04, 07, 09, 11, 14 | Backfill depuis le 01/06/2026 (même cibles) | idem | une seule fois |
 | 00, 05, 12 | Diagnostics et sondes (Query Studio uniquement) | – | à la demande |
 
 Tous les fichiers des automations sont **sans commentaire** (Automation Studio les refuse parfois).
 
-## Dates des backfills (03, 04, 07, 09, 11)
+## Dates des backfills (03, 04, 07, 09, 11, 14)
 Dates en CST (heure des Data Views), au format `AAAAMMJJ hh:mm:ss`. Par défaut du 01/06/2026 00:00 CEST (= 31/05/2026 16:00 CST) à fin novembre. En cas de timeout (30 min), lancer plusieurs fois en changeant les deux dates du `WHERE s.EventDate` (envois) :
 
 | Mois belge | >= | < |
@@ -64,4 +65,11 @@ Pour 04 (conversions), découper par date de création du lead : changer `Create
 
 ## Colonnes et hypothèses à vérifier avec 12_probes.sql
 - `_Sent.Domain` (insights domaines), `_Job.EmailName` (activités), `_Click.LinkName` / `LinkContent` (liens), `HASHBYTES` (clé de DASH_Link_Monthly).
-- SMS : requête non fournie tant que les colonnes de `_SMSMessageTracking` ne sont pas connues (sonde P1).
+
+## SMS (13 et 14)
+- Source : `_SMSMessageTracking` (colonnes vérifiées sur la documentation de Mateusz Dabrowski). Journey = `JBDefinitionID` joint à `_Journey.JourneyID` (une seule ligne par JourneyID : le nom le plus récent par ordre alphabétique est gardé).
+- Asset = colonne `Name` (message MobileConnect ou activité de journey).
+- Une ligne de la data view = une partie de SMS (colonne `Ordinal`) : **Sent compte donc toutes les parties** ; **UniqueRecipients** = numéros distincts (`Mobile`) par journey, mois et asset ; **Delivered** = `Delivered = 1` ; **Bounced** = `Undelivered = 1`.
+- Messages sortants uniquement (`Outbound = 1`), tests exclus. Date = `CreateDateTime` (supposée en CST), mois en CET.
+- Journeys MKT_ et Oxx_ : les SMS d autres journeys (par exemple OKM_ et ODD_DOC_ aujourd hui) sont pris automatiquement.
+- Limite : les destinataires uniques sont distincts par mois ; sur plusieurs mois, le dashboard additionne les mois (un numéro présent deux mois compte deux fois).

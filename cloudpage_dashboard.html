@@ -588,7 +588,7 @@ function viewSms(){
               {k:'Deliv',l:'Delivered',v:a=>a.Deliv,f:a=>n(a.Deliv)},{k:'rDel',l:'Delivered %',v:a=>a.Sent?a.Deliv/a.Sent:-1,f:a=>pct(a.Deliv,a.Sent)},
               {k:'Bnc',l:'Bounced',v:a=>a.Bnc,f:a=>n(a.Bnc)},{k:'rBnc',l:'Bounced %',v:a=>a.Sent?a.Bnc/a.Sent:-1,f:a=>pct(a.Bnc,a.Sent)}];
   renderTable('tSms', keyCols, cols, rows, rows.length>1?tot:null, {defK:'Sent', empty:'No SMS data yet (DASH_SMS_Monthly).'});
-  $('smsNote').textContent = "SMS per journey and asset. The asset name ignores the language and anything after a \"-\" in the campaign name.";
+  $('smsNote').textContent = "SMS per journey and asset. Total sent counts every message part (long SMS are split in several parts); unique = distinct recipients per month. The asset name ignores the language and anything after a \"-\" in the campaign name.";
 }
 
 /* ---------- affichage ---------- */

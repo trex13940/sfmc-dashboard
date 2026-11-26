@@ -11,7 +11,7 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 | DASH_Email_KPI_Monthly | **JourneyName** Text(200), **Month** Text(7), **EmailName** Text(200), Sends, Bounces, Opens, UniqueClicks, Unsubscribes, Complaints (Number) |
 | DASH_Link_Monthly | **RowKey** Text(32), JourneyName Text(200), Month Text(7), EmailName Text(200), LinkName Text(300), LinkContent Text(300), UniqueClicks, TotalClicks (Number) |
 | DASH_Domain_Monthly | **Domain** Text(100), **Month** Text(7), Sends, Bounces, Complaints (Number) |
-| DASH_SMS_Monthly (à venir) | JourneyName, Month, AssetName, Sent, UniqueRecipients, Delivered, Bounced |
+| DASH_SMS_Monthly | **JourneyName** Text(200), **Month** Text(7), **AssetName** Text(200), Sent, UniqueRecipients, Delivered, Bounced (Number) |
 | DASH_Config | **ConfigKey** Text(50), Value Text(200) → voir « Token d'accès » ci-dessous |
 | DASH_IP_Allowlist | **IPAddress** Text(50), Description Text(200) → une ligne par IP (`203.0.113.7`) ou plage IPv4 CIDR (`203.0.113.0/24`) ; IPv6 en correspondance exacte |
 
@@ -35,6 +35,7 @@ Si les DE n'ont pas une Customer Key identique à leur nom, adaptez `IP_DE_KEY`/
 3. SQL `sql/06_email_kpi_monthly.sql` → DASH_Email_KPI_Monthly, **Update**
 4. SQL `sql/08_link_clicks_monthly.sql` → DASH_Link_Monthly, **Update**
 5. SQL `sql/10_domain_monthly.sql` → DASH_Domain_Monthly, **Update**
+6. SQL `sql/13_sms_monthly.sql` → DASH_SMS_Monthly, **Update** (backfill : `sql/14_backfill_sms.sql`)
 
 Premier chargement (backfill depuis le 01/06/2026) : lancer **une fois** `sql/03_backfill_kpi.sql`, `04_backfill_conversions.sql`, `07_backfill_email_kpi.sql`, `09_backfill_link_clicks.sql` et `11_backfill_domain.sql` (Run Once, mêmes DE cibles, mode Update), puis activer les requêtes récurrentes 01 et 02. Si le timeout de 30 min est atteint, chaque fichier contient un tableau de dates pour découper le chargement mois par mois. Les fichiers SQL des automations ne contiennent aucun commentaire (Automation Studio les refuse parfois) : voir `sql/NOTES.md`. `sql/00_diagnostics.sql` sert à comprendre un résultat vide.
 
@@ -63,7 +64,7 @@ Libellés lisibles : renseigner `LABELS.type` / `LABELS.product` en haut du scri
 - **Journey analysis** : une journey en détail : langues FR/NL, emails, KPI et liste des liens (chargée à la demande).
 - **Insights** : top 5 des domaines (envois, bounces, complaints) et top 5 des journeys par bounces.
 - **Alerts** : volume du mois en cours comparé au mois précédent (ramené au prorata des jours écoulés) ; alerte si plus de 15 % en dessous, pour les journeys de plus de 500 envois le mois dernier. Réglages `ALERT_DROP`, `ALERT_MIN`, `ALERT_MIN_DAYS` en haut du script du dashboard.
-- **SMS** : par journey et asset (nécessite DASH_SMS_Monthly, voir `sql/12_probes.sql`).
+- **SMS** : par journey et asset (DASH_SMS_Monthly, requêtes 13 et 14).
 
 L'API (`cloudpage_api.html`) renvoie les données principales par défaut ; `&part=links` et `&part=sms` sont chargés à la demande.
 
