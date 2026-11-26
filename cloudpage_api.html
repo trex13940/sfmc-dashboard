@@ -91,15 +91,38 @@ function isIpAllowed(ip) {
 var clientIp = "", ipOk = false;
 try { clientIp = Platform.Request.ClientIP; ipOk = isIpAllowed(clientIp); } catch (eIp) { ipOk = false; ipDiag += " | error: " + eIp; }
 
+/* ---- Token : DE "DASH_Config" (ConfigKey, Value), ligne ConfigKey='token' ---- */
+var CFG_DE_KEY = "DASH_Config";   /* Customer Key de la DE */
+var CFG_DE_NAME = "DASH_Config";  /* Nom de la DE */
+var cfgDiag = "";
+function getConfigToken() {
+  var v = "";
+  try {
+    var prox = new Script.Util.WSProxy();
+    var r = prox.retrieve("DataExtensionObject[" + CFG_DE_KEY + "]", ["ConfigKey", "Value"], { Property: "ConfigKey", SimpleOperator: "equals", Value: "token" });
+    if (r && r.Results && r.Results.length) {
+      var p = r.Results[0].Properties;
+      for (var j = 0; j < p.length; j++) { if (p[j].Name === "Value") v = trim(p[j].Value); }
+    } else { cfgDiag += "WSProxy: 0 rows; "; }
+  } catch (e1) { cfgDiag += "WSProxy error: " + e1 + "; "; }
+  if (!v) {
+    try { v = trim(Platform.Function.Lookup(CFG_DE_NAME, "Value", "ConfigKey", "token")); } catch (e2) { cfgDiag += "Lookup error: " + e2 + "; "; }
+  }
+  return v;
+}
 function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
 
 try {
   /* Auth minimale : ?k=<token> comparé à DASH_Config (ConfigKey='token') */
   if (!ipOk) { Write(Stringify({ error: "forbidden" })); throw "STOP"; }
-  var k   = Platform.Request.GetQueryStringParameter("k");
-  var ref = Platform.Function.Lookup("DASH_Config", "Value", "ConfigKey", "token");
-  if (!k || !ref || k !== ref) {
-    Write(Stringify({ error: "unauthorized" }));
+  var k = trim(Platform.Request.GetQueryStringParameter("k"));
+  var ref = getConfigToken();
+  var why = "";
+  if (!k) why = "no ?k= in the URL";
+  else if (!ref) why = "token not found in DASH_Config (check key/name, ConfigKey='token')";
+  else if (k !== ref) why = "token mismatch";
+  if (why) {
+    Write(Stringify({ error: "unauthorized: " + why + (cfgDiag ? " [" + cfgDiag + "]" : "") }));
   } else {
     var kpi = fetchAll("DASH_Journey_KPI_Monthly",
       ["JourneyName","Month","Category","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"]);
