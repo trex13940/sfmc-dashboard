@@ -112,10 +112,21 @@ function getConfigToken() {
 }
 function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
 
+function numFields(rows, fields) {
+  for (var i = 0; i < rows.length; i++) { for (var j = 0; j < fields.length; j++) { rows[i][fields[j]] = num(rows[i][fields[j]]); } }
+  return rows;
+}
+var warnings = [];
+function optional(deKey, cols, nums, label) {
+  try { return numFields(fetchAll(deKey, cols), nums); }
+  catch (eOpt) { warnings.push(label + ": " + String(eOpt.message || eOpt)); return []; }
+}
+
 try {
-  /* Auth minimale : ?k=<token> comparé à DASH_Config (ConfigKey='token') */
+  /* Auth minimale : ?k=<token> comparé à DASH_Config (ConfigKey='token') ; part = core | links | sms */
   if (!ipOk) { Write(Stringify({ error: "forbidden" })); throw "STOP"; }
   var k = trim(Platform.Request.GetQueryStringParameter("k"));
+  var part = trim(Platform.Request.GetQueryStringParameter("part")) || "core";
   var ref = getConfigToken();
   var why = "";
   if (!k) why = "no ?k= in the URL";
@@ -123,24 +134,24 @@ try {
   else if (k !== ref) why = "token mismatch";
   if (why) {
     Write(Stringify({ error: "unauthorized: " + why + (cfgDiag ? " [" + cfgDiag + "]" : "") }));
+  } else if (part === "links") {
+    var links = optional("DASH_Link_Monthly", ["JourneyName","Month","EmailName","LinkName","LinkContent","UniqueClicks","TotalClicks"], ["UniqueClicks","TotalClicks"], "DASH_Link_Monthly");
+    Write(Stringify({ part: "links", links: links, warnings: warnings }));
+  } else if (part === "sms") {
+    var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","UniqueRecipients","Delivered","Bounced"], ["Sent","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");
+    Write(Stringify({ part: "sms", sms: sms, warnings: warnings }));
   } else {
     var kpi = fetchAll("DASH_Journey_KPI_Monthly",
       ["JourneyName","Month","Category","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"]);
-    for (var i = 0; i < kpi.length; i++) {
-      var r = kpi[i];
-      r.Sends = num(r.Sends); r.Bounces = num(r.Bounces); r.Opens = num(r.Opens);
-      r.UniqueClicks = num(r.UniqueClicks); r.Unsubscribes = num(r.Unsubscribes); r.Complaints = num(r.Complaints);
-    }
-    var conv = [];
-    try {
-      conv = fetchAll("DASH_Conversions",
-        ["LeadId","JourneyName","Category","SendMonth","SendDate","LeadCreatedDate","LeadStatus","IsConverted","DaysToLead","Opened","Clicked"]);
-      for (var m = 0; m < conv.length; m++) {
-        conv[m].IsConverted = num(conv[m].IsConverted); conv[m].DaysToLead = num(conv[m].DaysToLead);
-        conv[m].Opened = num(conv[m].Opened); conv[m].Clicked = num(conv[m].Clicked);
-      }
-    } catch (e2) { conv = []; }   /* la vue conversions est optionnelle */
-    Write(Stringify({ generatedMs: new Date().getTime(), kpi: kpi, conv: conv }));
+    numFields(kpi, ["Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"]);
+    var conv = optional("DASH_Conversions",
+      ["LeadId","JourneyName","Category","SendMonth","SendDate","LeadCreatedDate","LeadStatus","IsConverted","DaysToLead","Opened","Clicked","Product","LeadProduct","EmailName"],
+      ["IsConverted","DaysToLead","Opened","Clicked"], "DASH_Conversions");
+    var email = optional("DASH_Email_KPI_Monthly",
+      ["JourneyName","Month","EmailName","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"],
+      ["Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"], "DASH_Email_KPI_Monthly");
+    var domain = optional("DASH_Domain_Monthly", ["Domain","Month","Sends","Bounces","Complaints"], ["Sends","Bounces","Complaints"], "DASH_Domain_Monthly");
+    Write(Stringify({ generatedMs: new Date().getTime(), kpi: kpi, conv: conv, email: email, domain: domain, warnings: warnings }));
   }
 } catch (e) {
   if (e !== "STOP") { Write(Stringify({ error: String(e.message || e) })); }
