@@ -1,7 +1,8 @@
 <script runat="server">
 Platform.Load("core", "1.1.1");
 /* ---- IP allowlist : DE "DASH_IP_Allowlist" (IPAddress PK, Description). IPv4 exact / CIDR, IPv6 exact. Fail closed. ---- */
-var IP_DE = "DASH_IP_Allowlist";   /* customer key de la DE (à défaut, le nom est essayé) */
+var IP_DE_KEY  = "DASH_IP_Allowlist";   /* Customer Key de la DE (Contact Builder > Data Extensions > Properties) */
+var IP_DE_NAME = "DASH_IP_Allowlist";   /* Nom de la DE */
 var ipDiag = "";
 function trim(s) { return String(s === null || s === undefined ? "" : s).replace(/^\s+|\s+$/g, ""); }
 /* Nettoie l'IP : 1re IP d'une liste, sans port, sans crochets IPv6 */
@@ -21,23 +22,33 @@ function ipToNum(ip) {
   }
   return n;
 }
-/* Lit les lignes de la DE : par customer key, sinon par nom ; champ IP trouvé sans tenir compte de la casse */
+/* Lit les lignes de la DE : 3 méthodes (clé via Core, clé via WSProxy, nom via Lookup) ; champ IP insensible à la casse */
+function note(m) { ipDiag += (ipDiag ? " | " : "") + m; }
 function loadAllowlist() {
   var rows = null;
-  try { rows = DataExtension.Init(IP_DE).Rows.Retrieve(); } catch (e1) { ipDiag = "Init(key): " + e1; }
+  try { rows = DataExtension.Init(IP_DE_KEY).Rows.Retrieve(); note("Core(key)=" + (rows ? rows.length : 0)); } catch (e1) { note("Core(key) error: " + e1); }
   if (!rows || !rows.length) {
     try {
-      var all = Platform.Function.LookupOrderedRows(IP_DE, 0, "IPAddress asc");
-      if (all && all.length) rows = all;
-    } catch (e3) { ipDiag += " | LookupOrderedRows: " + e3; }
+      var prox = new Script.Util.WSProxy(), obj = "DataExtensionObject[" + IP_DE_KEY + "]";
+      var r = prox.retrieve(obj, ["IPAddress"]), tmp = [];
+      while (r && r.Results) {
+        for (var i = 0; i < r.Results.length; i++) { var o = {}, p = r.Results[i].Properties; for (var j = 0; j < p.length; j++) { o[p[j].Name] = p[j].Value; } tmp.push(o); }
+        if (r.HasMoreRows) { r = prox.getNextBatch(obj, r.RequestID); } else { break; }
+      }
+      note("WSProxy(key)=" + tmp.length + (r && r.Status && !tmp.length ? " status:" + r.Status : ""));
+      if (tmp.length) rows = tmp;
+    } catch (e2) { note("WSProxy(key) error: " + e2); }
+  }
+  if (!rows || !rows.length) {
+    try { var all = Platform.Function.LookupOrderedRows(IP_DE_NAME, 0, "IPAddress asc"); note("Lookup(name)=" + (all ? all.length : 0)); if (all && all.length) rows = all; } catch (e3) { note("Lookup(name) error: " + e3); }
   }
   var out = [];
-  if (rows) for (var i = 0; i < rows.length; i++) {
-    var r = rows[i], v = null;
-    for (var k in r) { if (String(k).toLowerCase().replace(/[^a-z]/g, "") === "ipaddress") { v = r[k]; break; } }
+  if (rows) for (var n = 0; n < rows.length; n++) {
+    var rw = rows[n], v = null;
+    for (var k in rw) { if (String(k).toLowerCase().replace(/[^a-z]/g, "") === "ipaddress") { v = rw[k]; break; } }
     if (v !== null) out.push(trim(v).toLowerCase());
   }
-  ipDiag += (ipDiag ? " | " : "") + "rows=" + out.length;
+  note("entries=" + out.length);
   return out;
 }
 function isIpAllowed(ip) {
