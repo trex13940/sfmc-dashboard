@@ -236,7 +236,8 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
 .mapgrid{display:grid;grid-template-columns:minmax(340px,5fr) minmax(320px,6fr);gap:16px;align-items:start}
 .mapcard{padding:12px}
 .mapcard:hover{transform:none;border-color:transparent}
-#mapBox svg{width:100%;height:auto;display:block}
+#mapBox svg{width:100%;height:auto;max-height:82vh;display:block;margin:0 auto}
+.mapfull{margin-bottom:14px}
 .prov{stroke:var(--mute);stroke-width:1.2;stroke-linejoin:round}
 .prov:hover{stroke:var(--tx-red);stroke-width:2.5}
 .pc{stroke:rgba(16,24,32,.4);stroke-width:.6;fill-opacity:.82}
@@ -331,14 +332,12 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     </div>
     <div id="ins-geo" hidden>
       <div id="geoMsg" class="warn" role="status" hidden></div>
-      <div id="geoCards" class="cards"></div>
+      <div class="card mapcard mapfull"><div id="mapBox"></div><div class="legend" id="mapLegend"></div></div>
       <div class="cbar">
         <span role="group" aria-label="Map level"><button type="button" class="chip" data-gl="prov" aria-pressed="true">Provinces</button><button type="button" class="chip" data-gl="postal" aria-pressed="false">Postal codes</button></span>
       </div>
-      <div class="mapgrid">
-        <div class="card mapcard"><div id="mapBox"></div><div class="legend" id="mapLegend"></div></div>
-        <div><div class="h2" id="geoTblTitle" style="margin-top:0"></div><div class="wrap"><table id="tGeo"></table></div></div>
-      </div>
+      <div id="geoCards" class="cards"></div>
+      <div class="h2" id="geoTblTitle" style="margin-top:0"></div><div class="wrap"><table id="tGeo"></table></div>
       <div id="mapTip" class="tip" hidden></div>
       <div class="note" id="geoNote"></div>
     </div>
