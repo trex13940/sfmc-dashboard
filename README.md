@@ -14,6 +14,7 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 | DASH_Sub_Monthly | **SubscriberKey** Text(100), **Month** Text(7), RecMkt, RecOps, OpenMkt, ClickMkt (Number) : par abonné et par mois, journeys MKT_ / Oxx_ (s'accumule, jamais écrasée) |
 | DASH_Audience_Dist | **AsOf** Text(7), **Win** Text(2), **RecBucket** Text(6), **Seg** Text(15), Subscribers, ReceivedMkt, ReceivedOps, OpensMkt, ClicksMkt, Months (Number) |
 | DASH_Contact_Geo | **PostalCode** Text(10), Contacts (Number), AsOf Text(10) : nombre de contacts par code postal (indication seule, sans lien avec les envois) ; écrasée chaque jour |
+| DASH_Admin_Log (facultative) | **LogId** Text(40), Ts Text(25), AdminIP Text(50), Action Text(30), Target Text(100), Detail Text(200) : journal des modifications faites depuis la page d'administration |
 | DASH_SMS_Monthly | **JourneyName** Text(200), **Month** Text(7), **AssetName** Text(200), Sent, **Messages**, UniqueRecipients, Delivered, Bounced (Number) |
 | DASH_Config | **ConfigKey** Text(50), Value Text(200) → voir « Configuration (DE DASH_Config) » ci-dessous |
 | DASH_IP_Allowlist | **IPAddress** Text(50), Description Text(200) → une ligne par IP (`203.0.113.7`) ou plage IPv4 CIDR (`203.0.113.0/24`) ; IPv6 en correspondance exacte |
@@ -24,6 +25,8 @@ Tous les réglages sont des lignes de la DE `DASH_Config` (colonnes `ConfigKey` 
 | ConfigKey | Exemple de Value | Défaut | Rôle |
 |---|---|---|---|
 | `token` | `k7Xp92QmZ4aTr8LwB3` | **obligatoire** | clé secrète : le dashboard s'ouvre avec `?k=<token>` |
+| `admin_token` | une clé de 24 caractères ou plus | – | clé de la page d'administration (sans cette ligne, la page n'écrit rien) |
+| `admin_log_de` | `DASH_Admin_Log` | `DASH_Admin_Log` | Customer Key de la DE du journal des modifications (facultative) |
 | `api_url` | `https://xxxx.pub.sfmc-content.com/abcdef` | **obligatoire** | URL publiée de la CloudPage API (celle de `cloudpage_api.html`) |
 | `ip_de_key` | `DASH_IP_Allowlist` | `DASH_IP_Allowlist` | Customer Key de la DE des IP autorisées |
 | `ip_de_name` | `DASH_IP_Allowlist` | = `ip_de_key` | nom de cette DE |
@@ -68,6 +71,7 @@ Premier chargement (backfill depuis le 01/06/2026) : lancer **une fois** `sql/03
 
 ## CloudPages
 1. Page API : coller `cloudpage_api.html` (rien à modifier) → noter l'URL publiée.
+   (Facultatif) Page d'administration : coller `cloudpage_admin.html` dans une troisième CloudPage (voir « Page d'administration »).
 2. Page dashboard : coller `cloudpage_dashboard.html` (rien à modifier) et ajouter l'URL de la page API dans `DASH_Config`, ligne `api_url`.
 3. Accès : `https://.../dashboard?k=<token>`.
 
@@ -114,3 +118,19 @@ L'API (`cloudpage_api.html`) renvoie les données principales par défaut ; `&pa
 - **Chargement initial** : `sql/16_backfill_sub_monthly.sql` (une fois, depuis le 01/06/2026), puis l'automation quotidienne.
 - **Carte** : données incluses dans `cloudpage_dashboard.html` (contours des provinces simplifiés et position de chaque code postal belge, 51 Ko). Sources : GeoNames (CC BY 4.0) et Natural Earth (domaine public). Pour les régénérer : `python3 tools/build_geo.py && python3 tools/inject_geo.py`.
 - **Géographie** : uniquement le nombre de contacts de `Contact_Salesforce_1` par code postal (4 chiffres belges ; les codes étrangers, vides ou mal formés sont comptés « sans code postal utilisable »). Aucune jointure avec les abonnés ni avec les envois. La sonde P9 de `sql/12_probes.sql` montre les formats réels des codes postaux.
+
+## Page d'administration (cloudpage_admin.html)
+Une CloudPage séparée pour gérer sans passer par Contact Builder :
+- la **liste des IP autorisées** (`DASH_IP_Allowlist`) : ajouter une adresse IPv4, une plage IPv4 (CIDR) ou une IPv6 avec une description, ou supprimer une entrée ;
+- les **réglages** de `DASH_Config` (URL de l'API, noms des DE, seuils d'alerte, textes retirés des noms d'assets, token du dashboard, clé d'administration) avec la valeur par défaut affichée et un bouton *Reset* ;
+- les **libellés** des types de campagne et des produits (lignes `label_type_<CODE>` / `label_product_<CODE>`).
+
+**Mise en route** (une seule fois) : créer la CloudPage, y coller le fichier, puis ajouter à la main dans `DASH_Config` la ligne `admin_token` (une clé secrète de 24 caractères ou plus, lettres et chiffres). La page s'ouvre avec `https://.../admin?k=<admin_token>`. Sans cette ligne, elle reste en lecture seule et l'indique.
+
+**Sécurité**
+- L'accès exige à la fois une **IP autorisée** et la **clé d'administration** (différente du token du dashboard).
+- Les valeurs de `token` et `admin_token` ne sont **jamais** renvoyées au navigateur ni écrites dans le journal ; la page permet seulement de les remplacer (bouton *Generate* pour créer une clé aléatoire).
+- Seuls les réglages connus sont modifiables ; chaque valeur est validée (https pour l'URL de l'API, nombres dans des bornes, noms de DE sans caractères spéciaux…).
+- Garde-fous anti-verrouillage : on ne peut pas supprimer l'entrée qui autorise sa propre IP, ni pointer `ip_de_key` vers une DE illisible ou qui ne contient pas sa propre IP. `token`, `admin_token` et `api_url` ne peuvent pas être supprimés depuis la page.
+- Chaque écriture est vérifiée par une relecture de la DE. Chaque modification est journalisée dans `DASH_Admin_Log` si cette DE existe.
+- Recommandation : ajoutez à la liste d'IP uniquement les adresses des administrateurs qui ouvrent cette page.
