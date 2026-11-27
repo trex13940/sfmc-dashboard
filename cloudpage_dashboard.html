@@ -434,13 +434,14 @@ function parse(name){
    -> activity = FAM_TYPE_PRODUCT[(detail)]_Campaign ; "-info" after the campaign name, language, EMx and period are ignored.
    Before anything else, version / format markers are removed so that identical emails are grouped together:
    "-vxx-xx" (version), "-xx-xx", "-PDF" and "Website" (plus any text listed in DASH_Config, row asset_strip_extra). */
-const ASSET_EXTRA = (CFG.assetStrip||[]).map(s=>new RegExp('[-_ ]?'+String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'));
+const ASSET_EXTRA = (CFG.assetStrip||[]).map(s=>new RegExp('[- ]?'+String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'));
 function cleanAsset(name){
   let s = String(name||'');
   s = s.replace(/-v\d{1,3}(?:-\d{1,3})*/gi,'')            /* -v01-02 */
        .replace(/-\d{2}-\d{2}(?!\d)/g,'')                 /* -12-03 */
        .replace(/-pdf(?![a-z0-9])/gi,'')                   /* -PDF */
-       .replace(/[-_ ]?website/gi,'');                     /* Website, _Website, -Website */
+       .replace(/-website/gi,'')                           /* -Website */
+       .replace(/website/gi,'');                           /* Website : the text only, the _ separator before it is kept (CAR_WebsiteContinueLater -> CAR_ContinueLater) */
   for (const re of ASSET_EXTRA) s = s.replace(re,'');
   return s.replace(/_{2,}/g,'_').replace(/^_+|_+$/g,'');
 }
