@@ -103,10 +103,11 @@ Variable.SetValue("@ipOk", ipOk ? "1" : "0");
 Variable.SetValue("@clientIp", String(clientIp || ""));
 Variable.SetValue("@ipDiag", String(ipDiag || "") + (cfgDiag ? " | DASH_Config: " + cfgDiag : ""));
 /* Réglages transmis au navigateur (liste blanche : le token n'est jamais exposé) */
+function ucase(s) { var t = String(s), o = ""; for (var i = 0; i < t.length; i++) { var c = t.charCodeAt(i); o += (c >= 97 && c <= 122) ? String.fromCharCode(c - 32) : t.charAt(i); } return o; }
 var labels = { type: {}, product: {} };
 for (var ck in CFG) {
-  if (ck.indexOf("label_type_") === 0) labels.type[ck.substring(11).toUpperCase()] = CFG[ck];
-  else if (ck.indexOf("label_product_") === 0) labels.product[ck.substring(14).toUpperCase()] = CFG[ck];
+  if (ck.indexOf("label_type_") === 0) labels.type[ucase(ck.substring(11))] = CFG[ck];
+  else if (ck.indexOf("label_product_") === 0) labels.product[ucase(ck.substring(14))] = CFG[ck];
 }
 var assetStrip = [], sx = cfgv("asset_strip_extra", "").split(";");
 for (var si = 0; si < sx.length; si++) { var sv = trim(sx[si]); if (sv) assetStrip.push(sv); }

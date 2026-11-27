@@ -141,50 +141,76 @@ function cfgView() {
 }
 function snapshot() { return { ok: true, yourIp: cleanIp(clientIp), ips: readIps(), cfg: cfgView() }; }
 
-/* --- ecritures : WSProxy d'abord, UpsertData / DeleteData (par nom de DE) en repli ; chaque ecriture est verifiee par relecture --- */
-function wsUpsert(deKey, props) {
-  var prox = new Script.Util.WSProxy();
-  var r = prox.createItem("DataExtensionObject", { CustomerKey: deKey, Properties: props }, { SaveOptions: [{ PropertyName: "DataExtensionObject", SaveAction: "UpdateAdd" }] });
-  if (!r || String(r.Status) !== "OK") { throw "write refused: " + (r ? String(r.Status) + " " + String(r.StatusMessage || "") : "no response"); }
+/* --- ecritures : plusieurs methodes essayees dans l'ordre, chacune verifiee par relecture de la DE.
+   1. API Core (DataExtension.Init par Customer Key)  2. WSProxy  3. UpsertData / DeleteData (par NOM de DE)
+   Si tout echoue, le message de chaque methode est renvoye (diagnostic). --- */
+function errText(e) { return String((e && e.message) ? e.message : e).substring(0, 150); }
+function tryChain(label, steps, verify) {
+  var errs = [];
+  for (var i = 0; i < steps.length; i++) {
+    try {
+      steps[i].fn();
+      if (verify()) { return; }
+      errs.push(steps[i].name + ": not persisted");
+    } catch (e) { errs.push(steps[i].name + ": " + errText(e)); }
+  }
+  throw label + " failed -> " + errs.join(" | ");
 }
-function wsDelete(deKey, keyName, keyVal) {
-  var prox = new Script.Util.WSProxy();
-  var r = prox.deleteItem("DataExtensionObject", { CustomerKey: deKey, Keys: [{ Property: { Name: keyName, Value: keyVal } }] });
-  if (!r || String(r.Status) !== "OK") { throw "delete refused: " + (r ? String(r.Status) + " " + String(r.StatusMessage || "") : "no response"); }
-}
+function wsStatus(r) { if (!r || String(r.Status) !== "OK") { throw "status " + (r ? String(r.Status) + " " + String(r.StatusMessage || "") : "none"); } }
 function findCfgKey(key) {   /* cle existante, sans tenir compte de la casse (evite les doublons Token / token) */
   var rows = readCfgRows(), lk = key.toLowerCase();
   for (var i = 0; i < rows.length; i++) { if (rows[i].key.toLowerCase() === lk) return rows[i]; }
   return null;
 }
 function upsertCfg(key, value) {
-  var ex = findCfgKey(key), k = ex ? ex.key : key;
-  try { wsUpsert(CFG_DE_KEY, [{ Name: "ConfigKey", Value: k }, { Name: "Value", Value: value }]); } catch (e1) { Platform.Function.UpsertData(CFG_DE_NAME, 1, "ConfigKey", k, "Value", value); }
-  var chk = findCfgKey(key);
-  if (!chk || chk.value !== value) { throw "the value was not saved (check the DE key/name and field names)"; }
+  var ex = findCfgKey(key), k = ex ? ex.key : key, exists = !!ex;
+  tryChain("saving " + key, [
+    { name: "Core", fn: function () { var de = DataExtension.Init(CFG_DE_KEY); if (exists) { de.Rows.Update({ Value: value }, ["ConfigKey"], [k]); } else { de.Rows.Add({ ConfigKey: k, Value: value }); } } },
+    { name: "WSProxy", fn: function () {
+        var p = new Script.Util.WSProxy();
+        wsStatus(exists ? p.updateItem("DataExtensionObject", { CustomerKey: CFG_DE_KEY, Keys: [{ Name: "ConfigKey", Value: k }], Properties: [{ Name: "Value", Value: value }] })
+                        : p.createItem("DataExtensionObject", { CustomerKey: CFG_DE_KEY, Properties: [{ Name: "ConfigKey", Value: k }, { Name: "Value", Value: value }] }));
+      } },
+    { name: "UpsertData", fn: function () { Platform.Function.UpsertData(CFG_DE_NAME, 1, "ConfigKey", k, "Value", value); } }
+  ], function () { var c = findCfgKey(key); return !!c && c.value === value; });
 }
 function deleteCfg(key) {
   var ex = findCfgKey(key); if (!ex) return;
-  try { wsDelete(CFG_DE_KEY, "ConfigKey", ex.key); } catch (e1) { Platform.Function.DeleteData(CFG_DE_NAME, ["ConfigKey"], [ex.key]); }
-  if (findCfgKey(key)) { throw "the row was not deleted"; }
+  tryChain("deleting " + key, [
+    { name: "Core", fn: function () { DataExtension.Init(CFG_DE_KEY).Rows.Remove(["ConfigKey"], [ex.key]); } },
+    { name: "WSProxy", fn: function () { wsStatus(new Script.Util.WSProxy().deleteItem("DataExtensionObject", { CustomerKey: CFG_DE_KEY, Keys: [{ Name: "ConfigKey", Value: ex.key }] })); } },
+    { name: "DeleteData", fn: function () { Platform.Function.DeleteData(CFG_DE_NAME, ["ConfigKey"], [ex.key]); } }
+  ], function () { return !findCfgKey(key); });
 }
 function hasIp(ip) { var l = readIps(); for (var i = 0; i < l.length; i++) { if (l[i].ip.toLowerCase() === ip) return true; } return false; }
 function upsertIp(ip, desc) {
-  try { wsUpsert(IP_DE_KEY, [{ Name: "IPAddress", Value: ip }, { Name: "Description", Value: desc }]); }
-  catch (e1) {
-    try { Platform.Function.UpsertData(IP_DE_NAME, 1, "IPAddress", ip, "Description", desc); }
-    catch (e2) { Platform.Function.UpsertData(IP_DE_NAME, 1, "IPAddress", ip); }
-  }
-  if (!hasIp(ip)) { throw "the IP was not saved (check the DE key/name and field names)"; }
+  var exists = hasIp(ip), cur = null, l = readIps();
+  for (var i = 0; i < l.length; i++) { if (l[i].ip.toLowerCase() === ip) cur = l[i]; }
+  var k = cur ? cur.ip : ip;
+  tryChain("saving " + ip, [
+    { name: "Core", fn: function () { var de = DataExtension.Init(IP_DE_KEY); if (exists) { de.Rows.Update({ Description: desc }, ["IPAddress"], [k]); } else { de.Rows.Add({ IPAddress: k, Description: desc }); } } },
+    { name: "Core (IP only)", fn: function () { if (!exists) { DataExtension.Init(IP_DE_KEY).Rows.Add({ IPAddress: k }); } } },   /* DE sans colonne Description */
+    { name: "WSProxy", fn: function () {
+        var p = new Script.Util.WSProxy();
+        wsStatus(exists ? p.updateItem("DataExtensionObject", { CustomerKey: IP_DE_KEY, Keys: [{ Name: "IPAddress", Value: k }], Properties: [{ Name: "Description", Value: desc }] })
+                        : p.createItem("DataExtensionObject", { CustomerKey: IP_DE_KEY, Properties: [{ Name: "IPAddress", Value: k }, { Name: "Description", Value: desc }] }));
+      } },
+    { name: "UpsertData", fn: function () { Platform.Function.UpsertData(IP_DE_NAME, 1, "IPAddress", k, "Description", desc); } },
+    { name: "UpsertData (IP only)", fn: function () { Platform.Function.UpsertData(IP_DE_NAME, 1, "IPAddress", k); } }
+  ], function () { return hasIp(ip); });
 }
 function deleteIp(ip) {
   var l = readIps(), exact = ip;
   for (var i = 0; i < l.length; i++) { if (l[i].ip.toLowerCase() === ip) exact = l[i].ip; }
-  try { wsDelete(IP_DE_KEY, "IPAddress", exact); } catch (e1) { Platform.Function.DeleteData(IP_DE_NAME, ["IPAddress"], [exact]); }
-  if (hasIp(ip)) { throw "the IP was not deleted"; }
+  tryChain("deleting " + ip, [
+    { name: "Core", fn: function () { DataExtension.Init(IP_DE_KEY).Rows.Remove(["IPAddress"], [exact]); } },
+    { name: "WSProxy", fn: function () { wsStatus(new Script.Util.WSProxy().deleteItem("DataExtensionObject", { CustomerKey: IP_DE_KEY, Keys: [{ Name: "IPAddress", Value: exact }] })); } },
+    { name: "DeleteData", fn: function () { Platform.Function.DeleteData(IP_DE_NAME, ["IPAddress"], [exact]); } }
+  ], function () { return !hasIp(ip); });
 }
 
 /* --- validation --- */
+function ucase(s) { var t = String(s), o = ""; for (var i = 0; i < t.length; i++) { var c = t.charCodeAt(i); o += (c >= 97 && c <= 122) ? String.fromCharCode(c - 32) : t.charAt(i); } return o; }
 function normalizeIpEntry(raw) {
   var s = trim(raw).toLowerCase();
   if (!s || s.length > 50) return "";
@@ -227,10 +253,13 @@ var CFG_RULES = {
 /* retourne { key, value } nettoyes, ou { error } */
 function validateCfg(rawKey, rawValue) {
   var key = trim(rawKey), value = trim(rawValue), lk = key.toLowerCase(), rule = CFG_RULES[lk];
-  var m = /^label_(type|product)_([A-Za-z0-9_]{1,20})$/.exec(key);
-  if (m) {
+  var kind = "", code = "";
+  if (lk.indexOf("label_type_") === 0) { kind = "type"; code = key.substring(11); }
+  else if (lk.indexOf("label_product_") === 0) { kind = "product"; code = key.substring(14); }
+  if (kind) {
+    if (!/^[A-Za-z0-9_]{1,20}$/.test(code)) return { error: "label code: 1 to 20 letters, digits or _" };
     if (!value || value.length > 60 || /[<>\x00-\x1f]/.test(value)) return { error: "label: 1 to 60 characters, no < or >" };
-    return { key: "label_" + m[1] + "_" + m[2].toUpperCase(), value: value };
+    return { key: "label_" + kind + "_" + ucase(code), value: value };
   }
   if (!rule) return { error: "unknown setting: " + key };
   if (rule.t === "url") { if (!/^https:\/\/[^\s<>"']+$/.test(value) || value.length > 200) return { error: "api_url must be an https:// address (max 200 characters)" }; return { key: lk, value: value }; }
@@ -256,7 +285,9 @@ function cetStamp() {
 function logAdmin(action, target, detail) {
   try {
     var ts = cetStamp(), id = ts + "-" + Math.floor(Math.random() * 100000);
-    Platform.Function.UpsertData(LOG_DE, 1, "LogId", id, "Ts", ts, "AdminIP", cleanIp(clientIp), "Action", action, "Target", String(target).substring(0, 100), "Detail", String(detail).substring(0, 200));
+    var row = { LogId: id, Ts: ts, AdminIP: cleanIp(clientIp), Action: action, Target: String(target).substring(0, 100), Detail: String(detail).substring(0, 200) };
+    try { DataExtension.Init(LOG_DE).Rows.Add(row); }
+    catch (eCore) { Platform.Function.UpsertData(LOG_DE, 1, "LogId", id, "Ts", ts, "AdminIP", row.AdminIP, "Action", action, "Target", row.Target, "Detail", row.Detail); }
   } catch (eLog) { /* DE de journal absente : ignore */ }
 }
 
@@ -339,44 +370,60 @@ Variable.SetValue("@ipDiag", String(ipDiag || "") + (cfgDiag ? " | DASH_Config: 
 @media (prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#18212b;--fg:#eef0f2;--mute:#9aa8b4;--line:#2b3744;--pink-bg:#2a1a22;--ctl-brd:#7e8c99;--ok:#7fd36a;--err:#ff6b85;--tx-red:#ff7da3;--shadow:0 0 18px rgba(0,0,0,.4)}}
 *{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
-header{background:var(--red);color:#fff;padding:16px 24px}
-header h1{margin:0;font-size:1.25rem}header p{margin:2px 0 0;font-size:.8rem;color:rgba(255,255,255,.9)}
-main{max-width:1100px;margin:auto;padding:20px 24px 60px}
-section{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:18px 22px;margin-bottom:20px}
-h2{margin:0 0 4px;font-size:1.05rem}.sub{margin:0 0 14px;color:var(--mute);font-size:.8rem}
+header{background:var(--red);color:#fff;padding:14px 24px}
+header h1{margin:0;font-size:1.2rem}header p{margin:2px 0 0;font-size:.8rem;color:rgba(255,255,255,.9)}
+main{max-width:1000px;margin:auto;padding:0 24px 70px}
+.tabbar{display:flex;gap:4px;border-bottom:2px solid var(--line);margin:0 0 18px;position:sticky;top:0;background:var(--bg);z-index:15;padding-top:10px}
+.tabbtn{font:inherit;font-weight:600;border:0;background:none;padding:10px 18px;color:var(--mute);border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;border-radius:10px 10px 0 0}
+.tabbtn:hover{color:var(--fg)}.tabbtn[aria-selected=true]{color:var(--tx-red);border-bottom-color:var(--red)}
+.tabbtn:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.cnt{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:10px;background:var(--pink-bg);color:var(--tx-red);font-size:.72rem;font-weight:700;line-height:20px;text-align:center;border:1px solid var(--pink-mid)}
+.panel{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:18px 22px}
+h2{margin:0 0 2px;font-size:1.05rem}.sub{margin:0 0 14px;color:var(--mute);font-size:.8rem}.d{color:var(--mute);font-size:.78rem}
 table{border-collapse:collapse;width:100%}th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
-th{font-size:.75rem;color:var(--mute)}td.k{font-weight:600}.d{color:var(--mute);font-size:.8rem}
-#tCfg td.k{white-space:normal;width:42%}#tCfg td.k .d{margin-top:2px;line-height:1.35}#tCfg td:nth-child(2){min-width:240px}#tIp td.k,#tLab td.k{white-space:nowrap}
+th{font-size:.75rem;color:var(--mute)}td.k{font-weight:600}.mono{font-family:ui-monospace,Consolas,monospace;font-size:.85rem}.actions{white-space:nowrap;text-align:right}
 input,select{font:inherit;color:var(--fg);padding:8px 12px;border:2px solid var(--ctl-brd);border-radius:12px;background:var(--card);min-width:0}
-input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 input.w{width:100%}
 button{font:inherit;font-weight:600;font-size:.82rem;padding:8px 16px;border-radius:20px;cursor:pointer;border:2px solid var(--red);background:var(--red);color:#fff}
 button.sec{background:var(--card);color:var(--tx-red);border-color:var(--pink-mid)}button.sec:hover{border-color:var(--red)}
 button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
-button:disabled{opacity:.5;cursor:default}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:0 0 14px}.row label{display:flex;flex-direction:column;font-size:.75rem;color:var(--mute);gap:4px;font-weight:600}
-.pill{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.72rem;font-weight:700;background:var(--pink-bg);color:var(--tx-red);border:1px solid var(--pink-mid)}
+.pill{display:inline-block;padding:1px 9px;border-radius:12px;font-size:.72rem;font-weight:700;background:var(--pink-bg);color:var(--tx-red);border:1px solid var(--pink-mid)}
 .pill.ok{color:var(--ok);border-color:var(--ok);background:transparent}
-#status{position:sticky;top:8px;z-index:20;margin:0 0 14px;padding:10px 14px;border-radius:12px;font-weight:600;border:2px solid var(--ok);background:var(--card);color:var(--ok)}
-#status.err{border-color:var(--err);color:var(--err)}
-.mono{font-family:ui-monospace,Consolas,monospace;font-size:.85rem}
-.note{font-size:.75rem;color:var(--mute);margin-top:10px}
-.actions{white-space:nowrap;text-align:right}
-@media (max-width:760px){main{padding:14px}th:nth-child(3),td:nth-child(3){display:none}}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:0 0 14px}
+.grp{border:1px solid var(--line);border-radius:14px;margin:0 0 12px;overflow:hidden}
+.grp>summary{cursor:pointer;padding:12px 16px;font-weight:700;background:var(--pink-bg);list-style:none;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.grp>summary::-webkit-details-marker{display:none}
+.grp>summary::before{content:"\25B8";color:var(--tx-red);margin-right:8px;display:inline-block;transition:transform .15s}
+.grp[open]>summary::before{transform:rotate(90deg)}
+.grp>summary .l{flex:1}
+.srow{display:grid;grid-template-columns:minmax(200px,1.2fr) minmax(220px,1fr) 160px;gap:10px 16px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+.srow .sl b{display:block}.srow .sl .d{display:block;margin-top:1px;line-height:1.3}
+.srow.custom .sl b::after{content:"custom";margin-left:8px;font-size:.65rem;font-weight:700;color:var(--tx-red);border:1px solid var(--pink-mid);border-radius:8px;padding:0 6px;vertical-align:middle}
+.srow .sa{white-space:nowrap;text-align:right}
+.srow .sv .pill{margin-right:6px}.srow .sv .keyin{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#toast{position:fixed;right:18px;bottom:18px;z-index:40;max-width:min(520px,calc(100vw - 36px));padding:12px 16px;border-radius:14px;font-weight:600;border:2px solid var(--ok);background:var(--card);color:var(--ok);box-shadow:var(--shadow)}
+#toast.err{border-color:var(--err);color:var(--err)}
+.note{font-size:.75rem;color:var(--mute);margin-top:14px}
+@media (max-width:760px){main{padding:0 14px 70px}.srow{grid-template-columns:1fr}.srow .sa{text-align:left}th:nth-child(2),td:nth-child(2){display:none}}
 </style>
 </head>
 <body>
 <header><h1>Dashboard administration</h1><p>IP allowlist and configuration of the Journeys dashboard</p></header>
 <main>
-  <div id="status" role="status" aria-live="polite" hidden></div>
-  <div id="gate" hidden>
-    <section><h2 id="gateTitle"></h2><p class="sub" id="gateText"></p></section>
-  </div>
+  <div id="gate" hidden><div class="panel" style="margin-top:18px"><h2 id="gateTitle"></h2><p class="sub" id="gateText"></p></div></div>
   <div id="app" hidden>
-    <section aria-labelledby="hIp">
-      <h2 id="hIp">IP allowlist</h2>
-      <p class="sub">Addresses allowed to open the dashboard (and this page). One IPv4 address, an IPv4 range (CIDR, e.g. 203.0.113.0/24) or an IPv6 address.</p>
-      <p>Your current IP address: <span class="mono" id="yourIp"></span> <span class="pill" id="yourState"></span></p>
+    <div class="tabbar" role="tablist" aria-label="Administration sections">
+      <button type="button" class="tabbtn" role="tab" id="tab-ip" data-tab="ip" aria-controls="p-ip" aria-selected="true" tabindex="0">IP allowlist<span class="cnt" id="cntIp">0</span></button>
+      <button type="button" class="tabbtn" role="tab" id="tab-cfg" data-tab="cfg" aria-controls="p-cfg" aria-selected="false" tabindex="-1">Settings</button>
+      <button type="button" class="tabbtn" role="tab" id="tab-lab" data-tab="lab" aria-controls="p-lab" aria-selected="false" tabindex="-1">Friendly labels<span class="cnt" id="cntLab">0</span></button>
+    </div>
+
+    <section class="panel" id="p-ip" role="tabpanel" aria-labelledby="tab-ip">
+      <div class="bar">
+        <div><h2>IP allowlist</h2><p class="sub" style="margin:0">Addresses allowed to open the dashboard and this page: an IPv4 address, an IPv4 range (CIDR, e.g. 203.0.113.0/24) or an IPv6 address.</p></div>
+        <p style="margin:0">Your IP: <span class="mono" id="yourIp"></span> <span class="pill" id="yourState"></span></p>
+      </div>
       <form id="fIp" class="row" autocomplete="off">
         <label>IP address or range<input id="ipVal" required maxlength="50" placeholder="203.0.113.7 or 203.0.113.0/24"></label>
         <label>Description (optional)<input id="ipDesc" maxlength="200" size="34" placeholder="Office, VPN, review session..."></label>
@@ -384,14 +431,18 @@ button:disabled{opacity:.5;cursor:default}
       </form>
       <table id="tIp"></table>
     </section>
-    <section aria-labelledby="hCfg">
-      <h2 id="hCfg">Configuration</h2>
-      <p class="sub">Settings stored in the DASH_Config data extension. A setting that is not set uses its default value. Changes apply immediately.</p>
-      <table id="tCfg"></table>
+
+    <section class="panel" id="p-cfg" role="tabpanel" aria-labelledby="tab-cfg" hidden>
+      <div class="bar">
+        <div><h2>Settings</h2><p class="sub" style="margin:0">Stored in the DASH_Config data extension. A setting that is not set uses its default value. Changes apply immediately.</p></div>
+        <input id="cfgFilter" type="search" placeholder="Filter settings..." aria-label="Filter settings" size="24">
+      </div>
+      <div id="cfgBox"></div>
+      <details class="grp" id="sOth" hidden><summary><span class="l">Other rows (read only)</span></summary><table id="tOth"></table></details>
     </section>
-    <section aria-labelledby="hLab">
-      <h2 id="hLab">Friendly labels</h2>
-      <p class="sub">Readable names for campaign types and products (the code from the journey name is kept in brackets).</p>
+
+    <section class="panel" id="p-lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
+      <h2>Friendly labels</h2><p class="sub">Readable names for campaign types and products (the code from the journey name is kept in brackets).</p>
       <form id="fLab" class="row" autocomplete="off">
         <label>Applies to<select id="labKind"><option value="type">Campaign type</option><option value="product">Product</option></select></label>
         <label>Code<input id="labCode" required maxlength="20" size="12" placeholder="PROMO"></label>
@@ -400,12 +451,9 @@ button:disabled{opacity:.5;cursor:default}
       </form>
       <table id="tLab"></table>
     </section>
-    <section aria-labelledby="hOth" id="sOth" hidden>
-      <h2 id="hOth">Other rows</h2><p class="sub">Rows of DASH_Config that this page does not manage (read only).</p>
-      <table id="tOth"></table>
-    </section>
     <p class="note">Every change is logged in the DASH_Admin_Log data extension when it exists (date, admin IP, action, setting name; secret values are never logged or displayed).</p>
   </div>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
 </main>
 <script>
 const ADMIN_KEY = new URLSearchParams(location.search).get('k')||'';
@@ -414,9 +462,13 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 /* known settings : key, label, description, default, type */
 const SCHEMA = [
-  {k:'token',          l:'Dashboard access key',   d:'The value of ?k= in the dashboard link. Share the new link after changing it.', secret:true},
-  {k:'admin_token',    l:'Admin access key',       d:'The value of ?k= in the link of this page. Changing it changes this page\'s link.', secret:true},
-  {k:'api_url',        l:'API CloudPage URL',      d:'Published URL of the API CloudPage (cloudpage_api.html).', def:'(required)', type:'url'},
+  {k:'token',          l:'Dashboard access key',   d:'Value of ?k= in the dashboard link. Share the new link after changing it.', secret:true},
+  {k:'admin_token',    l:'Admin access key',       d:'Value of ?k= in the link of this page. Changing it changes this page\'s link.', secret:true},
+  {k:'api_url',        l:'API CloudPage URL',      d:'Published URL of the API CloudPage (cloudpage_api.html).', def:'(required)'},
+  {k:'alert_drop_pct', l:'Alert threshold (%)',    d:'Volume drop (in %) that triggers an alert (1 - 100).', def:'15', type:'number'},
+  {k:'alert_min_sends',l:'Alert minimum sends',    d:'Journeys with more sends than this last month are monitored.', def:'500', type:'number'},
+  {k:'alert_min_days', l:'Alert minimum days',     d:'Full days of data needed in the month before comparing volumes (1 - 28).', def:'3', type:'number'},
+  {k:'asset_strip_extra',l:'Extra text removed from asset names', d:'Texts separated by ; removed from email / asset names (on top of -vxx-xx, -xx-xx, -PDF, Website).', def:'(none)'},
   {k:'ip_de_key',      l:'IP allowlist - key',     d:'Customer Key of the IP allowlist data extension.', def:'DASH_IP_Allowlist'},
   {k:'ip_de_name',     l:'IP allowlist - name',    d:'Name of that data extension.', def:'= key'},
   {k:'link_de_name',   l:'Links DE - name',        d:'Name of the data extension with link clicks.', def:'DASH_Link_Monthly'},
@@ -424,14 +476,16 @@ const SCHEMA = [
   {k:'link_budget_ms', l:'Links time budget (ms)', d:'Maximum time to read links before showing a partial result (1000 - 25000).', def:'20000', type:'number'},
   {k:'audience_dist_de',l:'Audience DE',           d:'Customer Key of the subscriber distribution data extension.', def:'DASH_Audience_Dist'},
   {k:'contact_geo_de', l:'Contact geography DE',   d:'Customer Key of the contact geography data extension.', def:'DASH_Contact_Geo'},
-  {k:'alert_drop_pct', l:'Alert threshold (%)',    d:'Volume drop (in %) that triggers an alert (1 - 100).', def:'15', type:'number'},
-  {k:'alert_min_sends',l:'Alert minimum sends',    d:'Journeys with more sends than this last month are monitored.', def:'500', type:'number'},
-  {k:'alert_min_days', l:'Alert minimum days',     d:'Full days of data needed in the month before comparing volumes (1 - 28).', def:'3', type:'number'},
-  {k:'asset_strip_extra',l:'Extra text removed from asset names', d:'Texts separated by ; removed from email / asset names, on top of -vxx-xx, -xx-xx, -PDF and Website.', def:'(none)'},
   {k:'admin_log_de',   l:'Admin log DE',           d:'Customer Key of the change log data extension.', def:'DASH_Admin_Log'}
 ];
-let ST = {ips:[], cfg:[], yourIp:''};
-function say(msg, err){ const s=$('status'); s.hidden=!msg; s.textContent=msg||''; s.classList.toggle('err',!!err); if(msg && !err) setTimeout(()=>{ if(s.textContent===msg) s.hidden=true; },6000); }
+const GROUPS = [
+  {id:'keys', t:'Access keys', items:['token','admin_token']},
+  {id:'dash', t:'Dashboard settings', items:['api_url','alert_drop_pct','alert_min_sends','alert_min_days','asset_strip_extra']},
+  {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','admin_log_de']}
+];
+let ST = {ips:[], cfg:[], yourIp:''}, TAB = 'ip', FILTER = '', FOCUS = null;
+const OPEN = {keys:true, dash:true, de:false};
+function say(msg, err){ const s=$('toast'); s.hidden=!msg; s.textContent=msg||''; s.classList.toggle('err',!!err); clearTimeout(say.t); if(msg && !err) say.t=setTimeout(()=>{ if(s.textContent===msg) s.hidden=true; },6000); }
 async function call(action, payload){
   const res = await fetch(location.pathname+location.search,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({k:adminKey,action},payload||{}))});
   const txt = await res.text(); let j;
@@ -449,38 +503,73 @@ function covers(entry, ip){   /* does this allowlist entry cover the visitor IP 
   const m = entry.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)\/(\d+)$/), q = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/); if (!m||!q) return false;
   const n = a => ((+a[1]*256+ +a[2])*256+ +a[3])*256+ +a[4], bits=+m[5], size=Math.pow(2,32-bits), start=Math.floor(n(m)/size)*size; return n(q)>=start && n(q)<start+size;
 }
-function render(){
+const isLabel = r => /^label_(type|product)_/i.test(r.key);
+function showTab(t, focus){
+  TAB = t;
+  document.querySelectorAll('.tabbtn').forEach(b=>{ const on=b.dataset.tab===t; b.setAttribute('aria-selected',on); b.tabIndex=on?0:-1; if(on&&focus) b.focus(); });
+  ['ip','cfg','lab'].forEach(x=>$('p-'+x).hidden = x!==t);
+  try{ history.replaceState(null,'',location.pathname+location.search+(t==='ip'?'':'#'+t)); }catch(e){}
+}
+function renderIp(){
   $('yourIp').textContent = ST.yourIp||'?';
   const allowed = ST.ips.some(x=>covers(x.ip,ST.yourIp));
   $('yourState').textContent = allowed ? 'allowed' : 'not in the list'; $('yourState').className = 'pill'+(allowed?' ok':'');
+  $('cntIp').textContent = ST.ips.length;
   $('tIp').innerHTML = '<thead><tr><th>IP address / range</th><th>Description</th><th></th></tr></thead><tbody>'+
-    (ST.ips.length ? ST.ips.map(x=>`<tr><td class="k mono">${esc(x.ip)}${covers(x.ip,ST.yourIp)?' <span class="pill ok">you</span>':''}</td><td class="d">${esc(x.desc)}</td><td class="actions"><button type="button" class="danger" data-rm="${esc(x.ip)}" aria-label="Remove ${esc(x.ip)}">Remove</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">The list is empty: nobody can open the dashboard.</td></tr>')+'</tbody>';
+    (ST.ips.length ? ST.ips.map(x=>`<tr><td class="k mono" style="white-space:nowrap">${esc(x.ip)}${covers(x.ip,ST.yourIp)?' <span class="pill ok">you</span>':''}</td><td class="d">${esc(x.desc)}</td><td class="actions"><button type="button" class="danger" data-rm="${esc(x.ip)}" aria-label="Remove ${esc(x.ip)}">Remove</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">The list is empty: nobody can open the dashboard.</td></tr>')+'</tbody>';
   $('tIp').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ if (confirm('Remove '+b.dataset.rm+' from the allowlist ?')) act('ip_remove',{ip:b.dataset.rm}); });
-  const cur = {}; ST.cfg.forEach(r=>cur[r.key.toLowerCase()]=r);
-  $('tCfg').innerHTML = '<thead><tr><th>Setting</th><th>Value</th><th>Default</th><th></th></tr></thead><tbody>'+SCHEMA.map(s=>{
-    const r = cur[s.k], id = 'c_'+s.k;
-    const field = s.secret
-      ? `<span class="pill ${r?'ok':''}">${r?'set':'not set'}</span> <input id="${id}" class="mono" type="text" autocomplete="off" placeholder="new key (16-64 characters)" size="26" maxlength="64" aria-label="New value for ${esc(s.l)}"> <button type="button" class="sec" data-gen="${s.k}">Generate</button>`
-      : `<input id="${id}" class="w" ${s.type==='number'?'type="number"':'type="text"'} value="${esc(r?r.value:'')}" placeholder="${esc(s.def||'')}" maxlength="200" aria-label="${esc(s.l)}">`;
-    return `<tr><td class="k">${esc(s.l)}<div class="d" style="font-weight:400">${esc(s.d)}</div></td><td>${field}</td><td class="d">${esc(s.def||'')}</td><td class="actions"><button type="button" data-save="${s.k}">Save</button> ${(!s.secret&&r&&s.k!=='api_url')?`<button type="button" class="sec" data-del="${s.k}" title="Remove the row: the default value applies">Reset</button>`:''}</td></tr>`;}).join('')+'</tbody>';
-  $('tCfg').querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{
+}
+function settingRow(s, r){
+  const id = 'c_'+s.k;
+  const field = s.secret
+    ? `<span class="pill ${r?'ok':''}">${r?'set':'not set'}</span><div class="keyin"><input id="${id}" class="mono" type="text" autocomplete="off" placeholder="new key (16-64 characters)" size="26" maxlength="64" aria-label="New value for ${esc(s.l)}"> <button type="button" class="sec" data-gen="${s.k}">Generate</button></div>`
+    : `<input id="${id}" class="w" ${s.type==='number'?'type="number"':'type="text"'} value="${esc(r?r.value:'')}" placeholder="${esc(s.def?'Default: '+s.def:'')}" maxlength="200" aria-label="${esc(s.l)}">`;
+  return `<div class="srow${r&&!s.secret?' custom':''}" data-row="${s.k}"><div class="sl"><b>${esc(s.l)}</b><span class="d">${esc(s.d)}</span></div><div class="sv">${field}</div>`+
+    `<div class="sa"><button type="button" data-save="${s.k}">Save</button> ${(!s.secret&&r&&s.k!=='api_url')?`<button type="button" class="sec" data-del="${s.k}" title="Remove the row: the default value applies">Reset</button>`:''}</div></div>`;
+}
+function renderCfg(){
+  const cur = {}, by = {}; ST.cfg.forEach(r=>cur[r.key.toLowerCase()]=r); SCHEMA.forEach(s=>by[s.k]=s);
+  const f = FILTER.trim().toLowerCase();
+  const html = GROUPS.map(g=>{
+    const items = g.items.map(k=>by[k]).filter(s=>!f || (s.l+' '+s.k+' '+s.d).toLowerCase().includes(f));
+    if (!items.length) return '';
+    const custom = g.items.filter(k=>cur[k]&&!by[k].secret).length;
+    return `<details class="grp" data-g="${g.id}"${(OPEN[g.id]||f)?' open':''}><summary><span class="l">${esc(g.t)}</span>${custom?`<span class="pill">${custom} customised</span>`:''}</summary>${items.map(s=>settingRow(s,cur[s.k])).join('')}</details>`;
+  }).join('');
+  $('cfgBox').innerHTML = html || '<p class="d">No setting matches this filter.</p>';
+  $('cfgBox').querySelectorAll('details').forEach(d=>d.ontoggle=()=>{ if(!FILTER.trim()) OPEN[d.dataset.g]=d.open; });
+  $('cfgBox').querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{
     const k=b.dataset.save, v=$('c_'+k).value.trim(); if(!v){ say('Enter a value first (use Reset to go back to the default).', true); return; }
-    const ok = await act('cfg_set',{key:k,value:v}); if (ok && k==='admin_token'){ adminKey=v; say('Admin key changed: use the new key in the link of this page from now on.'); }
+    FOCUS = 'save:'+k; const ok = await act('cfg_set',{key:k,value:v}); if (ok && k==='admin_token'){ adminKey=v; say('Admin key changed: use the new key in the link of this page from now on.'); }
   });
-  $('tCfg').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if (confirm('Remove the row "'+b.dataset.del+'" (the default value will apply) ?')) act('cfg_delete',{key:b.dataset.del}); });
-  $('tCfg').querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>{ const AL='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', a=new Uint8Array(24); crypto.getRandomValues(a); const t=[...a].map(x=>AL[x%AL.length]).join(''); const i=$('c_'+b.dataset.gen); i.value=t; i.select(); say('New key generated: copy it now, then click Save. It is never shown again.'); });
-  const labs = ST.cfg.filter(r=>/^label_(type|product)_/i.test(r.key)).sort((a,b)=>a.key.localeCompare(b.key));
-  $('tLab').innerHTML = '<thead><tr><th>Applies to</th><th>Code</th><th>Label</th><th></th></tr></thead><tbody>'+(labs.length?labs.map(r=>{const m=r.key.match(/^label_(type|product)_(.+)$/i);return `<tr><td>${m[1].toLowerCase()==='type'?'Campaign type':'Product'}</td><td class="k mono">${esc(m[2])}</td><td>${esc(r.value)}</td><td class="actions"><button type="button" class="danger" data-dl="${esc(r.key)}" aria-label="Delete label ${esc(m[2])}">Delete</button></td></tr>`;}).join(''):'<tr><td colspan="4" class="d">No label yet.</td></tr>')+'</tbody>';
-  $('tLab').querySelectorAll('[data-dl]').forEach(b=>b.onclick=()=>{ if (confirm('Delete the label '+b.dataset.dl+' ?')) act('cfg_delete',{key:b.dataset.dl}); });
-  const known = new Set(SCHEMA.map(s=>s.k)), oth = ST.cfg.filter(r=>!known.has(r.key.toLowerCase()) && !/^label_(type|product)_/i.test(r.key));
+  $('cfgBox').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if (confirm('Remove the row "'+b.dataset.del+'" (the default value will apply) ?')){ FOCUS='row:'+b.dataset.del; act('cfg_delete',{key:b.dataset.del}); } });
+  $('cfgBox').querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>{ const AL='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', a=new Uint8Array(24); crypto.getRandomValues(a); const t=[...a].map(x=>AL[x%AL.length]).join(''); const i=$('c_'+b.dataset.gen); i.value=t; i.select(); say('New key generated: copy it now, then click Save. It is never shown again.'); });
+  const known = new Set(SCHEMA.map(s=>s.k)), oth = ST.cfg.filter(r=>!known.has(r.key.toLowerCase()) && !isLabel(r));
   $('sOth').hidden = !oth.length; $('tOth').innerHTML = '<tbody>'+oth.map(r=>`<tr><td class="k mono">${esc(r.key)}</td><td>${r.secret?'(secret)':esc(r.value)}</td></tr>`).join('')+'</tbody>';
 }
+function renderLab(){
+  const labs = ST.cfg.filter(isLabel).sort((a,b)=>a.key.localeCompare(b.key)); $('cntLab').textContent = labs.length;
+  $('tLab').innerHTML = '<thead><tr><th>Applies to</th><th>Code</th><th>Label</th><th></th></tr></thead><tbody>'+(labs.length?labs.map(r=>{const m=r.key.match(/^label_(type|product)_(.+)$/i);return `<tr><td>${m[1].toLowerCase()==='type'?'Campaign type':'Product'}</td><td class="k mono">${esc(m[2])}</td><td>${esc(r.value)}</td><td class="actions"><button type="button" class="danger" data-dl="${esc(r.key)}" aria-label="Delete label ${esc(m[2])}">Delete</button></td></tr>`;}).join(''):'<tr><td colspan="4" class="d">No label yet.</td></tr>')+'</tbody>';
+  $('tLab').querySelectorAll('[data-dl]').forEach(b=>b.onclick=()=>{ if (confirm('Delete the label '+b.dataset.dl+' ?')) act('cfg_delete',{key:b.dataset.dl}); });
+}
+function render(){
+  renderIp(); renderCfg(); renderLab();
+  if (FOCUS){ const [kind,k]=FOCUS.split(':'); FOCUS=null; const el = document.querySelector(kind==='save'?`[data-save="${k}"]`:`[data-row="${k}"] input`); if (el) el.focus(); }
+}
+document.querySelectorAll('.tabbtn').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+document.querySelector('.tabbar').addEventListener('keydown', e=>{
+  const tabs=[...document.querySelectorAll('.tabbtn')], i=tabs.indexOf(document.activeElement); if(i<0) return;
+  const to = e.key==='ArrowRight'?(i+1)%tabs.length : e.key==='ArrowLeft'?(i-1+tabs.length)%tabs.length : e.key==='Home'?0 : e.key==='End'?tabs.length-1 : -1;
+  if (to>=0){ e.preventDefault(); showTab(tabs[to].dataset.tab, true); }
+});
+$('cfgFilter').oninput = e=>{ FILTER = e.target.value; renderCfg(); };
 $('fIp').onsubmit = async e=>{ e.preventDefault(); if (await act('ip_add',{ip:$('ipVal').value,desc:$('ipDesc').value})){ $('ipVal').value=''; $('ipDesc').value=''; $('ipVal').focus(); } };
 $('fLab').onsubmit = async e=>{ e.preventDefault(); if (await act('cfg_set',{key:'label_'+$('labKind').value+'_'+$('labCode').value.trim(),value:$('labText').value})){ $('labCode').value=''; $('labText').value=''; $('labCode').focus(); } };
 (async()=>{
   const gate=(t,x)=>{ $('gate').hidden=false; $('gateTitle').textContent=t; $('gateText').textContent=x; };
   try{
     const j = await call('list'); ST = {ips:j.ips||[], cfg:j.cfg||[], yourIp:j.yourIp||''}; $('app').hidden=false; render();
+    const h = location.hash.replace('#',''); if (['ip','cfg','lab'].includes(h)) showTab(h);
   }catch(e){
     if (e.code==='admin_disabled') gate('Administration is disabled','Add a row to the DASH_Config data extension: ConfigKey = admin_token, Value = a secret key of at least 24 characters (letters and digits). Then open this page with ?k=<that key>.');
     else if (e.code==='unauthorized') gate('Invalid admin key','Open this page with ?k=<admin key> (the admin_token value of DASH_Config).');

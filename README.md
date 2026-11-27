@@ -120,10 +120,10 @@ L'API (`cloudpage_api.html`) renvoie les données principales par défaut ; `&pa
 - **Géographie** : uniquement le nombre de contacts de `Contact_Salesforce_1` par code postal (4 chiffres belges ; les codes étrangers, vides ou mal formés sont comptés « sans code postal utilisable »). Aucune jointure avec les abonnés ni avec les envois. La sonde P9 de `sql/12_probes.sql` montre les formats réels des codes postaux.
 
 ## Page d'administration (cloudpage_admin.html)
-Une CloudPage séparée pour gérer sans passer par Contact Builder :
-- la **liste des IP autorisées** (`DASH_IP_Allowlist`) : ajouter une adresse IPv4, une plage IPv4 (CIDR) ou une IPv6 avec une description, ou supprimer une entrée ;
-- les **réglages** de `DASH_Config` (URL de l'API, noms des DE, seuils d'alerte, textes retirés des noms d'assets, token du dashboard, clé d'administration) avec la valeur par défaut affichée et un bouton *Reset* ;
-- les **libellés** des types de campagne et des produits (lignes `label_type_<CODE>` / `label_product_<CODE>`).
+Une CloudPage séparée pour gérer sans passer par Contact Builder. Elle est organisée en **trois onglets** (l'onglet ouvert est conservé dans l'adresse) :
+- *IP allowlist* : la **liste des IP autorisées** (`DASH_IP_Allowlist`) : ajouter une adresse IPv4, une plage IPv4 (CIDR) ou une IPv6 avec une description, ou supprimer une entrée ;
+- *Settings* : les **réglages** de `DASH_Config` (URL de l'API, noms des DE, seuils d'alerte, textes retirés des noms d'assets, token du dashboard, clé d'administration) regroupés en sections repliables (clés d'accès, réglages du dashboard, noms des DE en mode avancé), avec un filtre, la valeur par défaut affichée, un repère « custom » sur les valeurs personnalisées et un bouton *Reset* ;
+- *Friendly labels* : les **libellés** des types de campagne et des produits (lignes `label_type_<CODE>` / `label_product_<CODE>`).
 
 **Mise en route** (une seule fois) : créer la CloudPage, y coller le fichier, puis ajouter à la main dans `DASH_Config` la ligne `admin_token` (une clé secrète de 24 caractères ou plus, lettres et chiffres). La page s'ouvre avec `https://.../admin?k=<admin_token>`. Sans cette ligne, elle reste en lecture seule et l'indique.
 
