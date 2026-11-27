@@ -18,11 +18,38 @@ function fetchAll(deKey, cols, filter) {
   }
   return out;
 }
-/* ---- IP allowlist : DE "DASH_IP_Allowlist" (IPAddress PK, Description). IPv4 exact / CIDR, IPv6 exact. Fail closed. ---- */
-var IP_DE_KEY  = "DASH_IP_Allowlist";   /* Customer Key de la DE (Contact Builder > Data Extensions > Properties) */
-var IP_DE_NAME = "DASH_IP_Allowlist";   /* Nom de la DE */
-var ipDiag = "";
+/* ====== CONFIGURATION : lue dans la DE "DASH_Config" (colonnes ConfigKey / Value) - rien a modifier dans ce fichier ======
+   Seule valeur fixe : la DE doit s'appeler DASH_Config (nom et Customer Key). Tous les reglages sont des lignes de cette DE
+   (voir le README) ; une ligne absente = valeur par defaut. */
+var CFG_DE_KEY = "DASH_Config", CFG_DE_NAME = "DASH_Config";
+var CFG = {}, cfgDiag = "";
 function trim(s) { return String(s === null || s === undefined ? "" : s).replace(/^\s+|\s+$/g, ""); }
+function loadConfig() {
+  var n = 0;
+  try {
+    var prox = new Script.Util.WSProxy(), obj = "DataExtensionObject[" + CFG_DE_KEY + "]";
+    var r = prox.retrieve(obj, ["ConfigKey", "Value"]);
+    while (r && r.Results) {
+      for (var i = 0; i < r.Results.length; i++) {
+        var p = r.Results[i].Properties, k = "", v = "";
+        for (var j = 0; j < p.length; j++) { if (p[j].Name === "ConfigKey") k = trim(p[j].Value); else if (p[j].Name === "Value") v = trim(p[j].Value); }
+        if (k) { CFG[k.toLowerCase()] = v; n++; }
+      }
+      if (r.HasMoreRows) { r = prox.getNextBatch(obj, r.RequestID); } else { break; }
+    }
+    if (!n) cfgDiag += "WSProxy: 0 rows; ";
+  } catch (e1) { cfgDiag += "WSProxy error: " + e1 + "; "; }
+  if (!CFG.token) {
+    try { var t = trim(Platform.Function.Lookup(CFG_DE_NAME, "Value", "ConfigKey", "token")); if (t) CFG.token = t; } catch (e2) { cfgDiag += "Lookup error: " + e2 + "; "; }
+  }
+}
+function cfgv(key, def) { var v = CFG[key]; return (v === undefined || v === "") ? def : v; }
+function cfgn(key, def) { var x = parseFloat(String(cfgv(key, "")).replace(",", ".")); return isNaN(x) ? def : x; }
+loadConfig();
+/* ---- IP allowlist : DE "DASH_IP_Allowlist" (IPAddress PK, Description). IPv4 exact / CIDR, IPv6 exact. Fail closed. ---- */
+var IP_DE_KEY  = cfgv("ip_de_key", "DASH_IP_Allowlist");   /* configurable dans DASH_Config : ip_de_key / ip_de_name */
+var IP_DE_NAME = cfgv("ip_de_name", IP_DE_KEY);
+var ipDiag = "";
 /* Nettoie l'IP : 1re IP d'une liste, sans port, sans crochets IPv6 */
 function cleanIp(raw) {
   var s = trim(raw).split(",")[0]; s = trim(s).toLowerCase();
@@ -91,25 +118,6 @@ function isIpAllowed(ip) {
 var clientIp = "", ipOk = false;
 try { clientIp = Platform.Request.ClientIP; ipOk = isIpAllowed(clientIp); } catch (eIp) { ipOk = false; ipDiag += " | error: " + eIp; }
 
-/* ---- Token : DE "DASH_Config" (ConfigKey, Value), ligne ConfigKey='token' ---- */
-var CFG_DE_KEY = "DASH_Config";   /* Customer Key de la DE */
-var CFG_DE_NAME = "DASH_Config";  /* Nom de la DE */
-var cfgDiag = "";
-function getConfigToken() {
-  var v = "";
-  try {
-    var prox = new Script.Util.WSProxy();
-    var r = prox.retrieve("DataExtensionObject[" + CFG_DE_KEY + "]", ["ConfigKey", "Value"], { Property: "ConfigKey", SimpleOperator: "equals", Value: "token" });
-    if (r && r.Results && r.Results.length) {
-      var p = r.Results[0].Properties;
-      for (var j = 0; j < p.length; j++) { if (p[j].Name === "Value") v = trim(p[j].Value); }
-    } else { cfgDiag += "WSProxy: 0 rows; "; }
-  } catch (e1) { cfgDiag += "WSProxy error: " + e1 + "; "; }
-  if (!v) {
-    try { v = trim(Platform.Function.Lookup(CFG_DE_NAME, "Value", "ConfigKey", "token")); } catch (e2) { cfgDiag += "Lookup error: " + e2 + "; "; }
-  }
-  return v;
-}
 function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
 
 function numFields(rows, fields) {
@@ -118,9 +126,9 @@ function numFields(rows, fields) {
 }
 var warnings = [];
 /* ---- Liens : lecture rapide par journey et par mois (LookupRows = requête SQL directe, bien plus rapide que le SOAP) ---- */
-var LINK_DE_NAME = "DASH_Link_Monthly";   /* NOM de la DE (LookupRows) */
-var LINK_DE_KEY  = "DASH_Link_Monthly";   /* Customer Key de la DE (repli WSProxy) */
-var LINK_BUDGET_MS = 20000;               /* au-delà, on renvoie un résultat partiel plutôt qu une erreur 408 */
+var LINK_DE_NAME = cfgv("link_de_name", "DASH_Link_Monthly");   /* NOM de la DE (LookupRows) - DASH_Config : link_de_name */
+var LINK_DE_KEY  = cfgv("link_de_key", LINK_DE_NAME);          /* Customer Key (repli WSProxy) - DASH_Config : link_de_key */
+var LINK_BUDGET_MS = cfgn("link_budget_ms", 20000);            /* au-delà, résultat partiel plutôt qu erreur 408 - DASH_Config : link_budget_ms */
 function monthsBetween(from, to) {
   var out = [];
   if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to)) return out;
@@ -165,7 +173,7 @@ try {
   if (!ipOk) { Write(Stringify({ error: "forbidden" })); throw "STOP"; }
   var k = trim(Platform.Request.GetQueryStringParameter("k"));
   var part = trim(Platform.Request.GetQueryStringParameter("part")) || "core";
-  var ref = getConfigToken();
+  var ref = CFG.token || "";
   var why = "";
   if (!k) why = "no ?k= in the URL";
   else if (!ref) why = "token not found in DASH_Config (check key/name, ConfigKey='token')";

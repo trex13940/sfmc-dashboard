@@ -1,10 +1,37 @@
 <script runat="server">
 Platform.Load("core", "1.1.1");
-/* ---- IP allowlist : DE "DASH_IP_Allowlist" (IPAddress PK, Description). IPv4 exact / CIDR, IPv6 exact. Fail closed. ---- */
-var IP_DE_KEY  = "DASH_IP_Allowlist";   /* Customer Key de la DE (Contact Builder > Data Extensions > Properties) */
-var IP_DE_NAME = "DASH_IP_Allowlist";   /* Nom de la DE */
-var ipDiag = "";
+/* ====== CONFIGURATION : lue dans la DE "DASH_Config" (colonnes ConfigKey / Value) - rien a modifier dans ce fichier ======
+   Seule valeur fixe : la DE doit s'appeler DASH_Config (nom et Customer Key). Tous les reglages sont des lignes de cette DE
+   (voir le README) ; une ligne absente = valeur par defaut. */
+var CFG_DE_KEY = "DASH_Config", CFG_DE_NAME = "DASH_Config";
+var CFG = {}, cfgDiag = "";
 function trim(s) { return String(s === null || s === undefined ? "" : s).replace(/^\s+|\s+$/g, ""); }
+function loadConfig() {
+  var n = 0;
+  try {
+    var prox = new Script.Util.WSProxy(), obj = "DataExtensionObject[" + CFG_DE_KEY + "]";
+    var r = prox.retrieve(obj, ["ConfigKey", "Value"]);
+    while (r && r.Results) {
+      for (var i = 0; i < r.Results.length; i++) {
+        var p = r.Results[i].Properties, k = "", v = "";
+        for (var j = 0; j < p.length; j++) { if (p[j].Name === "ConfigKey") k = trim(p[j].Value); else if (p[j].Name === "Value") v = trim(p[j].Value); }
+        if (k) { CFG[k.toLowerCase()] = v; n++; }
+      }
+      if (r.HasMoreRows) { r = prox.getNextBatch(obj, r.RequestID); } else { break; }
+    }
+    if (!n) cfgDiag += "WSProxy: 0 rows; ";
+  } catch (e1) { cfgDiag += "WSProxy error: " + e1 + "; "; }
+  if (!CFG.token) {
+    try { var t = trim(Platform.Function.Lookup(CFG_DE_NAME, "Value", "ConfigKey", "token")); if (t) CFG.token = t; } catch (e2) { cfgDiag += "Lookup error: " + e2 + "; "; }
+  }
+}
+function cfgv(key, def) { var v = CFG[key]; return (v === undefined || v === "") ? def : v; }
+function cfgn(key, def) { var x = parseFloat(String(cfgv(key, "")).replace(",", ".")); return isNaN(x) ? def : x; }
+loadConfig();
+/* ---- IP allowlist : DE "DASH_IP_Allowlist" (IPAddress PK, Description). IPv4 exact / CIDR, IPv6 exact. Fail closed. ---- */
+var IP_DE_KEY  = cfgv("ip_de_key", "DASH_IP_Allowlist");   /* configurable dans DASH_Config : ip_de_key / ip_de_name */
+var IP_DE_NAME = cfgv("ip_de_name", IP_DE_KEY);
+var ipDiag = "";
 /* Nettoie l'IP : 1re IP d'une liste, sans port, sans crochets IPv6 */
 function cleanIp(raw) {
   var s = trim(raw).split(",")[0]; s = trim(s).toLowerCase();
@@ -74,7 +101,15 @@ var clientIp = "", ipOk = false;
 try { clientIp = Platform.Request.ClientIP; ipOk = isIpAllowed(clientIp); } catch (eIp) { ipOk = false; ipDiag += " | error: " + eIp; }
 Variable.SetValue("@ipOk", ipOk ? "1" : "0");
 Variable.SetValue("@clientIp", String(clientIp || ""));
-Variable.SetValue("@ipDiag", String(ipDiag || ""));
+Variable.SetValue("@ipDiag", String(ipDiag || "") + (cfgDiag ? " | DASH_Config: " + cfgDiag : ""));
+/* Réglages transmis au navigateur (liste blanche : le token n'est jamais exposé) */
+var labels = { type: {}, product: {} };
+for (var ck in CFG) {
+  if (ck.indexOf("label_type_") === 0) labels.type[ck.substr(11).toUpperCase()] = CFG[ck];
+  else if (ck.indexOf("label_product_") === 0) labels.product[ck.substr(14).toUpperCase()] = CFG[ck];
+}
+var clientCfg = { apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), labels: labels };
+Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").replace(/%/g, "\\u0025"));
 </script>
 %%[ IF @ipOk == "1" THEN ]%%
 <!doctype html>
@@ -263,14 +298,12 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
-/* ====== CONFIG : URL de la CloudPage API (cloudpage_api.html) ====== */
-const API_URL = "https://VOTRE-SUBDOMAIN.pub.sfmc-content.com/XXXXXXXX";
-/* ==================================================================== */
-
-/* Volume alert settings */
-const ALERT_DROP = 0.15;      /* alert when volume is more than 15 % below the expected pace */
-const ALERT_MIN = 500;        /* only for journeys with more than 500 sends last month */
-const ALERT_MIN_DAYS = 3;     /* do not alert before 3 full days of data in the month */
+/* ====== CONFIG : lue dans la DE DASH_Config par le serveur (voir README) - rien a modifier ici ====== */
+const CFG = %%=v(@cfgJson)=%%;
+const API_URL = CFG.apiUrl || '';
+const ALERT_DROP = CFG.alertDrop ?? 0.15;        /* alert when volume is more than this share below the expected pace */
+const ALERT_MIN = CFG.alertMin ?? 500;           /* only for journeys with more sends than this last month */
+const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this many full days of data in the month */
 
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
@@ -292,8 +325,8 @@ const TABS = {
 };
 
 /* Naming convention journeys: MKT|Oxx _ TYPE _ PRODUCT _ Campaign name _ mmyyyy|ongoing
-   Optional friendly labels (code -> label), to fill in once the full list is known. */
-const LABELS = { type:{}, product:{} };
+   Friendly labels (code -> label) come from DASH_Config rows label_type_<CODE> / label_product_<CODE>. */
+const LABELS = { type:(CFG.labels&&CFG.labels.type)||{}, product:(CFG.labels&&CFG.labels.product)||{} };
 const lab = (kind, code) => LABELS[kind] && LABELS[kind][code] ? LABELS[kind][code]+' ('+code+')' : code;
 const normProd = p => { p = String(p||'n/a').toUpperCase(); return p==='BIKE' ? 'BIK' : p; };
 
@@ -768,6 +801,7 @@ function render(){
 }
 
 async function api(part, extra){
+  if (!API_URL) throw new Error('api_url is not set in DASH_Config');
   const k = new URLSearchParams(location.search).get('k')||'';
   let url = API_URL+'?k='+encodeURIComponent(k)+(part?'&part='+part:'');
   if (extra && extra.j) url += '&j='+encodeURIComponent(extra.j)+'&from='+encodeURIComponent(extra.from||'')+'&to='+encodeURIComponent(extra.to||'');
@@ -844,6 +878,7 @@ $('bRetry').onclick = () => load();
 
 function friendly(msg){
   if (/^forbidden/i.test(msg)) return 'Access denied for this IP address.';
+  if (/api_url is not set/i.test(msg)) return 'The dashboard is not configured yet: add the api_url row (URL of the API CloudPage) to the DASH_Config data extension.';
   if (/^unauthorized/i.test(msg)) return 'The access key is missing or invalid. Open the dashboard with the full link (it ends with ?k=…) or ask the Marketing Cloud admin.';
   return 'The dashboard could not load its data. Please retry in a moment.';
 }

@@ -60,7 +60,7 @@ Pour 04 (conversions), découper par date de création du lead : changer `Create
 - La clé `RowKey` contient le nom du lien : si vous relancez le backfill après ce changement, utilisez le mode **Overwrite** sur `DASH_Link_Monthly` (une seule fois) pour ne pas garder les anciennes lignes à nom vide ; les passages quotidiens restent en **Update**.
 - L API charge les liens **une journey et une période à la fois** (`&part=links&j=<journey>&from=yyyy-mm&to=yyyy-mm`), mois par mois avec `LookupRows` (rapide), les mois les plus récents d abord, avec un budget de 20 s : au-delà, la page affiche un résultat partiel et le dit, plutôt qu une erreur 408.
 - Si le DE contient beaucoup de lignes, **recréez `DASH_Link_Monthly` avec une clé primaire composée dans cet ordre : `JourneyName`, `Month`, `RowKey`** (les autres champs inchangés). Les champs de clé sont indexés : filtrer sur `JourneyName` et `Month` devient quasi instantané. Rechargez ensuite avec le backfill `09` (Overwrite).
-- Réglages en haut de `cloudpage_api.html` : `LINK_DE_NAME` (nom de la DE, pour `LookupRows`), `LINK_DE_KEY` (Customer Key, pour le repli) et `LINK_BUDGET_MS`.
+- Réglages dans la DE `DASH_Config` : `link_de_name` (nom de la DE, pour `LookupRows`), `link_de_key` (Customer Key, pour le repli) et `link_budget_ms`.
 
 ## Conversions : règles métier (02 et 04)
 - Journeys retenues : MKT_XSELL_, MKT_PROMO_, MKT_NEWS_, ODO_, OCL_, ODD_OFF_, OCX_XSELL_.

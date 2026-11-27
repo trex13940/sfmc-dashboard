@@ -12,22 +12,40 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 | DASH_Link_Monthly | **JourneyName** Text(200), **Month** Text(7), **RowKey** Text(32) (clé primaire composée dans cet ordre, pour des lectures rapides), EmailName Text(200), LinkName Text(300), LinkContent Text(300), UniqueClicks, TotalClicks (Number) |
 | DASH_Domain_Monthly | **Domain** Text(100), **Month** Text(7), Sends, Bounces, Complaints (Number) |
 | DASH_SMS_Monthly | **JourneyName** Text(200), **Month** Text(7), **AssetName** Text(200), Sent, **Messages**, UniqueRecipients, Delivered, Bounced (Number) |
-| DASH_Config | **ConfigKey** Text(50), Value Text(200) → voir « Token d'accès » ci-dessous |
+| DASH_Config | **ConfigKey** Text(50), Value Text(200) → voir « Configuration (DE DASH_Config) » ci-dessous |
 | DASH_IP_Allowlist | **IPAddress** Text(50), Description Text(200) → une ligne par IP (`203.0.113.7`) ou plage IPv4 CIDR (`203.0.113.0/24`) ; IPv6 en correspondance exacte |
 
-## Token d'accès (DASH_Config)
-La DE a deux colonnes. Ajoutez **une seule ligne** :
+## Configuration (DE DASH_Config) : plus rien à modifier dans les fichiers
+Tous les réglages sont des lignes de la DE `DASH_Config` (colonnes `ConfigKey` et `Value`, Text). Les fichiers `cloudpage_api.html` et `cloudpage_dashboard.html` se collent tels quels, à chaque mise à jour, sans rien retaper. Une ligne absente = valeur par défaut.
+
+| ConfigKey | Exemple de Value | Défaut | Rôle |
+|---|---|---|---|
+| `token` | `k7Xp92QmZ4aTr8LwB3` | **obligatoire** | clé secrète : le dashboard s'ouvre avec `?k=<token>` |
+| `api_url` | `https://xxxx.pub.sfmc-content.com/abcdef` | **obligatoire** | URL publiée de la CloudPage API (celle de `cloudpage_api.html`) |
+| `ip_de_key` | `DASH_IP_Allowlist` | `DASH_IP_Allowlist` | Customer Key de la DE des IP autorisées |
+| `ip_de_name` | `DASH_IP_Allowlist` | = `ip_de_key` | nom de cette DE |
+| `link_de_name` | `DASH_Link_Monthly` | `DASH_Link_Monthly` | nom de la DE des liens (lecture rapide) |
+| `link_de_key` | `DASH_Link_Monthly` | = `link_de_name` | Customer Key de cette DE (repli) |
+| `link_budget_ms` | `20000` | `20000` | temps maximum de lecture des liens avant résultat partiel |
+| `alert_drop_pct` | `15` | `15` | baisse de volume (en %) qui déclenche une alerte |
+| `alert_min_sends` | `500` | `500` | envois du mois précédent au-dessus desquels une journey est surveillée |
+| `alert_min_days` | `3` | `3` | jours complets nécessaires avant de comparer les volumes |
+| `label_type_<CODE>` | `Promotional` | – | libellé affiché pour un type de campagne, ex. ligne `label_type_PROMO` |
+| `label_product_<CODE>` | `Car` | – | libellé d'un produit, ex. ligne `label_product_CAR` |
+
+Exemple de contenu :
 
 | ConfigKey | Value |
 |---|---|
-| `token` | votre secret, par ex. `k7Xp92QmZ4aTr8LwB3` |
+| token | k7Xp92QmZ4aTr8LwB3 |
+| api_url | https://xxxx.pub.sfmc-content.com/abcdef |
+| label_type_PROMO | Promotional |
+| label_product_CAR | Car |
 
-- `ConfigKey` doit contenir exactement le mot `token` (minuscules) : c'est le nom du réglage que l'API cherche.
-- `Value` contient la clé secrète de votre choix (chaîne aléatoire longue, sans espace).
-- Le dashboard s'ouvre ensuite avec ce secret dans l'URL : `https://.../dashboard?k=k7Xp92QmZ4aTr8LwB3`. Sans `?k=` ou avec une autre valeur, l'API répond `unauthorized`.
-- Pour changer le secret : modifiez `Value`, puis mettez à jour le lien enregistré dans vos favoris.
-
-Si les DE n'ont pas une Customer Key identique à leur nom, adaptez `IP_DE_KEY`/`IP_DE_NAME` (allowlist) et `CFG_DE_KEY`/`CFG_DE_NAME` (token) en haut des scripts des CloudPages.
+- `ConfigKey` est insensible à la casse. Le token ne quitte jamais le serveur (il n'est pas transmis au navigateur).
+- Seule contrainte fixe : la DE doit s'appeler **DASH_Config** (nom et Customer Key). Les erreurs de lecture apparaissent dans la ligne `Diagnostic` de la page « Access denied ».
+- Le dashboard s'ouvre avec : `https://.../dashboard?k=<token>`. Sans `?k=` ou avec une autre valeur, l'API répond `unauthorized`.
+- Pour changer le secret : modifiez la ligne `token`, puis mettez à jour le lien enregistré dans vos favoris.
 
 ## Automation Studio (quotidienne)
 1. SQL `sql/01_journey_kpi_monthly.sql` → DASH_Journey_KPI_Monthly, **Update**
@@ -40,8 +58,8 @@ Si les DE n'ont pas une Customer Key identique à leur nom, adaptez `IP_DE_KEY`/
 Premier chargement (backfill depuis le 01/06/2026) : lancer **une fois** `sql/03_backfill_kpi.sql`, `04_backfill_conversions.sql`, `07_backfill_email_kpi.sql`, `09_backfill_link_clicks.sql` et `11_backfill_domain.sql` (Run Once, mêmes DE cibles, mode Update), puis activer les requêtes récurrentes 01 et 02. Si le timeout de 30 min est atteint, chaque fichier contient un tableau de dates pour découper le chargement mois par mois. Les fichiers SQL des automations ne contiennent aucun commentaire (Automation Studio les refuse parfois) : voir `sql/NOTES.md`. `sql/00_diagnostics.sql` sert à comprendre un résultat vide.
 
 ## CloudPages
-1. Page API : coller `cloudpage_api.html` → noter l'URL publiée.
-2. Page dashboard : coller `cloudpage_dashboard.html`, remplacer `API_URL`.
+1. Page API : coller `cloudpage_api.html` (rien à modifier) → noter l'URL publiée.
+2. Page dashboard : coller `cloudpage_dashboard.html` (rien à modifier) et ajouter l'URL de la page API dans `DASH_Config`, ligne `api_url`.
 3. Accès : `https://.../dashboard?k=<token>`.
 
 ## Contrôle IP
