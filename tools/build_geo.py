@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Genere geo/belgium_geo.json (contours des provinces + points des codes postaux belges, deja projetes pour un SVG).
 Sources : GeoNames postal codes BE (CC BY 4.0) et Natural Earth admin-1 (domaine public).
-Usage : python3 tools/build_geo.py   (puis python3 tools/inject_geo.py pour l inserer dans cloudpage_dashboard.html)"""
+Usage : python3 tools/build_geo.py   (puis python3 tools/inject_geo.py pour l inserer dans html/cloudpage_dashboard.html)"""
 import json, urllib.request, zipfile, io, collections, os, re, math
 from shapely.geometry import shape
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

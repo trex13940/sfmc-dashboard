@@ -331,8 +331,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <div class="combo"><input id="fJq" type="text" role="combobox" aria-expanded="false" aria-controls="jList" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search a journey (name, product, type…)">
         <button type="button" id="fJclear" class="jclear" aria-label="Clear the selected journey" hidden>&times;</button>
         <ul id="jList" role="listbox" aria-label="Journeys" hidden></ul><select id="fJ" hidden tabindex="-1" aria-hidden="true"></select></div></div>
-    <label class="ctl" id="lFrom">From month<select id="fFrom"></select></label>
-    <label class="ctl" id="lTo">To month<select id="fTo"></select></label>
+    <label class="ctl" id="lPer">Period<select id="fPer"></select></label>
     <label class="ctl" id="lGran">Granularity<select id="fGran"><option value="total">Period total</option><option value="month">By month</option></select></label>
     <label class="ctl" id="lGrp">Group by<select id="fGrp"><option value="journey">Journey</option><option value="cat">Category</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
     <label class="ctl" id="lView">View by<select id="fView"><option value="cat">Category (prefix)</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
@@ -426,7 +425,7 @@ const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this man
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
 const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', per:'all', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
@@ -434,13 +433,13 @@ const LKINIT = new Set();
 const EXPKEYS = {};      /* keys of the rows that can be expanded, per table */
 
 const TABS = {
-  journeys:{view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lCompact','lExp','lQ'], csv:'tbl'},
-  cats:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lCompact','lView','lQ'], csv:'tbl'},
-  conv:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lGrp','lExp','lQ'], csv:'tbl'},
-  ana:     {view:'ana',  ctl:['lJ','lFrom','lTo','lCompact','lExp'], csv:'tEmail'},
-  ins:     {view:'ins',  ctl:['lFam','lType','lProd','lFrom','lTo'], csv:null},
+  journeys:{view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lCompact','lExp','lQ'], csv:'tbl'},
+  cats:    {view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lCompact','lView','lQ'], csv:'tbl'},
+  conv:    {view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lGrp','lExp','lQ'], csv:'tbl'},
+  ana:     {view:'ana',  ctl:['lJ','lPer','lCompact','lExp'], csv:'tEmail'},
+  ins:     {view:'ins',  ctl:['lFam','lType','lProd','lPer'], csv:null},
   alerts:  {view:'alerts', ctl:['lAlert'], csv:'tAlerts'},
-  sms:     {view:'sms',  ctl:['lFrom','lTo','lQ'], csv:'tSms'}
+  sms:     {view:'sms',  ctl:['lPer','lQ'], csv:'tSms'}
 };
 
 /* Naming convention journeys: MKT|Oxx _ TYPE _ PRODUCT _ Campaign name _ mmyyyy|ongoing
@@ -1160,7 +1159,7 @@ function setSummary(count, dim){ CNT = n(count)+' '+(S.gran==='month' ? 'rows' :
 function updateCtx(){
   const el = $('ctx'), tab = S.tab;
   if (tab==='ins' && S.sub!=='deliv'){ el.hidden = true; return; }
-  const period = 'Period <b>'+esc(S.from||'…')+' → '+esc(S.to||'…')+'</b>', parts = [];
+  const period = 'Period <b>'+esc(periodText(S.per))+'</b>', parts = [];
   if (tab==='ana'){ if (!S.j){ el.hidden = true; return; } parts.push('Journey <b>'+esc(parse(S.j).campaign)+'</b>', period); }
   else if (tab==='alerts'){ el.hidden = false; el.innerHTML = '<span>Scope <b>'+(S.alert==='all'?'All journeys':'Ongoing journeys only')+'</b></span>'; return; }
   else if (tab==='sms'){ parts.push(period); if (S.q) parts.push('Search <b>"'+esc(S.q)+'"</b>'); }
@@ -1174,12 +1173,12 @@ function updateCtx(){
   }
   el.hidden = false; el.innerHTML = parts.map(p=>'<span>'+p+'</span>').join('');
 }
-const FILTERS = ['fam','type','prod','q','gran','from','to'];
-const HSEL = {fam:'fFam',type:'fType',prod:'fProd',from:'fFrom',to:'fTo',gran:'fGran',grp:'fGrp',view:'fView',j:'fJ',alert:'fAlert'};
+const FILTERS = ['fam','type','prod','q','gran','per'];
+const HSEL = {fam:'fFam',type:'fType',prod:'fProd',per:'fPer',gran:'fGran',grp:'fGrp',view:'fView',j:'fJ',alert:'fAlert'};
 function saveHash(){
   try{
     const p = new URLSearchParams();
-    for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
+    for (const k of ['tab','fam','type','prod','per','gran','grp','view','q','j','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
     if (!S.compact) p.set('compact','0');   /* rates only is the default view */
     const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
   }catch(e){}
@@ -1188,6 +1187,7 @@ function loadHash(){
   const p = new URLSearchParams(location.hash.slice(1));
   if (TABS[p.get('tab')]) S.tab = p.get('tab');
   for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
+  applyPeriod();
   if (p.get('q')){ S.q=p.get('q'); $('fQ').value=S.q; }
   for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']],['gc',['n','pc']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
   S.compact = p.get('compact')!=='0';
@@ -1200,7 +1200,7 @@ function selectTab(t, focus){
 function render(){
   CNT = null; const cfg = TABS[S.tab];
   let ctl = (S.tab==='ins' && S.sub!=='deliv') ? [] : cfg.ctl;
-  if (S.tab==='ana' && !S.j) ctl = ctl.filter(id=>['lJ','lFrom','lTo'].includes(id));   /* nothing to act on until a journey is chosen */   /* the filter bar does not apply to the subscriber / geography views */
+  if (S.tab==='ana' && !S.j) ctl = ctl.filter(id=>['lJ','lPer'].includes(id));   /* nothing to act on until a journey is chosen */   /* the filter bar does not apply to the subscriber / geography views */
   $('insNav').hidden = S.tab!=='ins';   /* the Insights views (Deliverability / Subscriber base / Geography) stay at the very top */
   document.querySelectorAll('.ctl').forEach(el=>el.hidden = !ctl.includes(el.id));
   if (S.tab==='conv' && S.grp!=='journey') $('lExp').hidden = true;
@@ -1252,13 +1252,23 @@ function wireScroll(){
     if (h && h.classList.contains('h2')){ if (!h.id) h.id = 'h2_'+i; w.setAttribute('aria-labelledby',h.id); }   /* named by its heading (falls back to the label while the heading is empty) */
   });
 }
+/* ---------- period presets (replace the From / To month selectors) ---------- */
+const PERIODS = [['all','All periods'],['m0','This month'],['m1','Previous month'],['m01','Last 2 months'],['m3','Last 3 months'],['q0','This quarter'],['q1','Previous quarter'],
+                 ['m6','Last 6 months'],['s0','This half-year'],['s1','Previous half-year'],['m12','Last 12 months'],['y0','This year'],['y1','Previous year']];
+let DATA_MONTHS = [];
+function periodRange(k){
+  const cm = mIdx(brusselsMonth(D.generatedMs||Date.now())), mo = cm%12, qs = cm-mo%3, ss = cm-mo%6, ys = cm-mo;
+  const r = {m0:[cm,cm], m1:[cm-1,cm-1], m01:[cm-1,cm], m3:[cm-2,cm], m6:[cm-5,cm], m12:[cm-11,cm], q0:[qs,qs+2], q1:[qs-3,qs-1], s0:[ss,ss+5], s1:[ss-6,ss-1], y0:[ys,ys+11], y1:[ys-12,ys-1]}[k];
+  if (r) return [mStr(r[0]), mStr(r[1])];
+  return [DATA_MONTHS[0]||'', DATA_MONTHS[DATA_MONTHS.length-1]||''];   /* all periods: first to last month with data */
+}
+const periodText = k => { const [a,b] = periodRange(k); return k==='all' ? 'All periods ('+(a||'…')+' → '+(b||'…')+')' : (PERIODS.find(p=>p[0]===k)||[0,k])[1]+' ('+(a===b ? a : a+' → '+b)+')'; };
+function buildPeriods(){ $('fPer').innerHTML = PERIODS.map(([k])=>`<option value="${k}">${esc(periodText(k))}</option>`).join(''); $('fPer').value = S.per; }
+function applyPeriod(){ const [a,b] = periodRange(S.per); S.from = a; S.to = b; if ($('fPer').value!==S.per) $('fPer').value = S.per; }
 function setup(){
   wireScroll();
   const months = [...new Set([...D.kpi.map(r=>r.Month),...D.conv.map(r=>r.SendMonth),...D.email.map(r=>r.Month),...D.domain.map(r=>r.Month)])].filter(Boolean).sort();
-  const opts = months.map(m=>`<option>${m}</option>`).join('');
-  $('fFrom').innerHTML = opts; $('fTo').innerHTML = opts;
-  S.from = months[Math.max(0,months.length-12)] || ''; S.to = months[months.length-1] || '';
-  $('fFrom').value = S.from; $('fTo').value = S.to;
+  DATA_MONTHS = months; S.per = 'all'; buildPeriods(); applyPeriod();
   const names = [...new Set([...D.kpi,...D.conv].map(r=>r.JourneyName))].filter(x=>x!=='(no email)');
   const fill = (id,kind) => { const vals=[...new Set(names.map(nm=>parse(nm)[kind]))].sort();
     $(id).innerHTML = '<option value="">All</option>'+vals.map(v=>`<option value="${esc(v)}">${esc(lab(kind,v,true))}</option>`).join(''); };
@@ -1268,10 +1278,10 @@ function setup(){
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
   S.j = ''; JSET = new Set(js);   /* no journey is preselected: the analysis page stays empty until one is chosen */
   $('fJ').innerHTML = '<option value=""></option>' + $('fJ').innerHTML; buildJourneyList(js, last);
-  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
+  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',per:'all',gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
-  on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
+  on('fPer',v=>{ S.per=v; applyPeriod(); }); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
   on('fAlert',v=>S.alert=v); wireJourneyBox();
   $('bExp').onclick = ()=>{ (EXPKEYS[S.tab==='ana'?'tLinks':'tbl']||[]).forEach(k=>EXP.add(k)); render(); };
   $('bCol').onclick = ()=>{ (EXPKEYS[S.tab==='ana'?'tLinks':'tbl']||[]).forEach(k=>EXP.delete(k)); render(); };
@@ -1281,7 +1291,7 @@ function setup(){
   document.querySelectorAll('[data-gl]').forEach(b=>b.onclick=()=>{ S.gl=b.dataset.gl; render(); });
   document.querySelectorAll('[data-seg]').forEach(b=>b.onclick=()=>{ S.seg=b.dataset.seg; render(); });
   document.querySelectorAll('[data-gc]').forEach(b=>b.onclick=()=>{ S.gc=b.dataset.gc; render(); });
-  $('bReset').onclick = ()=>{ for (const k of ['fam','type','prod','gran','from','to']){ S[k]=DEF[k]; $(HSEL[k]).value=DEF[k]; } S.q=''; $('fQ').value=''; SORT.tbl=null; render(); };
+  $('bReset').onclick = ()=>{ for (const k of ['fam','type','prod','gran','per']){ S[k]=DEF[k]; $(HSEL[k]).value=DEF[k]; } applyPeriod(); S.q=''; $('fQ').value=''; SORT.tbl=null; render(); };
   $('fQ').oninput = e=>{S.q=e.target.value;render();};
   document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab));
   loadHash();
