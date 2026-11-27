@@ -124,6 +124,7 @@ Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").repl
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Journeys Dashboard – Email KPIs</title>
 <style>
 /* Design tokens inspirés du funnel Belfius Direct (couleurs, rayons, ombres, boutons en pilule) */
@@ -172,10 +173,6 @@ option{background:var(--card);color:var(--fg)}
 #jList li:hover,#jList li.act{background:var(--pink-bg)}
 #jList li[aria-selected=true]{box-shadow:inset 3px 0 0 var(--red)}
 #jList li.jmore{cursor:default;font-size:.75rem;color:var(--mute);background:none}
-.wbox{position:relative}
-.wfade{position:absolute;top:0;right:0;bottom:0;width:44px;pointer-events:none;border-radius:0 16px 16px 0;background:linear-gradient(to left,var(--card),transparent);opacity:0;transition:opacity .15s}
-.wbox.more .wfade{opacity:1}
-.wbox.more::after{content:"scroll →";position:absolute;right:10px;bottom:8px;font-size:.7rem;font-weight:600;color:var(--mute);background:var(--card);padding:2px 8px;border-radius:10px;box-shadow:var(--shadow);pointer-events:none}
 body.loading .cards:empty{min-height:78px;border-radius:16px;background:linear-gradient(90deg,var(--card) 25%,var(--pink-bg) 50%,var(--card) 75%);background-size:200% 100%;animation:shim 1.4s linear infinite}
 body.loading .charts .card{background:linear-gradient(90deg,var(--card) 25%,var(--pink-bg) 50%,var(--card) 75%);background-size:200% 100%;animation:shim 1.4s linear infinite}
 @media (prefers-reduced-motion:reduce){body.loading .cards:empty,body.loading .charts .card{animation:none}}
@@ -191,7 +188,14 @@ button.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .card span{font-size:.75rem;color:var(--mute)}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:16px}
 .charts .card{height:260px;min-width:0;position:relative;overflow:hidden}.charts .card:hover{transform:none;border-color:transparent}
-.wrap{overflow:auto;border-radius:16px;background:var(--card);box-shadow:var(--shadow);max-height:70vh}
+.wrap{overflow:auto;border-radius:16px;box-shadow:var(--shadow);max-height:70vh;--surface:var(--card);--edge:rgb(0 0 0 / .22);
+  /* scroll hint on the right edge, only while there is more to scroll to: the cover scrolls with the content and hides the shadow at the end (works in every browser, no JavaScript) */
+  background:linear-gradient(to left,var(--surface) 30%,transparent) right / 2.75rem 100% no-repeat local,
+             radial-gradient(farthest-side at 100% 50%,var(--edge),transparent) right / .9rem 100% no-repeat scroll,
+             var(--surface)}
+@media (prefers-color-scheme:dark){.wrap{--edge:rgb(0 0 0 / .6)}}
+.wrap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th.l,td.l{text-align:left}
@@ -298,6 +302,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
   </div>
 </header>
 <main id="content" tabindex="-1">
+  <div id="sortStatus" class="sr" role="status"></div>
   <div id="errBox" class="errbox" role="alert" hidden><b id="errMsg"></b><p id="errDetail"></p><button class="btn" id="bRetry" type="button">Retry</button></div>
     <div class="subnav" id="insNav" role="group" aria-label="Insights views" hidden>
       <button type="button" class="chip" data-sub="deliv" aria-pressed="true">Deliverability</button>
@@ -605,7 +610,8 @@ function renderTable(id, keyCols, cols, rows, total, opts){
   EXPKEYS[id] = keys;
   $(id).innerHTML = h;
   $(id).querySelectorAll('th').forEach(th=>th.onclick=()=>{
-    const k=th.dataset.k, cur=SORT[id]; SORT[id] = {k, d: cur&&cur.k===k ? -cur.d : -1}; FOCUS={id,k}; render();
+    const k=th.dataset.k, cur=SORT[id]; SORT[id] = {k, d: cur&&cur.k===k ? -cur.d : -1}; FOCUS={id,k};
+    $('sortStatus').textContent = 'Sorted by '+th.textContent.replace(/[▲▼]/g,'').trim()+', '+(SORT[id].d>0?'ascending':'descending'); render();
   });
   $(id).querySelectorAll('.tg').forEach(b=>b.onclick=e=>{ e.stopPropagation(); const k=b.dataset.rk; EXP.has(k)?EXP.delete(k):EXP.add(k); FOCUS={id,rk:k}; render(); });
   if (FOCUS && FOCUS.id===id){   /* keep keyboard focus after the table is redrawn */
@@ -1212,15 +1218,12 @@ async function loadPart(part){
 }
 
 /* ---------- init ---------- */
+/* a scrollable table region must be reachable and nameable by keyboard / screen reader users */
 function wireScroll(){
-  document.querySelectorAll('.wrap').forEach(w=>{
-    if (w.parentNode.classList.contains('wbox')) return;
-    const b = document.createElement('div'); b.className = 'wbox'; w.parentNode.insertBefore(b,w); b.appendChild(w);
-    const f = document.createElement('div'); f.className = 'wfade'; f.setAttribute('aria-hidden','true'); b.appendChild(f);
-    const upd = () => b.classList.toggle('more', w.scrollWidth - w.clientWidth - w.scrollLeft > 2);
-    w.addEventListener('scroll', upd, {passive:true});
-    if (window.ResizeObserver){ const ro = new ResizeObserver(upd); ro.observe(w); if (w.firstElementChild) ro.observe(w.firstElementChild); }
-    upd();
+  document.querySelectorAll('.wrap').forEach((w,i)=>{
+    if (w.hasAttribute('role')) return;
+    const h = w.previousElementSibling; w.tabIndex = 0; w.setAttribute('role','region'); w.setAttribute('aria-label','Data table');
+    if (h && h.classList.contains('h2')){ if (!h.id) h.id = 'h2_'+i; w.setAttribute('aria-labelledby',h.id); }   /* named by its heading (falls back to the label while the heading is empty) */
   });
 }
 function setup(){

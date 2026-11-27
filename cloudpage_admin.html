@@ -466,10 +466,11 @@ Variable.SetValue("@ipDiag", String(ipDiag || "") + (cfgDiag ? " | DASH_Config: 
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex,nofollow">
 <title>Dashboard administration</title>
 <style>
-:root{--red:#c30045;--red-dark:#8c193c;--pink-bg:#fff5f8;--pink-mid:#f6c4d6;--bg:#f6f7f8;--card:#fff;--fg:#101820;--mute:#51626f;--line:#e8ebed;--ctl-brd:#7b8794;--focus:#ad0cdf;--ok:#2f7a1c;--err:#c40026;--tx-red:#c30045;--shadow:0 0 18px rgba(0,0,0,.10);--font:'Belfius21',Helvetica,Arial,sans-serif}
+:root{color-scheme:light dark;--red:#c30045;--red-dark:#8c193c;--pink-bg:#fff5f8;--pink-mid:#f6c4d6;--bg:#f6f7f8;--card:#fff;--fg:#101820;--mute:#51626f;--line:#e8ebed;--ctl-brd:#7b8794;--focus:#ad0cdf;--ok:#2f7a1c;--err:#c40026;--tx-red:#c30045;--shadow:0 0 18px rgba(0,0,0,.10);--font:'Belfius21',Helvetica,Arial,sans-serif}
 @media (prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#18212b;--fg:#eef0f2;--mute:#9aa8b4;--line:#2b3744;--pink-bg:#2a1a22;--ctl-brd:#7e8c99;--ok:#7fd36a;--err:#ff6b85;--tx-red:#ff7da3;--shadow:0 0 18px rgba(0,0,0,.4)}}
 *{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
@@ -505,6 +506,11 @@ button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
 .srow.custom .sl b::after{content:"custom";margin-left:8px;font-size:.65rem;font-weight:700;color:var(--tx-red);border:1px solid var(--pink-mid);border-radius:8px;padding:0 6px;vertical-align:middle}
 .srow .sa{white-space:nowrap;text-align:right}
 .srow .sv .pill{margin-right:6px}.srow .sv .keyin{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+dialog{color:var(--fg);background:var(--card);border:2px solid var(--ctl-brd);border-radius:16px;padding:20px 24px;max-width:min(440px,calc(100vw - 32px));box-shadow:var(--shadow)}
+dialog h1{margin:0 0 6px;font-size:1.05rem}dialog p{margin:0 0 16px;color:var(--mute)}
+dialog:modal{overscroll-behavior:contain}
+dialog::backdrop{overflow:hidden;overscroll-behavior:contain;background:rgb(0 0 0 / .45)}
+.cfmrow{display:flex;gap:10px;justify-content:flex-end}
 #toast{position:fixed;right:18px;bottom:18px;z-index:40;max-width:min(520px,calc(100vw - 36px));padding:12px 16px;border-radius:14px;font-weight:600;border:2px solid var(--ok);background:var(--card);color:var(--ok);box-shadow:var(--shadow)}
 #toast.err{border-color:var(--err);color:var(--err)}
 .note{font-size:.75rem;color:var(--mute);margin-top:14px}
@@ -589,6 +595,13 @@ button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
     </section>
     <p class="note">Every change is logged in the DASH_Admin_Log data extension when it exists (date, admin IP, action, setting name; secret values are never logged or displayed).</p>
   </div>
+  <dialog id="cfm" aria-labelledby="cfmTitle">
+    <form method="dialog">
+      <h1 id="cfmTitle">Please confirm</h1>
+      <p id="cfmText"></p>
+      <div class="cfmrow"><button value="cancel" class="sec" autofocus>Cancel</button><button value="ok" class="danger" id="cfmOk">Confirm</button></div>
+    </form>
+  </dialog>
   <div id="toast" role="status" aria-live="polite" hidden></div>
 </main>
 <script>
@@ -624,6 +637,14 @@ const GROUPS = [
 const TABS = ['ip','cfg','lab','link','prod'];
 let ST = {ips:[], cfg:[], yourIp:'', pmap:[], pmapErr:''}, TAB = 'ip', FILTER = '', FOCUS = null;
 const OPEN = {keys:true, dash:true, de:false};
+/* native modal <dialog>: focus lands on Cancel (the safe action), Esc cancels, focus returns to the button that opened it */
+function ask(text, okLabel){
+  return new Promise(resolve=>{
+    const d = $('cfm'); $('cfmText').textContent = text; $('cfmOk').textContent = okLabel||'Confirm'; d.returnValue = '';
+    d.addEventListener('close', ()=>{ const ok = d.returnValue==='ok'; d.returnValue = ''; resolve(ok); }, {once:true});
+    d.showModal();
+  });
+}
 function say(msg, err){ const s=$('toast'); s.hidden=!msg; s.textContent=msg||''; s.classList.toggle('err',!!err); clearTimeout(say.t); if(msg && !err) say.t=setTimeout(()=>{ if(s.textContent===msg) s.hidden=true; },6000); }
 async function call(action, payload){
   const res = await fetch(location.pathname+location.search,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({k:adminKey,action},payload||{}))});
@@ -656,7 +677,7 @@ function renderIp(){
   $('cntIp').textContent = ST.ips.length;
   $('tIp').innerHTML = '<thead><tr><th>IP address / range</th><th>Description</th><th></th></tr></thead><tbody>'+
     (ST.ips.length ? ST.ips.map(x=>`<tr><td class="k mono" style="white-space:nowrap">${esc(x.ip)}${covers(x.ip,ST.yourIp)?' <span class="pill ok">you</span>':''}</td><td class="d">${esc(x.desc)}</td><td class="actions"><button type="button" class="danger" data-rm="${esc(x.ip)}" aria-label="Remove ${esc(x.ip)}">Remove</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">The list is empty: nobody can open the dashboard.</td></tr>')+'</tbody>';
-  $('tIp').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ if (confirm('Remove '+b.dataset.rm+' from the allowlist ?')) act('ip_remove',{ip:b.dataset.rm}); });
+  $('tIp').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ ask('Remove '+b.dataset.rm+' from the allowlist ?','Remove').then(ok=>{ if (ok) act('ip_remove',{ip:b.dataset.rm}); }); });
 }
 function settingRow(s, r){
   const id = 'c_'+s.k;
@@ -681,7 +702,7 @@ function renderCfg(){
     const k=b.dataset.save, v=$('c_'+k).value.trim(); if(!v){ say('Enter a value first (use Reset to go back to the default).', true); return; }
     FOCUS = 'save:'+k; const ok = await act('cfg_set',{key:k,value:v}); if (ok && k==='admin_token'){ adminKey=v; say('Admin key changed: use the new key in the link of this page from now on.'); }
   });
-  $('cfgBox').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if (confirm('Remove the row "'+b.dataset.del+'" (the default value will apply) ?')){ FOCUS='row:'+b.dataset.del; act('cfg_delete',{key:b.dataset.del}); } });
+  $('cfgBox').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ ask('Remove the row "'+b.dataset.del+'" (the default value will apply) ?','Reset').then(ok=>{ if (ok){ FOCUS='row:'+b.dataset.del; act('cfg_delete',{key:b.dataset.del}); } }); });
   $('cfgBox').querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>{ const AL='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', a=new Uint8Array(24); crypto.getRandomValues(a); const t=[...a].map(x=>AL[x%AL.length]).join(''); const i=$('c_'+b.dataset.gen); i.value=t; i.select(); say('New key generated: copy it now, then click Save. It is never shown again.'); });
   const known = new Set(SCHEMA.map(s=>s.k)), oth = ST.cfg.filter(r=>!known.has(r.key.toLowerCase()) && !isLabel(r) && !isLink(r));
   $('sOth').hidden = !oth.length; $('tOth').innerHTML = '<tbody>'+oth.map(r=>`<tr><td class="k mono">${esc(r.key)}</td><td>${r.secret?'(secret)':esc(r.value)}</td></tr>`).join('')+'</tbody>';
@@ -689,7 +710,7 @@ function renderCfg(){
 function renderLab(){
   const labs = ST.cfg.filter(isLabel).sort((a,b)=>a.key.localeCompare(b.key)); $('cntLab').textContent = labs.length;
   $('tLab').innerHTML = '<thead><tr><th>Applies to</th><th>Code</th><th>Label</th><th></th></tr></thead><tbody>'+(labs.length?labs.map(r=>{const m=r.key.match(/^label_(type|product)_(.+)$/i);return `<tr><td>${m[1].toLowerCase()==='type'?'Campaign type':'Product'}</td><td class="k mono">${esc(m[2])}</td><td>${esc(r.value)}</td><td class="actions"><button type="button" class="danger" data-dl="${esc(r.key)}" aria-label="Delete label ${esc(m[2])}">Delete</button></td></tr>`;}).join(''):'<tr><td colspan="4" class="d">No label yet.</td></tr>')+'</tbody>';
-  $('tLab').querySelectorAll('[data-dl]').forEach(b=>b.onclick=()=>{ if (confirm('Delete the label '+b.dataset.dl+' ?')) act('cfg_delete',{key:b.dataset.dl}); });
+  $('tLab').querySelectorAll('[data-dl]').forEach(b=>b.onclick=()=>{ ask('Delete the label '+b.dataset.dl+' ?','Delete').then(ok=>{ if (ok) act('cfg_delete',{key:b.dataset.dl}); }); });
 }
 const LINK_EX = [['view.belfiusdirect.be','ReadOnline'],['belfiusdirect.be/*/contactus','ContactUs']];
 const PM_DEFAULT = [['LEAD','PET','PET'],['LEAD','VEH_V2','CAR'],['LEAD','VEH_MO','MOT'],['LEAD','HOM','RENTERS'],['LEAD','OWNER','OWNER'],['LEAD','FEM','FAM'],['LEAD','ASS','ASS'],['LEAD','%UKP%','FUN'],
@@ -699,7 +720,7 @@ function renderLink(){
   const rules = ST.cfg.filter(isLink).map(r=>{ const p = String(r.value||'').split(' => '); return {key:r.key, pat:p[0]||'', name:p[1]||''}; }).sort((a,b)=>a.name.localeCompare(b.name)||a.pat.localeCompare(b.pat));
   $('cntLink').textContent = rules.length;
   $('tLink').innerHTML = '<thead><tr><th>Pattern</th><th>Link name</th><th></th></tr></thead><tbody>'+(rules.length ? rules.map(r=>`<tr><td class="k mono">${esc(r.pat)}</td><td>${esc(r.name)}</td><td class="actions"><button type="button" class="danger" data-ld="${esc(r.key)}" aria-label="Delete the rule ${esc(r.pat)}">Delete</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">No rule yet: links keep the name they have in the email.</td></tr>')+'</tbody>';
-  $('tLink').querySelectorAll('[data-ld]').forEach(b=>b.onclick=()=>{ if (confirm('Delete this link rule ?')) act('link_delete',{key:b.dataset.ld}); });
+  $('tLink').querySelectorAll('[data-ld]').forEach(b=>b.onclick=()=>{ ask('Delete this link rule ?','Delete').then(ok=>{ if (ok) act('link_delete',{key:b.dataset.ld}); }); });
 }
 function renderProd(){
   const rows = ST.pmap||[]; $('cntProd').textContent = new Set(rows.map(r=>r.group)).size;
@@ -707,7 +728,7 @@ function renderProd(){
   const groups = [...new Set(rows.map(r=>r.group))].sort(); $('pmGroups').innerHTML = groups.map(g=>`<option value="${esc(g)}">`).join('');
   const chips = (g,s) => rows.filter(r=>r.group===g && r.source===s).sort((a,b)=>a.value.localeCompare(b.value)).map(r=>`<span class="chip mono">${esc(r.value)}<button type="button" data-pr="${esc(JSON.stringify([s,r.value,g]))}" aria-label="Remove ${esc(r.value)} from ${esc(g)}">&times;</button></span>`).join('') || '<span class="d">-</span>';
   $('pmBox').innerHTML = groups.length ? '<table><thead><tr><th>Product group</th><th>Email (product|journey)</th><th>Lead Page_Origin__c</th><th>Contract Product2__c</th></tr></thead><tbody>'+groups.map(g=>`<tr><td class="k mono">${esc(g)}</td><td>${chips(g,'EMAIL')}</td><td>${chips(g,'LEAD')}</td><td>${chips(g,'CONTRACT')}</td></tr>`).join('')+'</tbody></table>' : (ST.pmapErr ? '' : '<p class="d">No mapping yet: click "Add the default mapping" to start from the rules currently used by the conversions queries.</p>');
-  $('pmBox').querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{ const [s,v,g] = JSON.parse(b.dataset.pr); if (confirm('Remove '+v+' ('+s+') from the group '+g+' ?')) act('pm_remove',{source:s,value:v,group:g}); });
+  $('pmBox').querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{ const [s,v,g] = JSON.parse(b.dataset.pr); ask('Remove '+v+' ('+s+') from the group '+g+' ?','Remove').then(ok=>{ if (ok) act('pm_remove',{source:s,value:v,group:g}); }); });
 }
 function render(){
   renderIp(); renderCfg(); renderLab(); renderLink(); renderProd();
