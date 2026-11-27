@@ -105,8 +105,8 @@ Variable.SetValue("@ipDiag", String(ipDiag || "") + (cfgDiag ? " | DASH_Config: 
 /* Réglages transmis au navigateur (liste blanche : le token n'est jamais exposé) */
 var labels = { type: {}, product: {} };
 for (var ck in CFG) {
-  if (ck.indexOf("label_type_") === 0) labels.type[ck.substr(11).toUpperCase()] = CFG[ck];
-  else if (ck.indexOf("label_product_") === 0) labels.product[ck.substr(14).toUpperCase()] = CFG[ck];
+  if (ck.indexOf("label_type_") === 0) labels.type[ck.substring(11).toUpperCase()] = CFG[ck];
+  else if (ck.indexOf("label_product_") === 0) labels.product[ck.substring(14).toUpperCase()] = CFG[ck];
 }
 var clientCfg = { apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), labels: labels };
 Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").replace(/%/g, "\\u0025"));
