@@ -335,7 +335,7 @@ const DIMLAB = {journey:'Journey', activity:'Journey + email activity', cat:'Cat
 const catOf = r => r.Category || String(r.JourneyName||'').slice(0,3);
 const dimVal = (r,dim) => dim==='cat' ? catOf(r) : dim==='type' ? parse(r.JourneyName).type : dim==='product' ? parse(r.JourneyName).product : r.JourneyName;
 const dimShow = (dim,v) => dim==='type' ? lab('type',v) : dim==='product' ? lab('product',v) : v;
-let D = {kpi:[], conv:[], email:[], domain:[], links:null, sms:null, generatedMs:0}, charts = [], LOADING = {};
+let D = {kpi:[], conv:[], email:[], domain:[], linksByJ:{}, linksErr:{}, sms:null, generatedMs:0}, charts = [], LOADING = {};
 const $ = id => document.getElementById(id);
 const NF = new Intl.NumberFormat('fr-BE');
 const PF = new Intl.NumberFormat('fr-BE',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1});
@@ -658,12 +658,16 @@ async function viewAna(){
   const lc = [{k:'email',l:'Email',v:a=>a.email.toLowerCase(),f:a=>esc(a.email)},{k:'lang',l:'Lang',v:a=>a.lang,f:a=>esc(a.lang||'–')},
               {k:'link',l:'Link name',v:a=>a.link.toLowerCase(),f:a=>esc(a.link||'–')},{k:'content',l:'Link content',v:a=>a.content.toLowerCase(),f:a=>`<span title="${esc(a.content)}">${esc(a.content.length>80?a.content.slice(0,80)+'…':a.content||'–')}</span>`}];
   const lcols = [{k:'uq',l:'Unique clicks',v:a=>a.uq,f:a=>n(a.uq)},{k:'tot',l:'Total clicks',v:a=>a.tot,f:a=>n(a.tot)}];
-  if (D.links===null){
+  const LJ = D.linksByJ[S.j];
+  if (D.linksErr[S.j]){
+    $('tLinks').innerHTML = `<tbody><tr><td class="l msg" role="alert">Links could not be loaded: ${esc(D.linksErr[S.j])} <button type="button" class="btn2" id="bLinksRetry">Retry</button></td></tr></tbody>`;
+    $('bLinksRetry').onclick = ()=>{ delete D.linksErr[S.j]; render(); };
+  } else if (LJ===undefined){
     $('tLinks').innerHTML = '<tbody><tr><td class="l msg">Loading links…</td></tr></tbody>';
-    loadPart('links').then(()=>{ if (S.tab==='ana') render(); });
+    loadLinks(S.j).then(()=>{ if (S.tab==='ana') render(); });
   } else {
     const m = new Map();
-    for (const r of D.links){ if (r.JourneyName!==S.j || !inMonths(r.Month)) continue;
+    for (const r of LJ){ if (!inMonths(r.Month)) continue;
       const key=r.EmailName+'|'+r.LinkName+'|'+r.LinkContent; let a=m.get(key);
       if(!a){ a={email:r.EmailName||'',lang:parseEmail(r.EmailName).lang,link:r.LinkName||'',content:r.LinkContent||'',uq:0,tot:0}; m.set(key,a); }
       a.uq+=r.UniqueClicks; a.tot+=r.TotalClicks; }
@@ -763,12 +767,26 @@ function render(){
   updateBadge(); saveHash();
 }
 
-async function api(part){
+async function api(part, extra){
   const k = new URLSearchParams(location.search).get('k')||'';
-  const res = await fetch(API_URL+'?k='+encodeURIComponent(k)+(part?'&part='+part:''),{cache:'no-store'});
-  const j = await res.json(); if (j.error) throw new Error(j.error); return j;
+  let url = API_URL+'?k='+encodeURIComponent(k)+(part?'&part='+part:'');
+  if (extra && extra.j) url += '&j='+encodeURIComponent(extra.j);
+  const res = await fetch(url,{cache:'no-store'});
+  const txt = await res.text();
+  let j;
+  try{ j = JSON.parse(txt); }
+  catch(e){ throw new Error('Unexpected server response (HTTP '+res.status+'): '+txt.replace(/\s+/g,' ').slice(0,220)); }   /* e.g. a plain-text timeout / size message from the CloudPage */
+  if (j.error) throw new Error(j.error); return j;
 }
 function showWarn(w){ if (w && w.length){ $('warn').hidden=false; $('warn').textContent='Some data sources are unavailable: '+w.join(' · '); } }
+function loadLinks(j){
+  const key = 'links|'+j;
+  if (LOADING[key]) return LOADING[key];
+  LOADING[key] = api('links',{j}).then(r=>{ D.linksByJ[j] = r.links||[]; showWarn(r.warnings); })
+    .catch(e=>{ D.linksErr[j] = e.message; })
+    .finally(()=>{ delete LOADING[key]; });
+  return LOADING[key];
+}
 async function loadPart(part){
   if (LOADING[part]) return LOADING[part];
   LOADING[part] = api(part).then(j=>{ D[part] = j[part]||[]; showWarn(j.warnings); }).catch(e=>{ D[part]=[]; showWarn([part+': '+e.message]); });
@@ -833,7 +851,7 @@ async function load(){
   $('errBox').hidden = true; document.body.classList.remove('failed'); $('gen').textContent = 'Loading…';
   try{
     const j = await api('');
-    D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], links:null, sms:null, generatedMs:j.generatedMs||0};
+    D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], linksByJ:{}, linksErr:{}, sms:null, generatedMs:j.generatedMs||0};
     LOADING = {}; $('warn').hidden = true;
     $('gen').textContent = 'Data as of '+(j.generatedMs ? new Intl.DateTimeFormat('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels',timeZoneName:'short'}).format(new Date(j.generatedMs)) : '–')+' · months in CET/CEST';
     showWarn(j.warnings);

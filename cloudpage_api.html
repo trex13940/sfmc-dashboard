@@ -4,10 +4,10 @@ Platform.Response.SetResponseHeader("Content-Type", "application/json; charset=u
 Platform.Response.SetResponseHeader("Cache-Control", "no-store");
 
 /* Lit une DE entière avec pagination WSProxy (pas de limite des 2500 lignes) */
-function fetchAll(deKey, cols) {
+function fetchAll(deKey, cols, filter) {
   var prox = new Script.Util.WSProxy(), out = [];
   var obj = "DataExtensionObject[" + deKey + "]";
-  var r = prox.retrieve(obj, cols);
+  var r = filter ? prox.retrieve(obj, cols, filter) : prox.retrieve(obj, cols);
   while (r && r.Results) {
     for (var i = 0; i < r.Results.length; i++) {
       var o = {}, p = r.Results[i].Properties;
@@ -117,8 +117,8 @@ function numFields(rows, fields) {
   return rows;
 }
 var warnings = [];
-function optional(deKey, cols, nums, label) {
-  try { return numFields(fetchAll(deKey, cols), nums); }
+function optional(deKey, cols, nums, label, filter) {
+  try { return numFields(fetchAll(deKey, cols, filter), nums); }
   catch (eOpt) { warnings.push(label + ": " + String(eOpt.message || eOpt)); return []; }
 }
 
@@ -135,8 +135,14 @@ try {
   if (why) {
     Write(Stringify({ error: "unauthorized: " + why + (cfgDiag ? " [" + cfgDiag + "]" : "") }));
   } else if (part === "links") {
-    var links = optional("DASH_Link_Monthly", ["JourneyName","Month","EmailName","LinkName","LinkContent","UniqueClicks","TotalClicks"], ["UniqueClicks","TotalClicks"], "DASH_Link_Monthly");
-    Write(Stringify({ part: "links", links: links, warnings: warnings }));
+    /* links : une seule journey par appel (&j=<JourneyName>) pour garder la réponse petite et rapide */
+    var jn = trim(Platform.Request.GetQueryStringParameter("j"));
+    if (!jn) { Write(Stringify({ error: "missing parameter j (journey name) for part=links" })); }
+    else {
+      var links = optional("DASH_Link_Monthly", ["JourneyName","Month","EmailName","LinkName","LinkContent","UniqueClicks","TotalClicks"], ["UniqueClicks","TotalClicks"], "DASH_Link_Monthly",
+                           { Property: "JourneyName", SimpleOperator: "equals", Value: jn });
+      Write(Stringify({ part: "links", j: jn, links: links, warnings: warnings }));
+    }
   } else if (part === "sms") {
     var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","Messages","UniqueRecipients","Delivered","Bounced"], ["Sent","Messages","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");
     Write(Stringify({ part: "sms", sms: sms, warnings: warnings }));

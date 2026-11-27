@@ -55,6 +55,11 @@ Dates en CST (heure des Data Views), au format `AAAAMMJJ hh:mm:ss`. Par défaut 
 
 Pour 04 (conversions), découper par date de création du lead : changer `CreatedDate >= ... AND CreatedDate < ...` avec les mêmes bornes, et l'envoi minimum `s.EventDate >= ...` = borne basse moins ~31 jours.
 
+## Liens (08 et 09)
+- Un lien sans nom (`LinkName` vide) dont l URL contient `view.belfiusdirect.be` est renommé **ReadOnline**.
+- La clé `RowKey` contient le nom du lien : si vous relancez le backfill après ce changement, utilisez le mode **Overwrite** sur `DASH_Link_Monthly` (une seule fois) pour ne pas garder les anciennes lignes à nom vide ; les passages quotidiens restent en **Update**.
+- L API charge les liens **une journey à la fois** (`&part=links&j=<nom de la journey>`).
+
 ## Conversions : règles métier (02 et 04)
 - Journeys retenues : MKT_XSELL_, MKT_PROMO_, MKT_NEWS_, ODO_, OCL_, ODD_OFF_, OCX_XSELL_.
 - Statuts retenus : Incomplete (uniquement journey ODO_BANK_CAR_DropOut), Viewed Premium, Offer Incomplete, Offer Viewed, Offer Created (uniquement ODD_OFF_), Signing, et Signed (converti). Les autres statuts sont ignorés.

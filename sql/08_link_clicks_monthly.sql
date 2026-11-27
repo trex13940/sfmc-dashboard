@@ -12,7 +12,7 @@ FROM (
         j.JourneyName AS JourneyName,
         CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS [Month],
         jb.EmailName AS EmailName,
-        LEFT(ISNULL(c.LinkName, ''), 300) AS LinkName,
+        CASE WHEN ISNULL(c.LinkName, '') = '' AND c.URL LIKE '%view.belfiusdirect.be%' THEN 'ReadOnline' ELSE LEFT(ISNULL(c.LinkName, ''), 300) END AS LinkName,
         LEFT(ISNULL(c.LinkContent, ''), 300) AS LinkContent,
         SUM(CASE WHEN c.IsUnique = 1 THEN 1 ELSE 0 END) AS UniqueClicks,
         COUNT(*) AS TotalClicks
@@ -24,5 +24,5 @@ FROM (
     WHERE s.EventDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 2, 0)
       AND CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) >= CONVERT(char(7), DATEADD(month, -1, CAST(TODATETIMEOFFSET(GETDATE(), '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2)), 120)
       AND (j.JourneyName LIKE 'MKT[_]%' OR j.JourneyName LIKE 'O__[_]%')
-    GROUP BY j.JourneyName, CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120), jb.EmailName, LEFT(ISNULL(c.LinkName, ''), 300), LEFT(ISNULL(c.LinkContent, ''), 300)
+    GROUP BY j.JourneyName, CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120), jb.EmailName, CASE WHEN ISNULL(c.LinkName, '') = '' AND c.URL LIKE '%view.belfiusdirect.be%' THEN 'ReadOnline' ELSE LEFT(ISNULL(c.LinkName, ''), 300) END, LEFT(ISNULL(c.LinkContent, ''), 300)
 ) t
