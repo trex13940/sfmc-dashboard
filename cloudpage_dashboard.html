@@ -184,7 +184,14 @@ button.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;margin-bottom:16px}
 .card{background:var(--card);border:2px solid transparent;border-radius:16px;padding:14px 16px;box-shadow:var(--shadow-tile);transition:transform .15s,border-color .15s}
 .card:hover{transform:scale(1.015);border-color:var(--red)}
-.card b{display:block;font-size:1.5rem;line-height:1.1;font-weight:600;color:var(--tx-red);margin-bottom:4px}
+.card b{display:block;font-size:1.5rem;line-height:1.1;font-weight:600;color:var(--fg);margin-bottom:4px}   /* neutral: red / green are kept for the deltas and alerts */
+.cards.tiered{grid-template-columns:repeat(60,1fr)}
+.cards.tiered .card.pri b{font-size:2rem}
+.cards.tiered .card.pri span{font-size:.85rem}
+.cards.tiered .card.sec{padding:9px 14px;box-shadow:none;border:1px solid var(--line)}
+.cards.tiered .card.sec b{font-size:1.1rem;margin-bottom:2px}
+.cards.tiered .card.sec:hover{border-color:var(--red)}
+@media (max-width:1000px){.cards.tiered{grid-template-columns:repeat(2,1fr)}.cards.tiered .card{grid-column:auto!important}}
 .card span{font-size:.75rem;color:var(--mute)}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:16px}
 .charts .card{height:260px;min-width:0;position:relative;overflow:hidden}.charts .card:hover{transform:none;border-color:transparent}
@@ -225,7 +232,8 @@ tr.child:hover td{background:var(--pink-light)}
 .note::before{content:"i";position:absolute;left:0;top:1px;width:14px;height:14px;border-radius:50%;background:var(--red);color:#fff;font-size:.65rem;font-weight:700;text-align:center;line-height:14px}
 .warn{background:var(--pink-bg);border:2px solid var(--pink-mid);color:var(--red-dark);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:.8rem}
 @media (prefers-color-scheme:dark){.warn{color:var(--fg)}}
-.tops{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.tops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:900px){.tops{grid-template-columns:1fr}}
 .top{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px 20px}
 .top h3{margin:0 0 12px;font-size:.95rem}
 .top ol{list-style:none;margin:0;padding:0}
@@ -234,7 +242,7 @@ tr.child:hover td{background:var(--pink-light)}
 .top .rk{color:var(--mute);font-weight:700}
 .top .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top .nm small{display:block;color:var(--mute);font-weight:400;font-size:.72rem}
-.top .vl{font-weight:700;color:var(--tx-red);font-variant-numeric:tabular-nums;text-align:right}
+.top .vl{font-weight:700;color:var(--fg);font-variant-numeric:tabular-nums;text-align:right}
 .top .vl small{display:block;color:var(--mute);font-weight:400;font-size:.72rem}
 .top .bar2{grid-column:2/4;height:6px;border-radius:3px;background:var(--grey-track);overflow:hidden}
 .top .bar2 i{display:block;height:100%;background:var(--red);border-radius:3px}
@@ -250,7 +258,8 @@ td.bad{color:var(--err-text);font-weight:700}
 @media (prefers-color-scheme:dark){.wrap tr.child:hover td:first-child{background:#3a2430}}
 .dl{display:block;font-size:.72rem;font-style:normal;font-weight:600;margin-top:3px;color:var(--mute)}
 .dl.good{color:var(--ok-text)}.dl.bad{color:var(--err-text)}
-.sum{font-size:.8rem;color:var(--mute);margin:0 0 8px 4px}
+.ctx{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.82rem;color:var(--mute);margin:-4px 4px 14px}
+.ctx b{color:var(--fg);font-weight:600}
 .errbox{background:var(--card);border:2px solid var(--err-text);border-radius:16px;padding:18px 22px;margin-bottom:16px}
 .errbox b{display:block;font-size:1rem;margin-bottom:4px}
 .errbox p{margin:0 0 12px;font-size:.75rem;color:var(--mute);word-break:break-word}
@@ -336,12 +345,12 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     <button class="btn" id="bCsv">Export CSV</button>
     </div>
   </div>
+  <div id="ctx" class="ctx" role="status" aria-live="polite" hidden></div>
   <div id="warn" class="warn" role="status" hidden></div>
 
   <section id="v-main">
     <div id="cards" class="cards"></div>
     <div id="charts" class="charts"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div></div>
-    <div class="sum" id="sum" aria-live="polite"></div>
     <div class="wrap"><table id="tbl"></table></div>
     <div class="note" id="note"></div>
   </section>
@@ -417,7 +426,7 @@ const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this man
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
 const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:false, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
@@ -621,15 +630,21 @@ function renderTable(id, keyCols, cols, rows, total, opts){
   }
 }
 
-function cards(id, items){
-  $(id).innerHTML = items.map(([v,l,d,c,ttl])=>`<div class="card"><b>${v}</b><span>${esc(l)}</span>${d?`<em class="dl ${c||''}" title="${esc(ttl||'')}">${esc(d)}</em>`:''}</div>`).join('');
+/* primary = number of headline cards shown large; the others form a quieter second row */
+function cards(id, items, primary){
+  const el = $(id), tiered = primary>0 && items.length>primary, sec = items.length-primary, secSpan = sec>0 ? Math.floor(60/sec) : 60;
+  el.classList.toggle('tiered', tiered);
+  el.innerHTML = items.map(([v,l,d,c,ttl],i)=>{
+    const cls = tiered ? (i<primary ? 'card pri' : 'card sec') : 'card', span = tiered ? ` style="grid-column:span ${i<primary ? Math.floor(60/primary) : secSpan}"` : '';
+    return `<div class="${cls}"${span}><b>${v}</b><span>${esc(l)}</span>${d?`<em class="dl ${c||''}" title="${esc(ttl||'')}">${esc(d)}</em>`:''}</div>`;
+  }).join('');
 }
 const KPI_CARDS = [
   {l:'Sends',        v:t=>t.Sends,                          kind:'vol'},
-  {l:'Delivered',    v:t=>deliv(t),                         kind:'vol'},
   {l:'Delivery rate',v:t=>t.Sends?deliv(t)/t.Sends:null,    kind:'rate',good:'up'},
   {l:'Open rate',    v:t=>deliv(t)?t.Opens/deliv(t):null,   kind:'rate',good:'up'},
   {l:'CTR (unique)', v:t=>deliv(t)?t.Clicks/deliv(t):null,  kind:'rate',good:'up'},
+  {l:'Delivered',    v:t=>deliv(t),                         kind:'vol'},
   {l:'CTOR',         v:t=>t.Opens?t.Clicks/t.Opens:null,    kind:'rate',good:'up'},
   {l:'Bounce rate',  v:t=>t.Sends?t.Bounces/t.Sends:null,   kind:'rate',good:'down'},
   {l:'Unsub rate',   v:t=>deliv(t)?t.Unsubs/deliv(t):null,  kind:'rate',good:'down'},
@@ -696,7 +711,7 @@ function viewKpi(dim){
   const grouped = group(rows, r => [dimVal(r,dim), monthly ? r.Month : '']);
   const tot = group(rows, r=>['','']) [0] || ZERO();
   const pr = prevRange(), prevRows = pr ? D.kpi.filter(r=>baseOk(r.JourneyName) && r.Month>=pr.from && r.Month<=pr.to) : [];
-  cards('cards', kpiCards(tot, prevRows.length ? group(prevRows, r=>['','']) [0] : null, pr));
+  cards('cards', kpiCards(tot, prevRows.length ? group(prevRows, r=>['','']) [0] : null, pr), 4);
   const isJ = dim==='journey';
   const keyCols = isJ ? journeyCols(false, monthly)
     : [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}].concat(monthly?[{k:'month',l:'Month',v:a=>a.month,f:a=>esc(a.month)}]:[]);
@@ -752,9 +767,9 @@ function viewConv(){
   const legacy = !D.conv.some(r=>r.OriginKind!==undefined);
   cards('cards', legacy
     ? [[n(tot.Leads),'Leads generated after send'],[n(tot.Conv),'Converted leads (Signed)'],[pct(tot.Conv,tot.Leads),'Conversion rate'],[tot.Deliv?(tot.Leads/tot.Deliv*1000).toFixed(2).replace('.',','):'–','Leads / 1,000 delivered'],[pct(tot.Open,tot.Leads),'Leads who opened'],[pct(tot.Click,tot.Leads),'Leads who clicked'],[tot.Leads?(tot.Days/tot.Leads).toFixed(1).replace('.',','):'–','Avg. delay (days)']]
-    : [[n(tot.Leads),'Leads (all)'],[n(kinds.M),'Generated after a marketing email'],[n(kinds.T),'Triggered an operational email'],[n(kinds.N),'No email found'],
-       [n(tot.Conv),'Signed'],[pct(tot.Conv,tot.Leads),'Conversion rate'],[tot.Deliv?(tot.Att/tot.Deliv*1000).toFixed(2).replace('.',','):'–','Leads / 1,000 delivered'],
-       [pct(tot.Open,tot.Att),'Leads who opened (email found)'],[pct(tot.Click,tot.Att),'Leads who clicked (email found)'],[tot.Att?(tot.Days/tot.Att).toFixed(1).replace('.',','):'–','Avg. delay email ↔ lead (days)']]);
+    : [[n(tot.Leads),'Leads (all)'],[n(tot.Conv),'Signed'],[pct(tot.Conv,tot.Leads),'Conversion rate'],[tot.Deliv?(tot.Att/tot.Deliv*1000).toFixed(2).replace('.',','):'–','Leads / 1,000 delivered'],
+       [n(kinds.M),'Generated after a marketing email'],[n(kinds.T),'Triggered an operational email'],[n(kinds.N),'No email found'],
+       [pct(tot.Open,tot.Att),'Leads who opened (email found)'],[pct(tot.Click,tot.Att),'Leads who clicked (email found)'],[tot.Att?(tot.Days/tot.Att).toFixed(1).replace('.',','):'–','Avg. delay email ↔ lead (days)']], legacy ? 0 : 4);
   const isJ = dim==='journey';
   const keyCols = isJ ? journeyCols(false, monthly)
     : [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}].concat(monthly?[{k:'month',l:'Send month',v:a=>a.month,f:a=>esc(a.month)}]:[]);
@@ -878,7 +893,7 @@ async function viewAna(){
   const kRows = D.kpi.filter(r=>r.JourneyName===S.j && inMonths(r.Month));
   const eRows = D.email.filter(r=>r.JourneyName===S.j && inMonths(r.Month));
   const tot = group(kRows, r=>['','']) [0] || group(eRows, r=>['','']) [0] || ZERO();
-  cards('aCards', kpiCards(tot));
+  cards('aCards', kpiCards(tot), 4);
   drawCharts([byMonthCharts(kRows)[0]], ['c3']);
   const keyL = [{k:'name',l:'Language',v:a=>a.name,f:a=>esc(a.name)}];
   const byLang = group(eRows, r=>[parseEmail(r.EmailName).lang||'n/a','']);
@@ -924,12 +939,12 @@ function topList(title, items, fmtVal){
 function viewInsDeliv(){
   const dm = new Map();
   for (const r of D.domain){ if(!inMonths(r.Month)) continue; let a=dm.get(r.Domain); if(!a){a={name:r.Domain,Sends:0,Bounces:0,Complaints:0};dm.set(r.Domain,a);} a.Sends+=r.Sends;a.Bounces+=r.Bounces;a.Complaints+=r.Complaints; }
-  const doms = [...dm.values()];
+  const doms = [...dm.values()], domSends = doms.reduce((s,a)=>s+a.Sends,0);
   const top = (arr,key,extra) => arr.filter(a=>a[key]>0).sort((a,b)=>b[key]-a[key]).slice(0,5).map(a=>({name:a.name,val:a[key],extra:extra?extra(a):''}));
   const jr = group(D.kpi.filter(r=>inScope(r.JourneyName,r.Month)), r=>[r.JourneyName,'']);
   const topJ = jr.filter(a=>a.Bounces>0).sort((a,b)=>b.Bounces-a.Bounces).slice(0,5).map(a=>({name:parse(a.name).campaign,title:a.name,sub:parse(a.name).fam+' · '+parse(a.name).type+' · '+parse(a.name).product+(parse(a.name).covered?' · '+parse(a.name).covered:''),val:a.Bounces,extra:pct(a.Bounces,a.Sends)+' of sends'}));
   $('tops').innerHTML =
-    topList('Top 5 domains – emails sent', top(doms,'Sends'), n) +
+    topList('Top 5 domains – emails sent', top(doms,'Sends',a=>pct(a.Sends,domSends)+' of all sends'), n) +
     topList('Top 5 domains – bounces', top(doms,'Bounces',a=>pct(a.Bounces,a.Sends)+' of sends'), n) +
     topList('Top 5 domains – complaints', top(doms,'Complaints',a=>pct(a.Complaints,a.Sends)+' of sends'), n) +
     topList('Top 5 journeys – bounces', topJ, n);
@@ -1139,14 +1154,25 @@ function viewSms(){
 
 /* ---------- affichage ---------- */
 const NOUN = {journey:'journeys',cat:'categories',type:'campaign types',product:'products'};
-function setSummary(count, dim){
-  const parts = [];
-  if (S.fam!=='ALL') parts.push('Family: '+(S.fam==='MKT'?'MKT_':'Oxx_'));
-  if (S.type) parts.push('Type: '+S.type);
-  if (S.prod) parts.push('Product: '+S.prod);
-  if (S.q) parts.push('Search: "'+S.q+'"');
-  parts.push(S.gran==='month' ? 'by month' : 'period total');
-  $('sum').textContent = n(count)+' '+(S.gran==='month' ? 'rows' : (NOUN[dim]||'rows'))+' · '+(S.from||'…')+' → '+(S.to||'…')+' · '+parts.join(' · ');
+let CNT = null;
+function setSummary(count, dim){ CNT = n(count)+' '+(S.gran==='month' ? 'rows' : (NOUN[dim]||'rows')); }
+/* what the figures on screen are about: period and applied filters, next to the cards */
+function updateCtx(){
+  const el = $('ctx'), tab = S.tab;
+  if (tab==='ins' && S.sub!=='deliv'){ el.hidden = true; return; }
+  const period = 'Period <b>'+esc(S.from||'…')+' → '+esc(S.to||'…')+'</b>', parts = [];
+  if (tab==='ana'){ if (!S.j){ el.hidden = true; return; } parts.push('Journey <b>'+esc(parse(S.j).campaign)+'</b>', period); }
+  else if (tab==='alerts'){ el.hidden = false; el.innerHTML = '<span>Scope <b>'+(S.alert==='all'?'All journeys':'Ongoing journeys only')+'</b></span>'; return; }
+  else if (tab==='sms'){ parts.push(period); if (S.q) parts.push('Search <b>"'+esc(S.q)+'"</b>'); }
+  else {
+    parts.push(period, S.fam==='ALL' ? 'All families' : 'Family <b>'+(S.fam==='MKT'?'Marketing (MKT_)':'Operational (Oxx_)')+'</b>',
+      S.type ? 'Type <b>'+esc(lab('type',S.type))+'</b>' : 'All types', S.prod ? 'Product <b>'+esc(lab('product',S.prod))+'</b>' : 'All products');
+    if (tab==='journeys' || tab==='cats' || tab==='conv') parts.push(S.gran==='month' ? 'By month' : 'Period total');
+    if (tab==='conv' && S.grp!=='journey') parts.push('Grouped by <b>'+esc(DIMLAB[S.grp]||S.grp)+'</b>');
+    if (S.q) parts.push('Search <b>"'+esc(S.q)+'"</b>');
+    if (CNT && (tab==='journeys' || tab==='cats' || tab==='conv')) parts.push('<b>'+esc(CNT)+'</b>');
+  }
+  el.hidden = false; el.innerHTML = parts.map(p=>'<span>'+p+'</span>').join('');
 }
 const FILTERS = ['fam','type','prod','q','gran','from','to'];
 const HSEL = {fam:'fFam',type:'fType',prod:'fProd',from:'fFrom',to:'fTo',gran:'fGran',grp:'fGrp',view:'fView',j:'fJ',alert:'fAlert'};
@@ -1154,7 +1180,7 @@ function saveHash(){
   try{
     const p = new URLSearchParams();
     for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
-    if (S.compact) p.set('compact','1');
+    if (!S.compact) p.set('compact','0');   /* rates only is the default view */
     const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
   }catch(e){}
 }
@@ -1164,7 +1190,7 @@ function loadHash(){
   for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
   if (p.get('q')){ S.q=p.get('q'); $('fQ').value=S.q; }
   for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']],['gc',['n','pc']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
-  S.compact = p.get('compact')==='1';
+  S.compact = p.get('compact')!=='0';
 }
 function selectTab(t, focus){
   S.tab = t; SORT.tbl = null;
@@ -1172,7 +1198,7 @@ function selectTab(t, focus){
   render();
 }
 function render(){
-  const cfg = TABS[S.tab];
+  CNT = null; const cfg = TABS[S.tab];
   let ctl = (S.tab==='ins' && S.sub!=='deliv') ? [] : cfg.ctl;
   if (S.tab==='ana' && !S.j) ctl = ctl.filter(id=>['lJ','lFrom','lTo'].includes(id));   /* nothing to act on until a journey is chosen */   /* the filter bar does not apply to the subscriber / geography views */
   $('insNav').hidden = S.tab!=='ins';   /* the Insights views (Deliverability / Subscriber base / Geography) stay at the very top */
@@ -1186,7 +1212,7 @@ function render(){
   $('v-'+cfg.view).setAttribute('aria-labelledby','tab-'+S.tab);
   if (S.tab==='journeys') viewKpi('journey'); else if (S.tab==='cats') viewKpi(S.view); else if (S.tab==='conv') viewConv();
   else if (S.tab==='ana') viewAna(); else if (S.tab==='ins') viewIns(); else if (S.tab==='alerts') viewAlerts(); else viewSms();
-  updateBadge(); saveHash();
+  updateCtx(); updateBadge(); saveHash();
 }
 
 async function api(part, extra){
