@@ -271,6 +271,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
 .mapfull{margin-bottom:14px}
 #segCharts{grid-template-columns:minmax(320px,640px)}
 .prov{stroke:var(--mute);stroke-width:1.2;stroke-linejoin:round}
+.plabel{fill:var(--fg);stroke:var(--card);stroke-width:3px;paint-order:stroke;pointer-events:none;font-family:inherit}
 .prov:hover{stroke:var(--tx-red);stroke-width:2.5}
 .pc{stroke:rgba(16,24,32,.4);stroke-width:.6;fill-opacity:.82}
 .pc:hover{stroke:var(--fg);stroke-width:1.6}
@@ -1047,10 +1048,10 @@ function viewGeo(){
   const cnt = r => sg==='yes' ? (r.WithContract||0) : sg==='no' ? r.Contacts-(r.WithContract||0) : r.Contacts;
   msg.hidden = true;
   if (!rows.length){ msg.hidden = false; msg.textContent = 'No contact geography yet (DASH_Contact_Geo).'; box.innerHTML = ''; $('tGeo').innerHTML = ''; cards('geoCards',[]); $('mapLegend').textContent=''; return; }
-  const pcm = new Map(), pvm = new Map(); let total = 0, na = 0, asof = '';
+  const pcm = new Map(), pvm = new Map(); let total = 0, na = 0, asof = '', tAll = 0, tWC = 0;
   const add = (m, key, c, wc, extra) => { let a = m.get(key); if (!a){ a = Object.assign({key,Contacts:0,All:0,WC:0}, extra||{}); m.set(key,a); } a.Contacts += c; a.All += wc[0]; a.WC += wc[1]; };
   for (const r of rows){
-    const c = cnt(r), wc = [r.Contacts, r.WithContract||0]; total += c; if (r.AsOf) asof = r.AsOf; const g = GEO.postal[r.PostalCode];
+    const c = cnt(r), wc = [r.Contacts, r.WithContract||0]; total += c; tAll += wc[0]; tWC += wc[1]; if (r.AsOf) asof = r.AsOf; const g = GEO.postal[r.PostalCode];
     if (r.PostalCode==='N/A' || !g){ na += c; continue; }
     add(pcm, r.PostalCode, c, wc, {name:g[3], prov:g[2], x:g[0], y:g[1]}); add(pvm, g[2], c, wc);
   }
@@ -1059,18 +1060,29 @@ function viewGeo(){
   const known = total - na, ents = S.gl==='prov' ? pvm : pcm;
   const mv = e => byPc ? (e.All ? e.WC/e.All : 0) : e.Contacts;
   const vals = [...ents.values()].map(mv), lo = Math.min(...vals), hi = Math.max(...vals), fv = v => byPc ? fx1(v*100)+' %' : n(v);
+  /* % with contract: colour relative to the overall average (above = strong, below = pale), because the provinces only differ by a few points */
+  const avg = tAll ? tWC/tAll : 0, span = Math.max(hi-avg, avg-lo) || 1;
+  const col = e => byPc ? ramp(.5 + (mv(e)-avg)/(2*span)) : ramp((mv(e)-lo)/((hi-lo)||1));
   let svg = '<svg viewBox="'+GEO.viewBox.join(' ')+'" role="img" aria-label="Map of Belgium: number of contacts by '+(S.gl==='prov'?'province':'postal code')+'. The same figures are in the table next to the map.">';
-  for (const p of GEO.provinces){ const e = pvm.get(p.id); svg += '<path class="prov" d="'+p.d+'" fill="'+(S.gl==='prov' && e ? ramp((mv(e)-lo)/((hi-lo)||1)) : 'var(--map-neutral)')+'" data-k="v:'+p.id+'"/>'; }
+  for (const p of GEO.provinces){ const e = pvm.get(p.id); svg += '<path class="prov" d="'+p.d+'" fill="'+(S.gl==='prov' && e ? col(e) : 'var(--map-neutral)')+'" data-k="v:'+p.id+'"/>'; }
   if (S.gl==='postal'){
-    const maxC = Math.max(...vals, 1);
-    [...pcm.values()].sort((a,b)=>b.Contacts-a.Contacts).forEach(e=>{ svg += '<circle class="pc" cx="'+e.x+'" cy="'+e.y+'" r="'+(4+30*Math.sqrt(e.Contacts/maxC)).toFixed(1)+'" fill="'+(byPc ? ramp((mv(e)-lo)/((hi-lo)||1)) : ramp(.75))+'" data-k="p:'+e.key+'"/>'; });
+    const maxC = Math.max(...[...pcm.values()].map(e=>e.Contacts), 1);   /* bubble size = contacts, whatever the colour metric */
+    [...pcm.values()].sort((a,b)=>b.Contacts-a.Contacts).forEach(e=>{ svg += '<circle class="pc" cx="'+e.x+'" cy="'+e.y+'" r="'+(4+30*Math.sqrt(e.Contacts/maxC)).toFixed(1)+'" fill="'+(byPc ? col(e) : ramp(.75))+'" data-k="p:'+e.key+'"/>'; });
   }
   box.innerHTML = svg + '</svg>';
+  if (S.gl==='prov'){   /* value written on each province */
+    const sv = box.firstChild, NS = 'http://www.w3.org/2000/svg', fs = GEO.viewBox[2]/38;
+    sv.querySelectorAll('path.prov').forEach(p=>{
+      const id = p.dataset.k.slice(2), e = pvm.get(id); if (!e) return; const bb = p.getBBox(), NUD = {BRU:[-3.4,1.6], VBR:[2.4,-2.6]}, nd = NUD[id]||[0,0], cx = bb.x+bb.width/2+nd[0]*fs, cy = bb.y+bb.height/2+nd[1]*fs;   /* Brussels sits inside Flemish Brabant: nudge both labels apart */
+      [[provName(p.dataset.k.slice(2)), .62, 500, -.2],[fv(mv(e)), 1, 700, .85]].forEach(([txt,sz,w,dy])=>{ const tx = document.createElementNS(NS,'text'); tx.setAttribute('x',cx); tx.setAttribute('y',cy+dy*fs); tx.setAttribute('text-anchor','middle'); tx.setAttribute('class','plabel'); tx.setAttribute('font-size',(fs*sz).toFixed(1)); tx.setAttribute('font-weight',w); tx.textContent = txt; sv.appendChild(tx); });
+    });
+  }
   const grad = '<i style="background:linear-gradient(90deg,'+ramp(0)+','+ramp(1)+')"></i>';
-  $('mapLegend').innerHTML = S.gl==='postal' ? (byPc ? '<span>Bubble area = number of contacts · colour = </span><span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+' with contract</span>' : '<span>Bubble area = number of contacts</span>')
-    : '<span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+(byPc ? ' of contacts with a contract' : ' contacts')+'</span>';
+  const avgTxt = byPc ? '<span> · average '+fv(avg)+' (centre of the scale)</span>' : '';
+  $('mapLegend').innerHTML = S.gl==='postal' ? (byPc ? '<span>Bubble area = number of contacts · colour = % with contract:</span><span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+'</span>'+avgTxt : '<span>Bubble area = number of contacts</span>')
+    : '<span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+(byPc ? ' of contacts with a contract' : ' contacts')+'</span>'+avgTxt;
   const share = e => e.Contacts/total < 0.001 ? '< 0,1 %' : pct(e.Contacts,total);
-  const info = (title,e) => '<b>'+esc(title)+'</b>Contacts'+segTxt+': '+n(e.Contacts)+' ('+share(e)+(sg==='all'?' of all contacts':' of the segment')+')'+(hasG?'<br>With contract: '+n(e.WC||0)+' of '+n(e.All||0):'');
+  const info = (title,e) => '<b>'+esc(title)+'</b>Contacts'+segTxt+': '+n(e.Contacts)+' ('+share(e)+(sg==='all'?' of all contacts':' of the segment')+')'+(hasG?'<br>With contract: '+n(e.WC||0)+' of '+n(e.All||0)+(e.All?' ('+pct(e.WC||0,e.All)+')':''):'');
   const show = ev => {
     const t = ev.target.closest && ev.target.closest('[data-k]'); if (!t){ tip.hidden = true; return; }
     const [kind,key] = t.dataset.k.split(':'), e = kind==='v' ? pvm.get(key) : pcm.get(key);
