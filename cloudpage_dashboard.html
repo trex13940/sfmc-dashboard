@@ -431,7 +431,8 @@ const TABS = {
 /* Naming convention journeys: MKT|Oxx _ TYPE _ PRODUCT _ Campaign name _ mmyyyy|ongoing
    Friendly labels (code -> label) come from DASH_Config rows label_type_<CODE> / label_product_<CODE>. */
 const LABELS = { type:(CFG.labels&&CFG.labels.type)||{}, product:(CFG.labels&&CFG.labels.product)||{} };
-const lab = (kind, code) => LABELS[kind] && LABELS[kind][code] ? LABELS[kind][code]+' ('+code+')' : code;
+const lab = (kind, code, withCode) => LABELS[kind] && LABELS[kind][code] ? LABELS[kind][code]+(withCode ? ' ('+code+')' : '') : code;   /* label only; the code is added where the list must stay unambiguous (filters) */
+const labTip = (kind, code) => `<span title="${esc(code)}">${esc(lab(kind,code))}</span>`;
 const normProd = p => { p = String(p||'n/a').toUpperCase(); return p==='BIKE' ? 'BIK' : p; };
 
 const _pc = new Map();
@@ -550,8 +551,8 @@ function actChildCell(c, x, i){
   const p = String(x.act||x.name||'').split('_'), pr = String(p[2]||'').split(' ('), code = pr[0], detail = pr[1] ? pr[1].replace(')','') : '';
   if (i===0) return `<td class="l ind">↳ ${esc(x.act||x.name)}</td>`;
   if (c.k==='fam') return `<td class="l">${esc(p[0]||'')}</td>`;
-  if (c.k==='type') return `<td class="l">${esc(p[1] ? lab('type',p[1]) : '')}</td>`;
-  if (c.k==='product') return `<td class="l">${esc(code ? lab('product',code)+(detail?' – '+detail:'') : '')}</td>`;
+  if (c.k==='type') return `<td class="l">${p[1] ? labTip('type',p[1]) : ''}</td>`;
+  if (c.k==='product') return `<td class="l">${code ? labTip('product',code)+esc(detail?' – '+detail:'') : ''}</td>`;
   return '<td class="l"></td>';
 }
 function journeyCols(withAct, monthly, monthLabel){
@@ -560,8 +561,8 @@ function journeyCols(withAct, monthly, monthLabel){
     {k:'campaign',l:'Campaign',v:a=>pj(a).campaign.toLowerCase(),f:a=>JSET.has(a.name) ? `<a href="#" class="jl" data-j="${esc(a.name)}" title="${esc(a.name)} – open the journey analysis">${esc(pj(a).campaign)}</a>` : `<span title="${esc(a.name)}">${esc(pj(a).campaign)}</span>`},
     {k:'covered',l:'Month',v:a=>covShown(a),f:a=>pj(a).covered==='ongoing' ? `<span title="Ongoing journey: month of the latest sends in the selection">${esc(covShown(a)||'ongoing')}</span>` : esc(pj(a).covered||'–')},
     {k:'fam',l:'Family',v:a=>pj(a).fam,f:a=>esc(pj(a).fam)},
-    {k:'type',l:'Type',v:a=>pj(a).type,f:a=>esc(lab('type',pj(a).type))},
-    {k:'product',l:'Product',v:a=>pj(a).product,f:a=>esc(lab('product',pj(a).product))}
+    {k:'type',l:'Type',v:a=>pj(a).type,f:a=>labTip('type',pj(a).type)},
+    {k:'product',l:'Product',v:a=>pj(a).product,f:a=>labTip('product',pj(a).product)}
   ];
   if (withAct) c.push({k:'act',l:'Email activity',v:a=>(a.act||'').toLowerCase(),f:a=>esc(a.act||'')});
   if (monthly) c.push({k:'month',l:monthLabel||'Send month',v:a=>a.month,f:a=>esc(a.month)});
@@ -1218,7 +1219,7 @@ function setup(){
   $('fFrom').value = S.from; $('fTo').value = S.to;
   const names = [...new Set([...D.kpi,...D.conv].map(r=>r.JourneyName))].filter(x=>x!=='(no email)');
   const fill = (id,kind) => { const vals=[...new Set(names.map(nm=>parse(nm)[kind]))].sort();
-    $(id).innerHTML = '<option value="">All</option>'+vals.map(v=>`<option value="${esc(v)}">${esc(lab(kind,v))}</option>`).join(''); };
+    $(id).innerHTML = '<option value="">All</option>'+vals.map(v=>`<option value="${esc(v)}">${esc(lab(kind,v,true))}</option>`).join(''); };
   fill('fType','type'); fill('fProd','product');
   const last = new Map(); D.kpi.forEach(r=>{ if((last.get(r.JourneyName)||'')<r.Month) last.set(r.JourneyName,r.Month); });
   const js = [...last.keys()].sort((a,b)=>(last.get(b)>last.get(a)?1:last.get(b)<last.get(a)?-1:0)||(covKey(b)>covKey(a)?1:covKey(b)<covKey(a)?-1:0)||(a<b?-1:1));
