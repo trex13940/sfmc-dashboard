@@ -67,9 +67,10 @@ Pour 04 (conversions), découper par date de création du lead : changer `Create
 - `_Sent.Domain` (insights domaines), `_Job.EmailName` (activités), `_Click.LinkName` / `LinkContent` (liens), `HASHBYTES` (clé de DASH_Link_Monthly).
 
 ## SMS (13 et 14)
-- Source : `_SMSMessageTracking` (colonnes vérifiées sur la documentation de Mateusz Dabrowski). Journey = `JBDefinitionID` joint à `_Journey.JourneyID` (une seule ligne par JourneyID : le nom le plus récent par ordre alphabétique est gardé).
-- Asset = colonne `Name` (message MobileConnect ou activité de journey).
-- Une ligne de la data view = une partie de SMS (colonne `Ordinal`) : **Sent compte donc toutes les parties** ; **UniqueRecipients** = numéros distincts (`Mobile`) par journey, mois et asset ; **Delivered** = `Delivered = 1` ; **Bounced** = `Undelivered = 1`.
-- Messages sortants uniquement (`Outbound = 1`), tests exclus. Date = `CreateDateTime` (supposée en CST), mois en CET.
-- Journeys MKT_ et Oxx_ : les SMS d autres journeys (par exemple OKM_ et ODD_DOC_ aujourd hui) sont pris automatiquement.
-- Limite : les destinataires uniques sont distincts par mois ; sur plusieurs mois, le dashboard additionne les mois (un numéro présent deux mois compte deux fois).
+Basées sur votre requête de reporting (quarterly) et adaptées au rythme mensuel :
+- Source : `_SMSMessageTracking`. Un SMS long est stocké en plusieurs lignes (une par partie, colonne `Ordinal`) : le message est reconstitué avec `STRING_AGG(MessageText) WITHIN GROUP (ORDER BY Ordinal)`, puis **SMSCount = CEILING(longueur / 153)** (segments d un SMS concaténé).
+- Un message = un abonné (`SubscriberKey`) + une activité (`JBActivityID`) + une date de création (`CreateDateTime`), comme dans votre requête.
+- Activité : `JBActivityID = _JourneyActivity.ActivityID` ; le nom de la journey vient de `_Journey` (version la plus récente de l activité, pour éviter les doublons entre versions). Asset = `ActivityName`.
+- **Sent** = somme des segments ; **Messages** = nombre de messages ; **UniqueRecipients** = abonnés distincts par journey, mois et asset ; **Delivered** / **Bounced** = segments des messages `Delivered = 1` / `Undelivered = 1`. Tests exclus.
+- Mois en CET (la date est supposée en CST). Journeys MKT_ et Oxx_ uniquement, donc OKM_ et ODD_DOC_ aujourd hui.
+- Limites : 153 caractères par segment vaut pour l alphabet GSM ; avec des caractères hors GSM (certains accents, emojis) un segment ne contient que 67 caractères, donc le total est sous-estimé. Les destinataires uniques sont distincts par mois ; sur plusieurs mois le dashboard les additionne.

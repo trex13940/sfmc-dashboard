@@ -1,19 +1,37 @@
 SELECT
-    jn.JourneyName AS JourneyName,
-    CONVERT(char(7), CAST(TODATETIMEOFFSET(sms.CreateDateTime, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS [Month],
-    LEFT(ISNULL(sms.Name, ''), 200) AS AssetName,
-    COUNT(*) AS Sent,
-    COUNT(DISTINCT sms.Mobile) AS UniqueRecipients,
-    SUM(CASE WHEN sms.Delivered = 1 THEN 1 ELSE 0 END) AS Delivered,
-    SUM(CASE WHEN sms.Undelivered = 1 THEN 1 ELSE 0 END) AS Bounced
-FROM _SMSMessageTracking sms
-JOIN (SELECT CAST(JourneyID AS varchar(36)) AS JourneyID, MAX(JourneyName) AS JourneyName
-      FROM _Journey
-      GROUP BY CAST(JourneyID AS varchar(36))) jn
-     ON jn.JourneyID = CAST(sms.JBDefinitionID AS varchar(36))
-WHERE sms.CreateDateTime >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 2, 0)
-  AND CONVERT(char(7), CAST(TODATETIMEOFFSET(sms.CreateDateTime, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) >= CONVERT(char(7), DATEADD(month, -1, CAST(TODATETIMEOFFSET(GETDATE(), '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2)), 120)
-  AND sms.Outbound = 1
-  AND (sms.IsTest = 0 OR sms.IsTest IS NULL)
-  AND (jn.JourneyName LIKE 'MKT[_]%' OR jn.JourneyName LIKE 'O__[_]%')
-GROUP BY jn.JourneyName, CONVERT(char(7), CAST(TODATETIMEOFFSET(sms.CreateDateTime, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120), LEFT(ISNULL(sms.Name, ''), 200)
+    x.JourneyName AS JourneyName,
+    x.Mo AS [Month],
+    x.AssetName AS AssetName,
+    SUM(x.SMSCount) AS Sent,
+    COUNT(*) AS Messages,
+    COUNT(DISTINCT x.SubscriberKey) AS UniqueRecipients,
+    SUM(CASE WHEN x.Deliv = 1 THEN x.SMSCount ELSE 0 END) AS Delivered,
+    SUM(CASE WHEN x.Undeliv = 1 THEN x.SMSCount ELSE 0 END) AS Bounced
+FROM (
+    SELECT i.JourneyName, i.AssetName, i.SubscriberKey, i.SMSCount, i.Deliv, i.Undeliv,
+           CONVERT(char(7), CAST(TODATETIMEOFFSET(i.CreateDT, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS Mo
+    FROM (
+        SELECT
+            jn.JourneyName AS JourneyName,
+            LEFT(ISNULL(jn.ActivityName, ''), 200) AS AssetName,
+            t.SubscriberKey AS SubscriberKey,
+            t.CreateDateTime AS CreateDT,
+            CAST(CEILING(CAST(LEN(REPLACE(STRING_AGG(t.MessageText, '|') WITHIN GROUP (ORDER BY t.Ordinal ASC), '|', '')) AS numeric) / 153) AS int) AS SMSCount,
+            MAX(CASE WHEN t.Delivered = 1 THEN 1 ELSE 0 END) AS Deliv,
+            MAX(CASE WHEN t.Undelivered = 1 THEN 1 ELSE 0 END) AS Undeliv
+        FROM _SMSMessageTracking t
+        JOIN (SELECT a.ActivityID, a.ActivityName, a.JourneyName
+              FROM (SELECT ja.ActivityID, ja.ActivityName, j.JourneyName,
+                           ROW_NUMBER() OVER (PARTITION BY ja.ActivityID ORDER BY j.VersionNumber DESC) AS rn
+                    FROM _JourneyActivity ja
+                    JOIN _Journey j ON j.VersionID = ja.VersionID) a
+              WHERE a.rn = 1) jn
+             ON t.JBActivityID = jn.ActivityID
+        WHERE t.CreateDateTime >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 2, 0)
+          AND (t.IsTest = 0 OR t.IsTest IS NULL)
+          AND (jn.JourneyName LIKE 'MKT[_]%' OR jn.JourneyName LIKE 'O__[_]%')
+        GROUP BY jn.JourneyName, jn.ActivityName, t.SubscriberKey, t.CreateDateTime, t.JBActivityID
+    ) i
+) x
+WHERE x.Mo >= CONVERT(char(7), DATEADD(month, -1, CAST(TODATETIMEOFFSET(GETDATE(), '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2)), 120)
+GROUP BY x.JourneyName, x.Mo, x.AssetName

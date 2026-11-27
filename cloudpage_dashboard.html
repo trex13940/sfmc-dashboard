@@ -703,17 +703,17 @@ function viewSms(){
   for (const r of D.sms){
     if (!inMonths(r.Month) || (S.q && !String(r.JourneyName).toLowerCase().includes(S.q.toLowerCase()))) continue;
     const asset = parseEmail(r.AssetName).label, key = r.JourneyName+'|'+asset; let a = m.get(key);
-    if(!a){ a={name:r.JourneyName,asset,Sent:0,Uniq:0,Deliv:0,Bnc:0}; m.set(key,a); }
-    a.Sent+=r.Sent; a.Uniq+=r.UniqueRecipients; a.Deliv+=r.Delivered; a.Bnc+=r.Bounced;
+    if(!a){ a={name:r.JourneyName,asset,Sent:0,Msg:0,Uniq:0,Deliv:0,Bnc:0}; m.set(key,a); }
+    a.Sent+=r.Sent; a.Msg+=(r.Messages||0); a.Uniq+=r.UniqueRecipients; a.Deliv+=r.Delivered; a.Bnc+=r.Bounced;
   }
-  const rows=[...m.values()], tot=rows.reduce((t,a)=>({Sent:t.Sent+a.Sent,Uniq:t.Uniq+a.Uniq,Deliv:t.Deliv+a.Deliv,Bnc:t.Bnc+a.Bnc}),{Sent:0,Uniq:0,Deliv:0,Bnc:0});
-  cards('smsCards', [[n(tot.Sent),'SMS sent'],[n(tot.Uniq),'Unique recipients'],[n(tot.Deliv),'Delivered'],[pct(tot.Deliv,tot.Sent),'Delivered %'],[n(tot.Bnc),'Bounced'],[pct(tot.Bnc,tot.Sent),'Bounced %']]);
+  const rows=[...m.values()], tot=rows.reduce((t,a)=>({Sent:t.Sent+a.Sent,Msg:t.Msg+a.Msg,Uniq:t.Uniq+a.Uniq,Deliv:t.Deliv+a.Deliv,Bnc:t.Bnc+a.Bnc}),{Sent:0,Msg:0,Uniq:0,Deliv:0,Bnc:0});
+  cards('smsCards', [[n(tot.Sent),'SMS sent (segments)'],[n(tot.Msg),'Messages'],[n(tot.Uniq),'Unique recipients'],[n(tot.Deliv),'Delivered'],[pct(tot.Deliv,tot.Sent),'Delivered %'],[n(tot.Bnc),'Bounced'],[pct(tot.Bnc,tot.Sent),'Bounced %']]);
   const keyCols=[{k:'name',l:'Journey',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)},{k:'asset',l:'Asset',v:a=>a.asset.toLowerCase(),f:a=>esc(a.asset)}];
-  const cols=[{k:'Sent',l:'Total sent',v:a=>a.Sent,f:a=>n(a.Sent)},{k:'Uniq',l:'Unique',v:a=>a.Uniq,f:a=>n(a.Uniq)},
+  const cols=[{k:'Sent',l:'Total sent (segments)',v:a=>a.Sent,f:a=>n(a.Sent)},{k:'Msg',l:'Messages',v:a=>a.Msg,f:a=>n(a.Msg)},{k:'Uniq',l:'Unique',v:a=>a.Uniq,f:a=>n(a.Uniq)},
               {k:'Deliv',l:'Delivered',v:a=>a.Deliv,f:a=>n(a.Deliv)},{k:'rDel',l:'Delivered %',v:a=>a.Sent?a.Deliv/a.Sent:-1,f:a=>pct(a.Deliv,a.Sent)},
               {k:'Bnc',l:'Bounced',v:a=>a.Bnc,f:a=>n(a.Bnc)},{k:'rBnc',l:'Bounced %',v:a=>a.Sent?a.Bnc/a.Sent:-1,f:a=>pct(a.Bnc,a.Sent)}];
   renderTable('tSms', keyCols, cols, rows, rows.length>1?tot:null, {defK:'Sent', empty:'No SMS data yet (DASH_SMS_Monthly).'});
-  $('smsNote').textContent = "SMS per journey and asset. Total sent counts every message part (long SMS are split in several parts); unique = distinct recipients per month. The asset name ignores the language and anything after a \"-\" in the campaign name.";
+  $('smsNote').textContent = "SMS per journey and activity (asset). Total sent counts SMS segments: each message is rebuilt from its parts and its length is divided by 153 characters (rounded up). Messages = logical messages sent; unique = distinct recipients per month. Delivered / Bounced are in segments. The asset name ignores the language and anything after a \"-\" in the campaign name.";
 }
 
 /* ---------- affichage ---------- */

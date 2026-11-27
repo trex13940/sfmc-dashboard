@@ -138,7 +138,7 @@ try {
     var links = optional("DASH_Link_Monthly", ["JourneyName","Month","EmailName","LinkName","LinkContent","UniqueClicks","TotalClicks"], ["UniqueClicks","TotalClicks"], "DASH_Link_Monthly");
     Write(Stringify({ part: "links", links: links, warnings: warnings }));
   } else if (part === "sms") {
-    var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","UniqueRecipients","Delivered","Bounced"], ["Sent","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");
+    var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","Messages","UniqueRecipients","Delivered","Bounced"], ["Sent","Messages","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");
     Write(Stringify({ part: "sms", sms: sms, warnings: warnings }));
   } else {
     var kpi = fetchAll("DASH_Journey_KPI_Monthly",

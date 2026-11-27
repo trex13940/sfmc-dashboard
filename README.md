@@ -11,7 +11,7 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 | DASH_Email_KPI_Monthly | **JourneyName** Text(200), **Month** Text(7), **EmailName** Text(200), Sends, Bounces, Opens, UniqueClicks, Unsubscribes, Complaints (Number) |
 | DASH_Link_Monthly | **RowKey** Text(32), JourneyName Text(200), Month Text(7), EmailName Text(200), LinkName Text(300), LinkContent Text(300), UniqueClicks, TotalClicks (Number) |
 | DASH_Domain_Monthly | **Domain** Text(100), **Month** Text(7), Sends, Bounces, Complaints (Number) |
-| DASH_SMS_Monthly | **JourneyName** Text(200), **Month** Text(7), **AssetName** Text(200), Sent, UniqueRecipients, Delivered, Bounced (Number) |
+| DASH_SMS_Monthly | **JourneyName** Text(200), **Month** Text(7), **AssetName** Text(200), Sent, **Messages**, UniqueRecipients, Delivered, Bounced (Number) |
 | DASH_Config | **ConfigKey** Text(50), Value Text(200) → voir « Token d'accès » ci-dessous |
 | DASH_IP_Allowlist | **IPAddress** Text(50), Description Text(200) → une ligne par IP (`203.0.113.7`) ou plage IPv4 CIDR (`203.0.113.0/24`) ; IPv6 en correspondance exacte |
 
