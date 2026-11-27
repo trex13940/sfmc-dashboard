@@ -174,7 +174,7 @@ function optional(deKey, cols, nums, label, filter) {
 }
 
 try {
-  /* Auth minimale : ?k=<token> comparé à DASH_Config (ConfigKey='token') ; part = core | links | sms */
+  /* Auth minimale : ?k=<token> comparé à DASH_Config (ConfigKey='token') ; part = core | links | audience | sms */
   if (!ipOk) { Write(Stringify({ error: "forbidden" })); throw "STOP"; }
   var k = trim(Platform.Request.GetQueryStringParameter("k"));
   var part = trim(Platform.Request.GetQueryStringParameter("part")) || "core";
@@ -194,6 +194,18 @@ try {
       var links = [];
       try { links = fetchLinks(jn, lf, lt); } catch (eL) { warnings.push("DASH_Link_Monthly: " + String(eL.message || eL) + " [step: " + lkStep + "]"); }
       Write(Stringify({ part: "links", j: jn, links: links, warnings: warnings }));
+    }
+  } else if (part === "audience") {
+    /* base abonnes : repartition (DASH_Audience_Dist) et geographie (DASH_Audience_Geo) du mois demande (&asof=yyyy-mm) */
+    var asof = trim(Platform.Request.GetQueryStringParameter("asof"));
+    if (asof.split("-").length !== 2) { Write(Stringify({ error: "missing or invalid parameter asof (yyyy-mm) for part=audience" })); }
+    else {
+      var aflt = { Property: "AsOf", SimpleOperator: "equals", Value: asof };
+      var dist = optional(cfgv("audience_dist_de", "DASH_Audience_Dist"), ["AsOf","Win","RecBucket","Seg","Subscribers","ReceivedMkt","ReceivedOps","OpensMkt","ClicksMkt","Months"],
+                          ["Subscribers","ReceivedMkt","ReceivedOps","OpensMkt","ClicksMkt","Months"], "DASH_Audience_Dist", aflt);
+      var geo = optional(cfgv("audience_geo_de", "DASH_Audience_Geo"), ["AsOf","Win","PostalCode","Subscribers","Reached","Engaged","Clickers","ReceivedMkt","ReceivedOps"],
+                         ["Subscribers","Reached","Engaged","Clickers","ReceivedMkt","ReceivedOps"], "DASH_Audience_Geo", aflt);
+      Write(Stringify({ part: "audience", asof: asof, dist: dist, geo: geo, warnings: warnings }));
     }
   } else if (part === "sms") {
     var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","Messages","UniqueRecipients","Delivered","Bounced"], ["Sent","Messages","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");

@@ -20,3 +20,14 @@ SELECT TOP 5 Domain, JobID, EventDate FROM _Sent WHERE EventDate >= DATEADD(day,
 
 -- P7 : noms d emails reels (_Job.EmailName) pour verifier le parsing FR/NL, tirets, PET, HOM
 SELECT TOP 40 EmailName, COUNT(*) AS N FROM _Job WHERE EmailName LIKE 'MKT[_]%' OR EmailName LIKE 'O__[_]%' GROUP BY EmailName ORDER BY COUNT(*) DESC
+
+
+-- P8 : taux de correspondance abonnes actifs <-> contacts (jointure SubscriberKey = Contact Id)
+SELECT COUNT(*) AS ActiveSubscribers, SUM(CASE WHEN c.Id IS NOT NULL THEN 1 ELSE 0 END) AS MatchedContacts
+FROM _Subscribers s LEFT JOIN Contact_Salesforce_1 c ON c.Id = s.SubscriberKey WHERE s.Status = 'Active'
+
+-- P9 : formats reels des codes postaux
+SELECT TOP 40 MailingPostalCode, COUNT(*) AS N FROM Contact_Salesforce_1 GROUP BY MailingPostalCode ORDER BY COUNT(*) DESC
+
+-- P10 : exemples de SubscriberKey (a comparer avec l Id des contacts)
+SELECT TOP 5 SubscriberKey, EmailAddress, Status FROM _Subscribers
