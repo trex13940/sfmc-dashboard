@@ -788,10 +788,9 @@ async function viewAna(){
   const byEmail = group(eRows, r=>[r.EmailName ? parseEmail(r.EmailName).clean : '(unknown)','']);   /* identical emails (versions, PDF, Website...) merged */
   renderTable('tEmail', keyE, kpiCols(), byEmail, byEmail.length>1?tot:null, {defK:'Sends', empty});
   /* links : chargés à la demande */
-  const lc = [{k:'email',l:'Email',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)},{k:'lang',l:'Lang',v:a=>a.lang,f:a=>esc(a.lang||'–')},
-              {k:'link',l:'Link name',v:a=>'',f:a=>''},{k:'content',l:'Link content',v:a=>'',f:a=>''}];
-  const linkCell = (c,x,i) => i===0 ? '<td class="l ind">↳</td>' : c.k==='link' ? `<td class="l">${esc(x.link||'–')}</td>`
-    : c.k==='content' ? `<td class="l"><span title="${esc(x.content)}">${esc(x.content.length>80?x.content.slice(0,80)+'…':x.content||'–')}</span></td>` : '<td class="l"></td>';
+  const lc = [{k:'email',l:'Email / link name',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)},{k:'content',l:'Link content',v:a=>'',f:a=>''}];
+  const linkCell = (c,x,i) => i===0 ? `<td class="l ind">↳ ${esc(x.link||'–')}</td>`
+    : `<td class="l"><span title="${esc(x.content)}">${esc(x.content.length>80?x.content.slice(0,80)+'…':x.content||'–')}</span></td>`;
   const lcols = [{k:'uq',l:'Unique clicks',v:a=>a.uq,f:a=>n(a.uq)},{k:'tot',l:'Total clicks',v:a=>a.tot,f:a=>n(a.tot)}];
   const LK = S.j+'|'+S.from+'|'+S.to, LJ = D.linksByJ[LK];
   if (D.linksErr[LK]){
