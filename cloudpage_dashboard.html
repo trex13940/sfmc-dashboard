@@ -522,11 +522,22 @@ const KPI_COLS = [
 const kpiCols = () => S.compact ? KPI_COLS.filter(c=>COMPACT_KEYS.includes(c.k)) : KPI_COLS;
 
 /* colonnes d'identité d'une journey : Campaign > Month (covered) > Family > Type > Product (+ activity, + send month) */
+/* an ongoing journey has no month of its own: show the send month taken into account (the month of the row, else the latest send month of the selection) */
+const covShown = a => { const c = parse(a.name).covered; return c==='ongoing' ? (a.month || a.last || 'ongoing') : c; };
+/* child rows (email activities): the activity label is FAM_TYPE_PRODUCT[ (detail)]_Campaign -> show its own family, type and product */
+function actChildCell(c, x, i){
+  const p = String(x.act||x.name||'').split('_'), pr = String(p[2]||'').split(' ('), code = pr[0], detail = pr[1] ? pr[1].replace(')','') : '';
+  if (i===0) return `<td class="l ind">↳ ${esc(x.act||x.name)}</td>`;
+  if (c.k==='fam') return `<td class="l">${esc(p[0]||'')}</td>`;
+  if (c.k==='type') return `<td class="l">${esc(p[1] ? lab('type',p[1]) : '')}</td>`;
+  if (c.k==='product') return `<td class="l">${esc(code ? lab('product',code)+(detail?' – '+detail:'') : '')}</td>`;
+  return '<td class="l"></td>';
+}
 function journeyCols(withAct, monthly, monthLabel){
   const pj = a => parse(a.name);
   const c = [
     {k:'campaign',l:'Campaign',v:a=>pj(a).campaign.toLowerCase(),f:a=>JSET.has(a.name) ? `<a href="#" class="jl" data-j="${esc(a.name)}" title="${esc(a.name)} – open the journey analysis">${esc(pj(a).campaign)}</a>` : `<span title="${esc(a.name)}">${esc(pj(a).campaign)}</span>`},
-    {k:'covered',l:'Month',v:a=>pj(a).covered,f:a=>esc(pj(a).covered||'–')},
+    {k:'covered',l:'Month',v:a=>covShown(a),f:a=>pj(a).covered==='ongoing' ? `<span title="Ongoing journey: month of the latest sends in the selection">${esc(covShown(a)||'ongoing')}</span>` : esc(pj(a).covered||'–')},
     {k:'fam',l:'Family',v:a=>pj(a).fam,f:a=>esc(pj(a).fam)},
     {k:'type',l:'Type',v:a=>pj(a).type,f:a=>esc(lab('type',pj(a).type))},
     {k:'product',l:'Product',v:a=>pj(a).product,f:a=>esc(lab('product',pj(a).product))}
@@ -665,11 +676,11 @@ function viewKpi(dim){
   let opts = {defK:monthly?'month':null, empty};
   if (isJ){
     const acts = S.tab==='journeys' && D.email.length ? group(D.email.filter(r=>inScope(r.JourneyName,r.Month)), r=>[r.JourneyName, monthly?r.Month:'', parseEmail(r.EmailName).label]) : [];
-    opts = {cmp:recentCmp, children:childMap(acts, monthly), empty};
+    opts = {cmp:recentCmp, children:childMap(acts, monthly), childCell:actChildCell, empty};
   }
   renderTable('tbl', keyCols, kpiCols(), grouped, tot, opts);
   drawCharts(byMonthCharts(rows));
-  $('note').textContent = (S.tab==='journeys' ? "Most recent first (latest send month, then covered month). Click the arrow in front of a journey to show its email activities (FR/NL versions merged; anything after a \"-\" in the campaign name is ignored). " : "") +
+  $('note').textContent = (S.tab==='journeys' ? "Most recent first (latest send month, then covered month). Click the arrow in front of a journey to show its email activities with their own type and product (FR/NL versions merged; for an ongoing journey the Month column shows the send month taken into account; anything after a \"-\" in the campaign name is ignored). " : "") +
     "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens. The arrows on the cards compare with the previous period of the same length (percentage points for rates; green = better, red = worse). In the rates chart, Open % uses the left axis and CTR / Bounce % the right axis." +
     (S.tab==='journeys' && !D.email.length ? " Email-level data not available yet (DASH_Email_KPI_Monthly)." : "");
 }
@@ -719,7 +730,7 @@ function viewConv(){
   let opts = {defK:monthly?'month':null};
   if (isJ){
     const acts = D.email.length ? convAgg(rows, 'journey', monthly, true).out : [];
-    opts = {cmp:recentCmp, children:childMap(acts, monthly)};
+    opts = {cmp:recentCmp, children:childMap(acts, monthly), childCell:actChildCell};
   }
   opts.empty = D.conv.length ? 'No data for the current selection. Try "Reset filters".' : 'No leads loaded yet (DASH_Conversions).';
   setSummary(out.length, dim);
