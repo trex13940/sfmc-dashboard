@@ -374,6 +374,7 @@ const NF = new Intl.NumberFormat('fr-BE');
 const PF = new Intl.NumberFormat('fr-BE',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1});
 const n = v => NF.format(v||0);
 const pct = (a,b) => b>0 ? PF.format(a/b) : '–';
+const stripParams = s => { s = String(s||'').trim(); return /^https?:\/\//i.test(s) ? s.split(/[?#]/)[0] : s; };
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const famOf = name => /^MKT_/i.test(name) ? 'MKT' : 'OPS';
 
@@ -701,13 +702,14 @@ async function viewAna(){
   } else {
     const m = new Map();
     for (const r of LJ){ if ((r.JourneyName && r.JourneyName!==S.j) || !inMonths(r.Month)) continue;
-      const key=r.EmailName+'|'+r.LinkName+'|'+r.LinkContent; let a=m.get(key);
-      if(!a){ a={email:r.EmailName||'',lang:parseEmail(r.EmailName).lang,link:r.LinkName||'',content:r.LinkContent||'',uq:0,tot:0}; m.set(key,a); }
+      const ln=stripParams(r.LinkName), lc=stripParams(r.LinkContent);   /* URLs shown without ?parameters / #anchor; identical links are merged */
+      const key=r.EmailName+'|'+ln+'|'+lc; let a=m.get(key);
+      if(!a){ a={email:r.EmailName||'',lang:parseEmail(r.EmailName).lang,link:ln,content:lc,uq:0,tot:0}; m.set(key,a); }
       a.uq+=r.UniqueClicks; a.tot+=r.TotalClicks; }
     const list=[...m.values()], lt={uq:list.reduce((x,a)=>x+a.uq,0),tot:list.reduce((x,a)=>x+a.tot,0)};
     renderTable('tLinks', lc, lcols, list, list.length>1?lt:null, {defK:'uq', empty:'No link data for this journey (DASH_Link_Monthly).'});
   }
-  $('aNote').textContent = "FR / NL are read from the email name (_FR_ / _NL_). Links: unique clicks = first click of a recipient on a link, total clicks = all clicks; attributed to the send month. Same rate definitions as the Journeys tab.";
+  $('aNote').textContent = "FR / NL are read from the email name (_FR_ / _NL_). Links: unique clicks = first click of a recipient on a link, total clicks = all clicks; attributed to the send month; URLs are shown without their parameters. Same rate definitions as the Journeys tab.";
 }
 
 /* ---------- Insights ---------- */

@@ -57,7 +57,8 @@ Pour 04 (conversions), découper par date de création du lead : changer `Create
 
 ## Liens (08 et 09)
 - Un lien sans nom (`LinkName` vide) dont l URL contient `view.belfiusdirect.be` est renommé **ReadOnline**.
-- La clé `RowKey` contient le nom du lien : si vous relancez le backfill après ce changement, utilisez le mode **Overwrite** sur `DASH_Link_Monthly` (une seule fois) pour ne pas garder les anciennes lignes à nom vide ; les passages quotidiens restent en **Update**.
+- Quand `LinkContent` (ou `LinkName`) est une URL (`http…`), tout ce qui suit `?` ou `#` est supprimé : les liens qui ne diffèrent que par leurs paramètres sont regroupés (moins de lignes dans la DE). Le texte qui n est pas une URL reste inchangé. La page applique la même règle à l affichage, y compris sur les données déjà chargées.
+- La clé `RowKey` contient le nom du lien : si vous relancez le backfill après un de ces changements (renommage ReadOnline ou suppression des paramètres), utilisez le mode **Overwrite** sur `DASH_Link_Monthly` (une seule fois) pour ne pas garder les anciennes lignes à nom vide ; les passages quotidiens restent en **Update**.
 - L API charge les liens **une journey et une période à la fois** (`&part=links&j=<journey>&from=yyyy-mm&to=yyyy-mm`), mois par mois avec `LookupRows` (rapide), les mois les plus récents d abord, avec un budget de 20 s : au-delà, la page affiche un résultat partiel et le dit, plutôt qu une erreur 408.
 - Si le DE contient beaucoup de lignes, **recréez `DASH_Link_Monthly` avec une clé primaire composée dans cet ordre : `JourneyName`, `Month`, `RowKey`** (les autres champs inchangés). Les champs de clé sont indexés : filtrer sur `JourneyName` et `Month` devient quasi instantané. Rechargez ensuite avec le backfill `09` (Overwrite).
 - Réglages dans la DE `DASH_Config` : `link_de_name` (nom de la DE, pour `LookupRows`), `link_de_key` (Customer Key, pour le repli) et `link_budget_ms`.
