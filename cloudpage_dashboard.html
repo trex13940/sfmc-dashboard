@@ -111,7 +111,11 @@ for (var ck in CFG) {
 }
 var assetStrip = [], sx = cfgv("asset_strip_extra", "").split(";");
 for (var si = 0; si < sx.length; si++) { var sv = trim(sx[si]); if (sv) assetStrip.push(sv); }
-var clientCfg = { apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), labels: labels, assetStrip: assetStrip };
+var linkMap = [], lsep = " =" + "> ";   /* regles "motif => nom" ecrites par la page d'administration (cles linkmap_NNN) */
+for (var lk in CFG) {
+  if (lk.indexOf("linkmap_") === 0) { var lpp = CFG[lk].split(lsep); if (lpp.length === 2 && trim(lpp[0]) && trim(lpp[1])) { linkMap.push([trim(lpp[0]), trim(lpp[1])]); } }
+}
+var clientCfg = { linkMap: linkMap, apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), labels: labels, assetStrip: assetStrip };
 Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").replace(/%/g, "\\u0025"));
 </script>
 %%[ IF @ipOk == "1" THEN ]%%
@@ -772,6 +776,9 @@ function viewAlerts(){
 function updateBadge(){ const A=computeAlerts(); const c=A.rows.filter(a=>a.alert).length; const b=$('badge'); b.textContent=c; b.hidden=!c; b.setAttribute('aria-label', ', '+c+' journey'+(c>1?'s':'')+' in alert'); }
 
 /* ---------- Journey analysis ---------- */
+/* règles de noms de liens (page d'administration) : motif contenu dans l'adresse, * = joker, le motif le plus long l'emporte */
+const LINKRULES = ((CFG.linkMap)||[]).map(([p,nm])=>({re:new RegExp(p.split('*').map(s=>s.replace(/[.+?^${}()|[\]\\]/g,'\\$&')).join('.*'),'i'), len:p.length, name:nm, pat:p})).sort((a,b)=>b.len-a.len);
+function mapLinkName(url){ const u = String(url||'').replace(/^https?:\/\//i,''); if (!u) return null; for (const r of LINKRULES) if (r.re.test(u)) return r; return null; }
 async function viewAna(){
   if (!S.j){ $('aCards').innerHTML=''; return; }
   const kRows = D.kpi.filter(r=>r.JourneyName===S.j && inMonths(r.Month));
@@ -802,7 +809,7 @@ async function viewAna(){
   } else {
     const m = new Map();
     for (const r of LJ){ if ((r.JourneyName && r.JourneyName!==S.j) || !inMonths(r.Month)) continue;
-      const ln=stripParams(r.LinkName), lc=stripParams(r.LinkContent);   /* URLs shown without ?parameters / #anchor; identical links are merged */
+      let ln=stripParams(r.LinkName), lc=stripParams(r.LinkContent); { const mr = mapLinkName(lc) || mapLinkName(ln); if (mr){ ln = mr.name; lc = mr.pat; } }   /* a rule gives one name and one address (its pattern), so the links of a rule are merged */   /* URLs shown without ?parameters / #anchor; identical links are merged */
       const en = r.EmailName ? parseEmail(r.EmailName).clean : '', key=en+'|'+ln+'|'+lc; let a=m.get(key);
       if(!a){ a={email:en,lang:parseEmail(r.EmailName).lang,link:ln,content:lc,uq:0,tot:0}; m.set(key,a); }
       a.uq+=r.UniqueClicks; a.tot+=r.TotalClicks; }

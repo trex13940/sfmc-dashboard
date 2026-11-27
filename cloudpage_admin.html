@@ -104,6 +104,8 @@ try { clientIp = Platform.Request.ClientIP; ipOk = isIpAllowed(clientIp); } catc
 /* ====== ADMINISTRATION : lecture / ecriture de DASH_IP_Allowlist et DASH_Config ======
    Acces : IP autorisee ET cle d'administration (ligne admin_token de DASH_Config). Sans admin_token : lecture/ecriture desactivees. */
 var LOG_DE = cfgv("admin_log_de", "DASH_Admin_Log");
+var PM_DE_KEY = cfgv("product_map_de", "DASH_Product_Map"), PM_DE_NAME = cfgv("product_map_name", PM_DE_KEY);
+var PM_SOURCES = { EMAIL: 1, LEAD: 1, CONTRACT: 1 };
 var SECRET_KEYS = { token: 1, admin_token: 1 };
 var PROTECTED_KEYS = { token: 1, admin_token: 1, api_url: 1 };   /* ne peuvent pas etre supprimees depuis la page */
 
@@ -139,7 +141,16 @@ function cfgView() {
   }
   return out;
 }
-function snapshot() { return { ok: true, yourIp: cleanIp(clientIp), ips: readIps(), cfg: cfgView() }; }
+function readPmap() {
+  var rows = rowsOf(PM_DE_KEY, ["Source", "Value", "ProductGroup"]), out = [];
+  for (var i = 0; i < rows.length; i++) { var s = trim(rows[i].Source), v = trim(rows[i].Value), g = trim(rows[i].ProductGroup); if (s && v && g) out.push({ source: s, value: v, group: g }); }
+  return out;
+}
+function snapshot() {
+  var s = { ok: true, yourIp: cleanIp(clientIp), ips: readIps(), cfg: cfgView(), pmap: [], pmapErr: "" };
+  try { s.pmap = readPmap(); } catch (ePm) { s.pmapErr = "the data extension " + PM_DE_KEY + " cannot be read (create it first, see the README): " + errText(ePm); }
+  return s;
+}
 
 /* --- ecritures : plusieurs methodes essayees dans l'ordre, chacune verifiee par relecture de la DE.
    1. API Core (DataExtension.Init par Customer Key)  2. WSProxy  3. UpsertData / DeleteData (par NOM de DE)
@@ -181,6 +192,22 @@ function deleteCfg(key) {
     { name: "WSProxy", fn: function () { wsStatus(new Script.Util.WSProxy().deleteItem("DataExtensionObject", { CustomerKey: CFG_DE_KEY, Keys: [{ Name: "ConfigKey", Value: ex.key }] })); } },
     { name: "DeleteData", fn: function () { Platform.Function.DeleteData(CFG_DE_NAME, ["ConfigKey"], [ex.key]); } }
   ], function () { return !findCfgKey(key); });
+}
+function hasPm(s, v, g) { var l = readPmap(); for (var i = 0; i < l.length; i++) { if (l[i].source === s && l[i].value === v && l[i].group === g) return true; } return false; }
+function addPm(s, v, g) {
+  if (hasPm(s, v, g)) return;
+  tryChain("saving the mapping", [
+    { name: "Core", fn: function () { DataExtension.Init(PM_DE_KEY).Rows.Add({ Source: s, Value: v, ProductGroup: g }); } },
+    { name: "WSProxy", fn: function () { wsStatus(new Script.Util.WSProxy().createItem("DataExtensionObject", { CustomerKey: PM_DE_KEY, Properties: [{ Name: "Source", Value: s }, { Name: "Value", Value: v }, { Name: "ProductGroup", Value: g }] })); } },
+    { name: "UpsertData", fn: function () { Platform.Function.UpsertData(PM_DE_NAME, 3, "Source", s, "Value", v, "ProductGroup", g); } }
+  ], function () { return hasPm(s, v, g); });
+}
+function removePm(s, v, g) {
+  tryChain("deleting the mapping", [
+    { name: "Core", fn: function () { DataExtension.Init(PM_DE_KEY).Rows.Remove(["Source", "Value", "ProductGroup"], [s, v, g]); } },
+    { name: "WSProxy", fn: function () { wsStatus(new Script.Util.WSProxy().deleteItem("DataExtensionObject", { CustomerKey: PM_DE_KEY, Keys: [{ Name: "Source", Value: s }, { Name: "Value", Value: v }, { Name: "ProductGroup", Value: g }] })); } },
+    { name: "DeleteData", fn: function () { Platform.Function.DeleteData(PM_DE_NAME, ["Source", "Value", "ProductGroup"], [s, v, g]); } }
+  ], function () { return !hasPm(s, v, g); });
 }
 function hasIp(ip) { var l = readIps(); for (var i = 0; i < l.length; i++) { if (l[i].ip.toLowerCase() === ip) return true; } return false; }
 function upsertIp(ip, desc) {
@@ -244,12 +271,33 @@ function matchList(list, ipRaw) {
   return false;
 }
 var CFG_RULES = {
+  product_map_de: { t: "name" }, product_map_name: { t: "name" },
   api_url: { t: "url" }, ip_de_key: { t: "name" }, ip_de_name: { t: "name" }, link_de_name: { t: "name" }, link_de_key: { t: "name" },
   audience_dist_de: { t: "name" }, contact_geo_de: { t: "name" }, admin_log_de: { t: "name" },
   link_budget_ms: { t: "int", min: 1000, max: 25000 }, alert_drop_pct: { t: "int", min: 1, max: 100 },
   alert_min_sends: { t: "int", min: 0, max: 10000000 }, alert_min_days: { t: "int", min: 1, max: 28 },
   asset_strip_extra: { t: "text", max: 200 }, token: { t: "secret" }, admin_token: { t: "secret" }
 };
+/* regle de nom de lien : "motif => Nom". Motif en minuscules, sans protocole ; * = joker ; le motif le plus long gagne (cote navigateur) */
+var LSEP = " =" + "> ";   /* separateur motif / nom */
+function cleanLinkPattern(raw) {
+  var p = trim(raw).toLowerCase();
+  if (p.indexOf("https://") === 0) { p = p.substring(8); } else if (p.indexOf("http://") === 0) { p = p.substring(7); }
+  var q = p.indexOf("?"); if (q >= 0) { p = p.substring(0, q); }
+  q = p.indexOf("#"); if (q >= 0) { p = p.substring(0, q); }
+  while (p.length > 0 && p.charAt(p.length - 1) === "/") { p = p.substring(0, p.length - 1); }
+  if (p.length < 3 || p.length > 150 || /[\s<>"'\x00-\x1f]/.test(p)) { return ""; }
+  return p;
+}
+function cleanLinkName(raw) { var n = trim(raw); if (!n || n.length > 60 || /[<>\x00-\x1f]/.test(n)) { return ""; } return n; }
+function linkRules() {
+  var rows = readCfgRows(), out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var lk = rows[i].key.toLowerCase();
+    if (lk.indexOf("linkmap_") === 0) { var parts = rows[i].value.split(LSEP); if (parts.length === 2) { out.push({ key: rows[i].key, pattern: trim(parts[0]), name: trim(parts[1]) }); } }
+  }
+  return out;
+}
 /* retourne { key, value } nettoyes, ou { error } */
 function validateCfg(rawKey, rawValue) {
   var key = trim(rawKey), value = trim(rawValue), lk = key.toLowerCase(), rule = CFG_RULES[lk];
@@ -260,6 +308,15 @@ function validateCfg(rawKey, rawValue) {
     if (!/^[A-Za-z0-9_]{1,20}$/.test(code)) return { error: "label code: 1 to 20 letters, digits or _" };
     if (!value || value.length > 60 || /[<>\x00-\x1f]/.test(value)) return { error: "label: 1 to 60 characters, no < or >" };
     return { key: "label_" + kind + "_" + ucase(code), value: value };
+  }
+  if (lk.indexOf("linkmap_") === 0) {
+    if (!/^linkmap_\d{1,4}$/.test(lk)) { return { error: "invalid link rule key" }; }
+    var lp = value.split(LSEP);
+    if (lp.length !== 2) { return { error: "a link rule is 'pattern" + LSEP + "Name'" }; }
+    var pat = cleanLinkPattern(lp[0]), nm = cleanLinkName(lp[1]);
+    if (!pat) { return { error: "link pattern: 3 to 150 characters, no spaces (e.g. view.belfiusdirect.be or belfiusdirect.be/*/contactus)" }; }
+    if (!nm) { return { error: "link name: 1 to 60 characters, no < or >" }; }
+    return { key: lk, value: pat + LSEP + nm };
   }
   if (!rule) return { error: "unknown setting: " + key };
   if (rule.t === "url") { if (!/^https:\/\/[^\s<>"']+$/.test(value) || value.length > 200) return { error: "api_url must be an https:// address (max 200 characters)" }; return { key: lk, value: value }; }
@@ -342,6 +399,46 @@ function handlePost() {
       deleteCfg(dk); logAdmin("cfg_delete", dk, "");
       var r4 = snapshot(); r4.message = "Deleted: " + dk; return r4;
     }
+    if (a === "link_set") {
+      var lpat = cleanLinkPattern(req.pattern), lnm = cleanLinkName(req.name);
+      if (!lpat) return { error: "link pattern: 3 to 150 characters, no spaces (e.g. view.belfiusdirect.be or belfiusdirect.be/*/contactus)" };
+      if (!lnm) return { error: "link name: 1 to 60 characters, no < or >" };
+      var rules = linkRules(), lkey = "", maxN = 0;
+      for (var li = 0; li < rules.length; li++) {
+        var nn = parseInt(rules[li].key.substring(8), 10); if (!isNaN(nn) && nn > maxN) { maxN = nn; }
+        if (rules[li].pattern === lpat) { lkey = rules[li].key; }
+      }
+      if (!lkey) { if (rules.length >= 100) return { error: "at most 100 link rules" }; lkey = "linkmap_" + (maxN + 1 < 10 ? "00" : maxN + 1 < 100 ? "0" : "") + (maxN + 1); }
+      upsertCfg(lkey, lpat + LSEP + lnm); logAdmin("link_set", lpat, lnm);
+      var r5 = snapshot(); r5.message = "Link rule saved: " + lpat + LSEP + lnm; return r5;
+    }
+    if (a === "link_delete") {
+      var ldk = trim(req.key);
+      if (!/^linkmap_\d{1,4}$/i.test(ldk) || !findCfgKey(ldk)) return { error: "unknown link rule" };
+      deleteCfg(ldk); logAdmin("link_delete", ldk, "");
+      var r6 = snapshot(); r6.message = "Link rule deleted"; return r6;
+    }
+    if (a === "pm_add" || a === "pm_remove") {
+      var psrc = ucase(trim(req.source)), pval = ucase(trim(req.value)), pgrp = ucase(trim(req.group));
+      if (PM_SOURCES[psrc] !== 1) return { error: "source must be EMAIL, LEAD or CONTRACT" };
+      if (!/^[A-Z0-9_]{1,30}$/.test(pgrp)) return { error: "product group: 1 to 30 letters, digits or _" };
+      if (psrc === "EMAIL" && pval.indexOf("|") < 0 && /^[A-Z0-9_]{1,20}$/.test(pval)) { pval = pval + "|%"; }   /* un code produit seul : tous les emails de ce produit */
+      if (!pval || pval.length > 100 || /[\x00-\x1f<>"']/.test(pval)) return { error: "value: 1 to 100 characters (% = any text)" };
+      if (a === "pm_add") { addPm(psrc, pval, pgrp); logAdmin("pm_add", psrc + " " + pval, pgrp); }
+      else { if (!hasPm(psrc, pval, pgrp)) return { error: "this mapping does not exist" }; removePm(psrc, pval, pgrp); logAdmin("pm_remove", psrc + " " + pval, pgrp); }
+      var r7 = snapshot(); r7.message = a === "pm_add" ? "Mapping saved: " + psrc + " " + pval + " -> " + pgrp : "Mapping removed"; return r7;
+    }
+    if (a === "pm_seed") {
+      var seeds = req.rows, added = 0;
+      if (!seeds || !seeds.length || seeds.length > 100) return { error: "nothing to add" };
+      for (var sd = 0; sd < seeds.length; sd++) {
+        var ss = ucase(trim(seeds[sd][0])), sv = ucase(trim(seeds[sd][1])), sg = ucase(trim(seeds[sd][2]));
+        if (PM_SOURCES[ss] !== 1 || !sv || sv.length > 100 || !/^[A-Z0-9_]{1,30}$/.test(sg) || /[\x00-\x1f<>"']/.test(sv)) { return { error: "invalid default mapping" }; }
+        if (!hasPm(ss, sv, sg)) { addPm(ss, sv, sg); added++; }
+      }
+      logAdmin("pm_seed", "defaults", added + " rows");
+      var r8 = snapshot(); r8.message = added + " default mapping row(s) added"; return r8;
+    }
     return { error: "unknown action" };
   } catch (eAct) { return { error: String(eAct.message || eAct) }; }
 }
@@ -405,6 +502,9 @@ button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
 #toast{position:fixed;right:18px;bottom:18px;z-index:40;max-width:min(520px,calc(100vw - 36px));padding:12px 16px;border-radius:14px;font-weight:600;border:2px solid var(--ok);background:var(--card);color:var(--ok);box-shadow:var(--shadow)}
 #toast.err{border-color:var(--err);color:var(--err)}
 .note{font-size:.75rem;color:var(--mute);margin-top:14px}
+.warnbox{border:2px solid var(--err);color:var(--err);border-radius:12px;padding:10px 14px;margin:0 0 14px;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;margin:2px 6px 2px 0;padding:2px 4px 2px 10px;border-radius:14px;border:1px solid var(--pink-mid);background:var(--pink-bg);font-size:.8rem}
+.chip button{padding:0 7px;border-radius:10px;font-size:.8rem;line-height:1.4;background:none;color:var(--err);border:0}
 @media (max-width:760px){main{padding:0 14px 70px}.srow{grid-template-columns:1fr}.srow .sa{text-align:left}th:nth-child(2),td:nth-child(2){display:none}}
 </style>
 </head>
@@ -417,6 +517,8 @@ button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
       <button type="button" class="tabbtn" role="tab" id="tab-ip" data-tab="ip" aria-controls="p-ip" aria-selected="true" tabindex="0">IP allowlist<span class="cnt" id="cntIp">0</span></button>
       <button type="button" class="tabbtn" role="tab" id="tab-cfg" data-tab="cfg" aria-controls="p-cfg" aria-selected="false" tabindex="-1">Settings</button>
       <button type="button" class="tabbtn" role="tab" id="tab-lab" data-tab="lab" aria-controls="p-lab" aria-selected="false" tabindex="-1">Friendly labels<span class="cnt" id="cntLab">0</span></button>
+      <button type="button" class="tabbtn" role="tab" id="tab-link" data-tab="link" aria-controls="p-link" aria-selected="false" tabindex="-1">Link names<span class="cnt" id="cntLink">0</span></button>
+      <button type="button" class="tabbtn" role="tab" id="tab-prod" data-tab="prod" aria-controls="p-prod" aria-selected="false" tabindex="-1">Product mapping<span class="cnt" id="cntProd">0</span></button>
     </div>
 
     <section class="panel" id="p-ip" role="tabpanel" aria-labelledby="tab-ip">
@@ -451,6 +553,34 @@ button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
       </form>
       <table id="tLab"></table>
     </section>
+    <section class="panel" id="p-link" role="tabpanel" aria-labelledby="tab-link" hidden>
+      <h2>Link names</h2>
+      <p class="sub">Give a fixed name to links, whatever name they have in the email. A rule applies to every link whose address (without parameters) contains the pattern; use <b>*</b> as a wildcard. If several rules match, the longest pattern wins. Shown in Journey analysis; applies immediately.</p>
+      <form id="fLink" class="row" autocomplete="off">
+        <label>Pattern (part of the link address)<input id="lkPat" required maxlength="150" size="34" placeholder="view.belfiusdirect.be" class="mono"></label>
+        <label>Link name<input id="lkName" required maxlength="60" size="22" placeholder="ReadOnline"></label>
+        <button type="submit">Add / update</button>
+        <button type="button" class="sec" id="lkEx">Add the examples</button>
+      </form>
+      <table id="tLink"></table>
+      <p class="note">Examples: <span class="mono">view.belfiusdirect.be</span> = ReadOnline; <span class="mono">belfiusdirect.be/*/contactus</span> = ContactUs (matches /fr/contactus and /nl/contactus). A pattern without * must appear as is in the address; the protocol (https://) and the ?parameters are ignored.</p>
+    </section>
+
+    <section class="panel" id="p-prod" role="tabpanel" aria-labelledby="tab-prod" hidden>
+      <h2>Product mapping</h2>
+      <p class="sub">Links the product written in the email name, the lead field <span class="mono">Page_Origin__c</span> and the contract field <span class="mono">Product2__c</span> through a common <b>product group</b>. A lead is attributed to an email only when the lead's group and the email's group are the same (emails whose product is ALL accept every lead). Stored in the DASH_Product_Map data extension and read by the conversions queries (02 and 04) the next time they run.</p>
+      <div id="pmErr" class="warnbox" role="alert" hidden></div>
+      <form id="fProd" class="row" autocomplete="off">
+        <label>Product group<input id="pmGrp" required maxlength="30" size="14" placeholder="CAR" list="pmGroups" class="mono"></label>
+        <label>Source<select id="pmSrc"><option value="EMAIL">Email (product in the journey name)</option><option value="LEAD">Lead (Page_Origin__c)</option><option value="CONTRACT">Contract (Product2__c)</option></select></label>
+        <label>Value<input id="pmVal" required maxlength="100" size="24" placeholder="VEH" class="mono"></label>
+        <button type="submit">Add</button>
+        <button type="button" class="sec" id="pmSeed">Add the default mapping</button>
+        <datalist id="pmGroups"></datalist>
+      </form>
+      <div id="pmBox"></div>
+      <p class="note"><b>Email</b>: a product code (CAR) means every email of that product; or a pattern on <span class="mono">PRODUCT|JOURNEYNAME</span>, e.g. <span class="mono">HOM|%OWNER%</span> (% = any text; the most specific pattern wins). <b>Lead</b> and <b>Contract</b>: the exact value, or a pattern with %, e.g. <span class="mono">%UKP%</span>. Values are not case sensitive. An email product can belong to several groups (VEH = CAR and MOT).</p>
+    </section>
     <p class="note">Every change is logged in the DASH_Admin_Log data extension when it exists (date, admin IP, action, setting name; secret values are never logged or displayed).</p>
   </div>
   <div id="toast" role="status" aria-live="polite" hidden></div>
@@ -476,14 +606,17 @@ const SCHEMA = [
   {k:'link_budget_ms', l:'Links time budget (ms)', d:'Maximum time to read links before showing a partial result (1000 - 25000).', def:'20000', type:'number'},
   {k:'audience_dist_de',l:'Audience DE',           d:'Customer Key of the subscriber distribution data extension.', def:'DASH_Audience_Dist'},
   {k:'contact_geo_de', l:'Contact geography DE',   d:'Customer Key of the contact geography data extension.', def:'DASH_Contact_Geo'},
+  {k:'product_map_de', l:'Product mapping DE - key', d:'Customer Key of the product mapping data extension.', def:'DASH_Product_Map'},
+  {k:'product_map_name',l:'Product mapping DE - name', d:'Name of that data extension.', def:'= key'},
   {k:'admin_log_de',   l:'Admin log DE',           d:'Customer Key of the change log data extension.', def:'DASH_Admin_Log'}
 ];
 const GROUPS = [
   {id:'keys', t:'Access keys', items:['token','admin_token']},
   {id:'dash', t:'Dashboard settings', items:['api_url','alert_drop_pct','alert_min_sends','alert_min_days','asset_strip_extra']},
-  {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','admin_log_de']}
+  {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','product_map_de','product_map_name','admin_log_de']}
 ];
-let ST = {ips:[], cfg:[], yourIp:''}, TAB = 'ip', FILTER = '', FOCUS = null;
+const TABS = ['ip','cfg','lab','link','prod'];
+let ST = {ips:[], cfg:[], yourIp:'', pmap:[], pmapErr:''}, TAB = 'ip', FILTER = '', FOCUS = null;
 const OPEN = {keys:true, dash:true, de:false};
 function say(msg, err){ const s=$('toast'); s.hidden=!msg; s.textContent=msg||''; s.classList.toggle('err',!!err); clearTimeout(say.t); if(msg && !err) say.t=setTimeout(()=>{ if(s.textContent===msg) s.hidden=true; },6000); }
 async function call(action, payload){
@@ -494,7 +627,7 @@ async function call(action, payload){
   return j;
 }
 async function act(action, payload, okMsg){
-  try{ const j = await call(action, payload); ST = {ips:j.ips||ST.ips, cfg:j.cfg||ST.cfg, yourIp:j.yourIp||ST.yourIp}; render(); say(j.message||okMsg||'Done.'); return true; }
+  try{ const j = await call(action, payload); ST = {ips:j.ips||ST.ips, cfg:j.cfg||ST.cfg, yourIp:j.yourIp||ST.yourIp, pmap:j.pmap||ST.pmap, pmapErr:j.pmapErr||''}; render(); say(j.message||okMsg||'Done.'); return true; }
   catch(e){ say(e.message, true); return false; }
 }
 function covers(entry, ip){   /* does this allowlist entry cover the visitor IP ? (display only) */
@@ -503,11 +636,11 @@ function covers(entry, ip){   /* does this allowlist entry cover the visitor IP 
   const m = entry.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)\/(\d+)$/), q = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/); if (!m||!q) return false;
   const n = a => ((+a[1]*256+ +a[2])*256+ +a[3])*256+ +a[4], bits=+m[5], size=Math.pow(2,32-bits), start=Math.floor(n(m)/size)*size; return n(q)>=start && n(q)<start+size;
 }
-const isLabel = r => /^label_(type|product)_/i.test(r.key);
+const isLabel = r => /^label_(type|product)_/i.test(r.key), isLink = r => /^linkmap_\d+$/i.test(r.key);
 function showTab(t, focus){
   TAB = t;
   document.querySelectorAll('.tabbtn').forEach(b=>{ const on=b.dataset.tab===t; b.setAttribute('aria-selected',on); b.tabIndex=on?0:-1; if(on&&focus) b.focus(); });
-  ['ip','cfg','lab'].forEach(x=>$('p-'+x).hidden = x!==t);
+  TABS.forEach(x=>$('p-'+x).hidden = x!==t);
   try{ history.replaceState(null,'',location.pathname+location.search+(t==='ip'?'':'#'+t)); }catch(e){}
 }
 function renderIp(){
@@ -544,7 +677,7 @@ function renderCfg(){
   });
   $('cfgBox').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if (confirm('Remove the row "'+b.dataset.del+'" (the default value will apply) ?')){ FOCUS='row:'+b.dataset.del; act('cfg_delete',{key:b.dataset.del}); } });
   $('cfgBox').querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>{ const AL='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', a=new Uint8Array(24); crypto.getRandomValues(a); const t=[...a].map(x=>AL[x%AL.length]).join(''); const i=$('c_'+b.dataset.gen); i.value=t; i.select(); say('New key generated: copy it now, then click Save. It is never shown again.'); });
-  const known = new Set(SCHEMA.map(s=>s.k)), oth = ST.cfg.filter(r=>!known.has(r.key.toLowerCase()) && !isLabel(r));
+  const known = new Set(SCHEMA.map(s=>s.k)), oth = ST.cfg.filter(r=>!known.has(r.key.toLowerCase()) && !isLabel(r) && !isLink(r));
   $('sOth').hidden = !oth.length; $('tOth').innerHTML = '<tbody>'+oth.map(r=>`<tr><td class="k mono">${esc(r.key)}</td><td>${r.secret?'(secret)':esc(r.value)}</td></tr>`).join('')+'</tbody>';
 }
 function renderLab(){
@@ -552,8 +685,26 @@ function renderLab(){
   $('tLab').innerHTML = '<thead><tr><th>Applies to</th><th>Code</th><th>Label</th><th></th></tr></thead><tbody>'+(labs.length?labs.map(r=>{const m=r.key.match(/^label_(type|product)_(.+)$/i);return `<tr><td>${m[1].toLowerCase()==='type'?'Campaign type':'Product'}</td><td class="k mono">${esc(m[2])}</td><td>${esc(r.value)}</td><td class="actions"><button type="button" class="danger" data-dl="${esc(r.key)}" aria-label="Delete label ${esc(m[2])}">Delete</button></td></tr>`;}).join(''):'<tr><td colspan="4" class="d">No label yet.</td></tr>')+'</tbody>';
   $('tLab').querySelectorAll('[data-dl]').forEach(b=>b.onclick=()=>{ if (confirm('Delete the label '+b.dataset.dl+' ?')) act('cfg_delete',{key:b.dataset.dl}); });
 }
+const LINK_EX = [['view.belfiusdirect.be','ReadOnline'],['belfiusdirect.be/*/contactus','ContactUs']];
+const PM_DEFAULT = [['LEAD','PET','PET'],['LEAD','VEH_V2','CAR'],['LEAD','VEH_MO','MOT'],['LEAD','HOM','RENTERS'],['LEAD','OWNER','OWNER'],['LEAD','FEM','FAM'],['LEAD','ASS','ASS'],['LEAD','%UKP%','FUN'],
+  ['EMAIL','PET|%','PET'],['EMAIL','CAR|%','CAR'],['EMAIL','MOT|%','MOT'],['EMAIL','VEH|%','CAR'],['EMAIL','VEH|%','MOT'],['EMAIL','HOM|%','RENTERS'],['EMAIL','HOM|%','OWNER'],['EMAIL','HOM|%RENTER%','RENTERS'],['EMAIL','HOM|%OWNER%','OWNER'],
+  ['EMAIL','REN|%','RENTERS'],['EMAIL','RENTERS|%','RENTERS'],['EMAIL','OWNER|%','OWNER'],['EMAIL','FAM|%','FAM'],['EMAIL','ASS|%','ASS'],['EMAIL','FUN|%','FUN']];
+function renderLink(){
+  const rules = ST.cfg.filter(isLink).map(r=>{ const p = String(r.value||'').split(' => '); return {key:r.key, pat:p[0]||'', name:p[1]||''}; }).sort((a,b)=>a.name.localeCompare(b.name)||a.pat.localeCompare(b.pat));
+  $('cntLink').textContent = rules.length;
+  $('tLink').innerHTML = '<thead><tr><th>Pattern</th><th>Link name</th><th></th></tr></thead><tbody>'+(rules.length ? rules.map(r=>`<tr><td class="k mono">${esc(r.pat)}</td><td>${esc(r.name)}</td><td class="actions"><button type="button" class="danger" data-ld="${esc(r.key)}" aria-label="Delete the rule ${esc(r.pat)}">Delete</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">No rule yet: links keep the name they have in the email.</td></tr>')+'</tbody>';
+  $('tLink').querySelectorAll('[data-ld]').forEach(b=>b.onclick=()=>{ if (confirm('Delete this link rule ?')) act('link_delete',{key:b.dataset.ld}); });
+}
+function renderProd(){
+  const rows = ST.pmap||[]; $('cntProd').textContent = new Set(rows.map(r=>r.group)).size;
+  $('pmErr').hidden = !ST.pmapErr; $('pmErr').textContent = ST.pmapErr||'';
+  const groups = [...new Set(rows.map(r=>r.group))].sort(); $('pmGroups').innerHTML = groups.map(g=>`<option value="${esc(g)}">`).join('');
+  const chips = (g,s) => rows.filter(r=>r.group===g && r.source===s).sort((a,b)=>a.value.localeCompare(b.value)).map(r=>`<span class="chip mono">${esc(r.value)}<button type="button" data-pr="${esc(JSON.stringify([s,r.value,g]))}" aria-label="Remove ${esc(r.value)} from ${esc(g)}">&times;</button></span>`).join('') || '<span class="d">-</span>';
+  $('pmBox').innerHTML = groups.length ? '<table><thead><tr><th>Product group</th><th>Email (product|journey)</th><th>Lead Page_Origin__c</th><th>Contract Product2__c</th></tr></thead><tbody>'+groups.map(g=>`<tr><td class="k mono">${esc(g)}</td><td>${chips(g,'EMAIL')}</td><td>${chips(g,'LEAD')}</td><td>${chips(g,'CONTRACT')}</td></tr>`).join('')+'</tbody></table>' : (ST.pmapErr ? '' : '<p class="d">No mapping yet: click "Add the default mapping" to start from the rules currently used by the conversions queries.</p>');
+  $('pmBox').querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{ const [s,v,g] = JSON.parse(b.dataset.pr); if (confirm('Remove '+v+' ('+s+') from the group '+g+' ?')) act('pm_remove',{source:s,value:v,group:g}); });
+}
 function render(){
-  renderIp(); renderCfg(); renderLab();
+  renderIp(); renderCfg(); renderLab(); renderLink(); renderProd();
   if (FOCUS){ const [kind,k]=FOCUS.split(':'); FOCUS=null; const el = document.querySelector(kind==='save'?`[data-save="${k}"]`:`[data-row="${k}"] input`); if (el) el.focus(); }
 }
 document.querySelectorAll('.tabbtn').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
@@ -564,12 +715,16 @@ document.querySelector('.tabbar').addEventListener('keydown', e=>{
 });
 $('cfgFilter').oninput = e=>{ FILTER = e.target.value; renderCfg(); };
 $('fIp').onsubmit = async e=>{ e.preventDefault(); if (await act('ip_add',{ip:$('ipVal').value,desc:$('ipDesc').value})){ $('ipVal').value=''; $('ipDesc').value=''; $('ipVal').focus(); } };
+$('fLink').onsubmit = async e=>{ e.preventDefault(); if (await act('link_set',{pattern:$('lkPat').value,name:$('lkName').value})){ $('lkPat').value=''; $('lkName').value=''; $('lkPat').focus(); } };
+$('lkEx').onclick = async ()=>{ for (const [p,n] of LINK_EX) if (!(await act('link_set',{pattern:p,name:n}))) break; };
+$('fProd').onsubmit = async e=>{ e.preventDefault(); if (await act('pm_add',{source:$('pmSrc').value,value:$('pmVal').value,group:$('pmGrp').value})){ $('pmVal').value=''; $('pmVal').focus(); } };
+$('pmSeed').onclick = ()=>act('pm_seed',{rows:PM_DEFAULT});
 $('fLab').onsubmit = async e=>{ e.preventDefault(); if (await act('cfg_set',{key:'label_'+$('labKind').value+'_'+$('labCode').value.trim(),value:$('labText').value})){ $('labCode').value=''; $('labText').value=''; $('labCode').focus(); } };
 (async()=>{
   const gate=(t,x)=>{ $('gate').hidden=false; $('gateTitle').textContent=t; $('gateText').textContent=x; };
   try{
-    const j = await call('list'); ST = {ips:j.ips||[], cfg:j.cfg||[], yourIp:j.yourIp||''}; $('app').hidden=false; render();
-    const h = location.hash.replace('#',''); if (['ip','cfg','lab'].includes(h)) showTab(h);
+    const j = await call('list'); ST = {ips:j.ips||[], cfg:j.cfg||[], yourIp:j.yourIp||'', pmap:j.pmap||[], pmapErr:j.pmapErr||''}; $('app').hidden=false; render();
+    const h = location.hash.replace('#',''); if (TABS.includes(h)) showTab(h);
   }catch(e){
     if (e.code==='admin_disabled') gate('Administration is disabled','Add a row to the DASH_Config data extension: ConfigKey = admin_token, Value = a secret key of at least 24 characters (letters and digits). Then open this page with ?k=<that key>.');
     else if (e.code==='unauthorized') gate('Invalid admin key','Open this page with ?k=<admin key> (the admin_token value of DASH_Config).');

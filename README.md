@@ -13,6 +13,8 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 | DASH_Domain_Monthly | **Domain** Text(100), **Month** Text(7), Sends, Bounces, Complaints (Number) |
 | DASH_Sub_Monthly | **SubscriberKey** Text(100), **Month** Text(7), RecMkt, RecOps, OpenMkt, ClickMkt (Number) : par abonné et par mois, journeys MKT_ / Oxx_ (s'accumule, jamais écrasée) |
 | DASH_Audience_Dist | **AsOf** Text(7), **Win** Text(2), **Contract** Text(3) (Yes/No), **RecBucket** Text(6), **Seg** Text(15), Subscribers, ReceivedMkt, ReceivedOps, OpensMkt, ClicksMkt, Months (Number) |
+| DASH_Product_Map | **Source** Text(10), **Value** Text(100), **ProductGroup** Text(30) (clé primaire sur les 3 champs) : mapping des produits (email / lead `Page_Origin__c` / contrat `Product2__c`), géré depuis la page d'administration ; **nécessaire aux requêtes 02 et 04** |
+| DASH_Audit_Leads / DASH_Audit_Months / DASH_Audit_Summary / DASH_Audit_Signed | facultatives, pour l'audit de l'attribution (requêtes 19 à 22, voir `sql/NOTES.md`) : LeadId (PK) ; Metric + Month (PK) ; Month + Reason (PK) ; LeadId (PK) |
 | DASH_Contact_Geo | **PostalCode** Text(10), Contacts (Number), WithContract (Number : dont contacts avec un contrat Active ou Future), AsOf Text(10) : nombre de contacts par code postal (indication seule, sans lien avec les envois) ; écrasée chaque jour |
 
 > **Leads et contrats** : les leads (SubscriberKey / Id commençant par `00QP`) sont exclus de la base abonnés et de la géographie (pas des KPI journeys ni des conversions). « Avec contrat » = au moins une ligne de `Contract_Salesforce_1` avec `Contact__c` = SubscriberKey et `Status__c` = `Active` ou `Future`. Si vous aviez déjà créé `DASH_Audience_Dist`, **recréez-la** (la clé inclut maintenant `Contract`) et ajoutez `WithContract` à `DASH_Contact_Geo`.
@@ -139,3 +141,7 @@ Une CloudPage séparée pour gérer sans passer par Contact Builder. Elle est or
 
 ### Compatibilité navigateurs et lisibilité
 Testée dans Chromium (Edge, Chrome) et WebKit (Safari). Les listes déroulantes ont la même hauteur et la même flèche partout (la liste ouverte reste celle du système, non personnalisable). Les tableaux plus larges que l'écran affichent un dégradé et l'indication « scroll → » ; la première colonne reste figée. Pendant le chargement, des cartes « squelette » s'affichent.
+
+### Noms de liens et mapping des produits (page d'administration)
+- Onglet **Link names** : règles « motif d'adresse = nom ». Tout lien dont l'adresse (sans paramètres) contient le motif (`*` = joker) prend ce nom dans Journey analysis, ex. `view.belfiusdirect.be` = ReadOnline, `belfiusdirect.be/*/contactus` = ContactUs. Le motif le plus long l'emporte. Les règles sont stockées dans `DASH_Config` (clés `linkmap_001`, ...) et s'appliquent immédiatement (pas de requête à relancer).
+- Onglet **Product mapping** : relie le produit du nom de l'email, `Page_Origin__c` du lead et `Product2__c` du contrat par un groupe de produits commun (DE `DASH_Product_Map`). Créez la DE, puis cliquez sur « Add the default mapping ». Les requêtes 02 et 04 lisent ce mapping à leur prochain passage ; relancez 04 (backfill) pour recalculer l'historique.

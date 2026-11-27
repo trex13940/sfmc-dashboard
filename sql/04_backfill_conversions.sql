@@ -17,29 +17,22 @@ FROM (
     SELECT x.LeadId, x.LeadStatus, x.LeadProd, x.LeadCreated, x.EventDate, x.JobID, x.ListID, x.BatchID, x.SubscriberID, x.JourneyName, x.Prod,
            ROW_NUMBER() OVER (PARTITION BY x.LeadId ORDER BY x.EventDate DESC) AS rn
     FROM (
-        SELECT l.Id AS LeadId, l.Status AS LeadStatus, l.LeadProd AS LeadProd, l.CreatedDate AS LeadCreated,
+        SELECT l.Id AS LeadId, l.Status AS LeadStatus, ISNULL(lm.ProductGroup, 'OTHER') AS LeadProd, l.CreatedDate AS LeadCreated,
                s.EventDate, s.JobID, s.ListID, s.BatchID, s.SubscriberID, j.JourneyName, j.Prod
-        FROM (SELECT Id, Email, Status, CreatedDate,
-                     CASE WHEN Page_Origin__c = 'PET' THEN 'PET'
-                         WHEN Page_Origin__c = 'VEH_V2' THEN 'CAR'
-                         WHEN Page_Origin__c = 'VEH_MO' THEN 'MOT'
-                         WHEN Page_Origin__c = 'HOM' THEN 'RENTERS'
-                         WHEN Page_Origin__c = 'OWNER' THEN 'OWNER'
-                         WHEN Page_Origin__c = 'FEM' THEN 'FAM'
-                         WHEN Page_Origin__c = 'ASS' THEN 'ASS'
-                         WHEN Page_Origin__c LIKE '%ukp%' THEN 'FUN'
-                         ELSE 'OTHER' END AS LeadProd
+        FROM (SELECT Id, Email, Status, CreatedDate, Page_Origin__c
               FROM Lead_Salesforce_1
               WHERE CreatedDate >= '20260531 16:00:00' AND CreatedDate < '20261201 00:00:00'
                 AND Email IS NOT NULL AND Email <> ''
                 AND Status IN ('Incomplete', 'Viewed Premium', 'Offer Incomplete', 'Offer Viewed', 'Offer Created', 'Signing', 'Signed')) l
+        LEFT JOIN DASH_Product_Map lm ON lm.Source = 'LEAD' AND UPPER(l.Page_Origin__c) LIKE lm.Value
         JOIN _Subscribers sub ON sub.EmailAddress = l.Email
         JOIN _Sent s ON s.SubscriberID = sub.SubscriberID
                     AND s.EventDate >= '20260501 00:00:00'
                     AND s.EventDate <= l.CreatedDate
                     AND s.EventDate > DATEADD(day, -30, l.CreatedDate)
         JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID
-        JOIN (SELECT d2.VersionID, d2.JourneyName,
+        JOIN (SELECT e.VersionID AS VersionID, e.JourneyName AS JourneyName, e.Prod AS Prod, pm.ProductGroup AS JGroup
+        FROM (SELECT d2.VersionID AS VersionID, d2.JourneyName AS JourneyName,
                CASE WHEN UPPER(SUBSTRING(d2.JourneyName, d2.p2 + 1, d2.p3 - d2.p2 - 1)) = 'BIKE' THEN 'BIK'
                     ELSE UPPER(SUBSTRING(d2.JourneyName, d2.p2 + 1, d2.p3 - d2.p2 - 1)) END AS Prod
         FROM (SELECT d1.VersionID, d1.JourneyName, d1.p2, CHARINDEX('_', d1.JourneyName, d1.p2 + 1) AS p3
@@ -50,15 +43,15 @@ FROM (
                  OR JourneyName LIKE 'ODO[_]%' OR JourneyName LIKE 'OCL[_]%' OR JourneyName LIKE 'ODD[_]OFF[_]%' OR JourneyName LIKE 'OCX[_]XSELL[_]%')) d0
                     WHERE d0.p1 > 0) d1
               WHERE d1.p2 > 0) d2
-        WHERE d2.p3 > d2.p2) j ON j.VersionID = ja.VersionID
+        WHERE d2.p3 > d2.p2) e
+        LEFT JOIN DASH_Product_Map pm ON pm.Source = 'EMAIL'
+                                     AND UPPER(e.Prod + '|' + e.JourneyName) LIKE pm.Value
+                                     AND LEN(pm.Value) = (SELECT MAX(LEN(p2.Value)) FROM DASH_Product_Map p2
+                                                          WHERE p2.Source = 'EMAIL' AND UPPER(e.Prod + '|' + e.JourneyName) LIKE p2.Value)) j ON j.VersionID = ja.VersionID
         WHERE (l.Status NOT IN ('Incomplete', 'Offer Created')
                OR (l.Status = 'Incomplete' AND j.JourneyName LIKE 'ODO[_]BANK[_]CAR[_]DropOut%')
                OR (l.Status = 'Offer Created' AND j.JourneyName LIKE 'ODD[_]OFF[_]%'))
-          AND (j.Prod = 'ALL'
-               OR j.Prod = l.LeadProd
-               OR (j.Prod = 'VEH' AND l.LeadProd IN ('CAR', 'MOT'))
-               OR (j.Prod = 'HOM' AND ((l.LeadProd = 'RENTERS' AND j.JourneyName NOT LIKE '%owner%')
-                                    OR (l.LeadProd = 'OWNER' AND j.JourneyName NOT LIKE '%renter%'))))
+          AND (j.Prod = 'ALL' OR j.JGroup = ISNULL(lm.ProductGroup, 'OTHER'))
     ) x
 ) t
 LEFT JOIN _Open o ON o.JobID=t.JobID AND o.ListID=t.ListID AND o.BatchID=t.BatchID AND o.SubscriberID=t.SubscriberID AND o.IsUnique=1
