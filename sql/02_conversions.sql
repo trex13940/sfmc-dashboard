@@ -31,15 +31,27 @@ FROM (SELECT y.LeadId AS LeadId, MAX(y.CreatedDate) AS CreatedDate, MAX(y.Status
            MAX(CASE WHEN y.rnC = 1 AND y.KindC = 1 THEN y.JourneyName END) AS CJourney,
            MAX(CASE WHEN y.rnC = 1 AND y.KindC = 1 THEN y.EventDate END) AS CSend,
            MAX(CASE WHEN y.rnC = 1 AND y.KindC = 1 THEN y.JobID END) AS CJob
-    FROM (SELECT x.*,
-           ROW_NUMBER() OVER (PARTITION BY x.LeadId ORDER BY CASE WHEN x.Kind = 'M' THEN 0 WHEN x.Kind = 'T' THEN 1 ELSE 2 END,
-                                                            CASE WHEN x.Kind = 'M' THEN x.EventDate END DESC,
-                                                            CASE WHEN x.Kind = 'T' THEN x.EventDate END ASC) AS rnO,
-           ROW_NUMBER() OVER (PARTITION BY x.LeadId ORDER BY CASE WHEN x.KindC = 1 THEN 0 ELSE 1 END, x.EventDate DESC) AS rnC,
-           SUM(x.Cand) OVER (PARTITION BY x.LeadId) AS SendsCand,
-           SUM(x.ProdOk) OVER (PARTITION BY x.LeadId) AS SendsProd,
-           SUM(CASE WHEN x.Kind IS NULL THEN 0 ELSE 1 END) OVER (PARTITION BY x.LeadId) AS SendsKind
-    FROM (SELECT l.Id AS LeadId, l.Email AS Email, l.Status AS Status, l.CreatedDate AS CreatedDate, l.Page_Origin__c AS PageOrigin,
+    FROM (SELECT w.*,
+           ROW_NUMBER() OVER (PARTITION BY w.LeadId ORDER BY CASE WHEN w.Kind = 'M' THEN 0 WHEN w.Kind = 'T' THEN 1 ELSE 2 END,
+                                                            CASE WHEN w.Kind = 'M' THEN w.EventDate END DESC,
+                                                            CASE WHEN w.Kind = 'T' THEN w.EventDate END ASC) AS rnO,
+           ROW_NUMBER() OVER (PARTITION BY w.LeadId ORDER BY CASE WHEN w.KindC = 1 THEN 0 ELSE 1 END, w.EventDate DESC) AS rnC,
+           SUM(w.Cand) OVER (PARTITION BY w.LeadId) AS SendsCand,
+           SUM(w.ProdOk) OVER (PARTITION BY w.LeadId) AS SendsProd,
+           SUM(CASE WHEN w.Kind IS NULL THEN 0 ELSE 1 END) OVER (PARTITION BY w.LeadId) AS SendsKind
+    FROM (SELECT v.*,
+                 CASE WHEN v.JourneyName IS NULL THEN 0
+                      WHEN v.ProdOk = 0 THEN 0
+                      WHEN v.EventDate > CASE WHEN v.Status = 'Signed' AND v.LastModifiedDate > v.CreatedDate AND v.LastModifiedDate < v.SignCap THEN v.LastModifiedDate ELSE v.SignCap END THEN 0
+                      WHEN v.JourneyName LIKE 'MKT[_]XSELL[_]%' OR v.JourneyName LIKE 'MKT[_]PROMO[_]%' OR v.JourneyName LIKE 'MKT[_]NEWS[_]%' OR v.JourneyName LIKE 'OCX[_]XSELL[_]%' THEN 1
+                      WHEN (v.JourneyName LIKE 'OCL[_]%' OR v.JourneyName LIKE 'ODO[_]%' OR v.JourneyName LIKE 'ODD[_]OFF[_]%') AND v.EventDate >= DATEADD(hour, -1, v.CreatedDate) THEN 1
+                      ELSE 0 END AS KindC
+          FROM (SELECT u.*,
+                       CASE WHEN u.FirstOffer IS NOT NULL AND DATEADD(day, 56, u.FirstOffer) > DATEADD(day, 70, u.CreatedDate) THEN DATEADD(day, 56, u.FirstOffer)
+                            ELSE DATEADD(day, 70, u.CreatedDate) END AS SignCap
+                FROM (SELECT x.*,
+                             MIN(CASE WHEN x.IsOffer = 1 AND x.ProdOk = 1 AND x.EventDate <= DATEADD(day, 70, x.CreatedDate) THEN x.EventDate END) OVER (PARTITION BY x.LeadId) AS FirstOffer
+                      FROM (SELECT l.Id AS LeadId, l.Email AS Email, l.Status AS Status, l.CreatedDate AS CreatedDate, l.Page_Origin__c AS PageOrigin,
                ISNULL(lm.ProductGroup, 'OTHER') AS LeadGroup,
                CASE WHEN sub.SubscriberID IS NULL THEN 0 ELSE 1 END AS SubFound,
                CASE WHEN j.JourneyName IS NULL THEN 0 ELSE 1 END AS Cand,
@@ -49,14 +61,8 @@ FROM (SELECT y.LeadId AS LeadId, MAX(y.CreatedDate) AS CreatedDate, MAX(y.Status
                     WHEN (j.JourneyName LIKE 'MKT[_]XSELL[_]%' OR j.JourneyName LIKE 'MKT[_]PROMO[_]%' OR j.JourneyName LIKE 'MKT[_]NEWS[_]%' OR j.JourneyName LIKE 'OCX[_]XSELL[_]%') AND j.EventDate <= l.CreatedDate THEN 'M'
                     WHEN (j.JourneyName LIKE 'OCL[_]%' OR j.JourneyName LIKE 'ODO[_]%' OR j.JourneyName LIKE 'ODD[_]OFF[_]%') AND j.EventDate >= DATEADD(hour, -1, l.CreatedDate) AND j.EventDate <= DATEADD(day, 30, l.CreatedDate) THEN 'T'
                     ELSE NULL END AS Kind,
-               CASE WHEN j.JourneyName IS NULL THEN 0
-                    WHEN NOT (j.Prod = 'ALL' OR j.JGroup = ISNULL(lm.ProductGroup, 'OTHER')) THEN 0
-                    WHEN j.EventDate > CASE WHEN l.Status = 'Signed' AND l.LastModifiedDate > l.CreatedDate
-                                            THEN CASE WHEN l.LastModifiedDate < DATEADD(day, 90, l.CreatedDate) THEN l.LastModifiedDate ELSE DATEADD(day, 90, l.CreatedDate) END
-                                            ELSE DATEADD(day, 30, l.CreatedDate) END THEN 0
-                    WHEN (j.JourneyName LIKE 'MKT[_]XSELL[_]%' OR j.JourneyName LIKE 'MKT[_]PROMO[_]%' OR j.JourneyName LIKE 'MKT[_]NEWS[_]%' OR j.JourneyName LIKE 'OCX[_]XSELL[_]%') THEN 1
-                    WHEN (j.JourneyName LIKE 'OCL[_]%' OR j.JourneyName LIKE 'ODO[_]%' OR j.JourneyName LIKE 'ODD[_]OFF[_]%') AND j.EventDate >= DATEADD(hour, -1, l.CreatedDate) THEN 1
-                    ELSE 0 END AS KindC,
+               CASE WHEN j.JourneyName LIKE 'ODD[_]OFF[_]%' THEN 1 ELSE 0 END AS IsOffer,
+               l.LastModifiedDate AS LastModifiedDate,
                j.EventDate AS EventDate, j.JobID AS JobID, j.ListID AS ListID, j.BatchID AS BatchID, j.SubscriberID AS SendSub,
                j.JourneyName AS JourneyName, j.Prod AS JProd
         FROM (SELECT Id, Email, Status, CreatedDate, LastModifiedDate, Page_Origin__c
@@ -88,7 +94,7 @@ FROM (SELECT y.LeadId AS LeadId, MAX(y.CreatedDate) AS CreatedDate, MAX(y.Status
                    WHERE s.EventDate >= DATEADD(day, -31, DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 3, 0))) j
                ON j.SubscriberID = sub.SubscriberID
               AND j.EventDate > DATEADD(day, -30, l.CreatedDate)
-              AND j.EventDate <= DATEADD(day, 90, l.CreatedDate)) x) y
+              AND j.EventDate <= DATEADD(day, 126, l.CreatedDate)) x) u) v) w) y
     GROUP BY y.LeadId) z
 LEFT JOIN _Open o ON o.JobID = z.OJob AND o.ListID = z.OList AND o.BatchID = z.OBatch AND o.SubscriberID = z.OSub AND o.IsUnique = 1
 LEFT JOIN _Click c ON c.JobID = z.OJob AND c.ListID = z.OList AND c.BatchID = z.OBatch AND c.SubscriberID = z.OSub AND c.IsUnique = 1
