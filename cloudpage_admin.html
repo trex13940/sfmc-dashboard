@@ -278,15 +278,21 @@ var CFG_RULES = {
   alert_min_sends: { t: "int", min: 0, max: 10000000 }, alert_min_days: { t: "int", min: 1, max: 28 },
   asset_strip_extra: { t: "text", max: 200 }, token: { t: "secret" }, admin_token: { t: "secret" }
 };
-/* regle de nom de lien : "motif => Nom". Motif en minuscules, sans protocole ; * = joker ; le motif le plus long gagne (cote navigateur) */
-var LSEP = " =" + "> ";   /* separateur motif / nom */
+/* regle de nom de lien : motif, separateur, nom. Motif en minuscules, sans protocole ; le motif le plus long gagne (cote navigateur) */
+var LSEP = " " + String.fromCharCode(61, 62) + " ";   /* separateur motif / nom */
+var PCT = String.fromCharCode(37);   /* le caractere pourcent est construit : jamais ecrit tel quel dans le code serveur */
+/* vrai si le texte contient un caractere de controle, un chevron, un guillemet ou (si noSpace) une espace */
+function hasBadChar(s, noSpace) {
+  for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); if (c < 32 || c === 60 || c === 62 || c === 34 || c === 39 || (noSpace && c === 32)) { return true; } }
+  return false;
+}
 function cleanLinkPattern(raw) {
   var p = trim(raw).toLowerCase();
   if (p.indexOf("https://") === 0) { p = p.substring(8); } else if (p.indexOf("http://") === 0) { p = p.substring(7); }
   var q = p.indexOf("?"); if (q >= 0) { p = p.substring(0, q); }
   q = p.indexOf("#"); if (q >= 0) { p = p.substring(0, q); }
   while (p.length > 0 && p.charAt(p.length - 1) === "/") { p = p.substring(0, p.length - 1); }
-  if (p.length < 3 || p.length > 150 || /[\s<>"'\x00-\x1f]/.test(p)) { return ""; }
+  if (p.length < 3 || p.length > 150 || hasBadChar(p, true)) { return ""; }
   return p;
 }
 function cleanLinkName(raw) { var n = trim(raw); if (!n || n.length > 60 || /[<>\x00-\x1f]/.test(n)) { return ""; } return n; }
@@ -314,7 +320,7 @@ function validateCfg(rawKey, rawValue) {
     var lp = value.split(LSEP);
     if (lp.length !== 2) { return { error: "a link rule is 'pattern" + LSEP + "Name'" }; }
     var pat = cleanLinkPattern(lp[0]), nm = cleanLinkName(lp[1]);
-    if (!pat) { return { error: "link pattern: 3 to 150 characters, no spaces (e.g. view.belfiusdirect.be or belfiusdirect.be/*/contactus)" }; }
+    if (!pat) { return { error: "link pattern: 3 to 150 characters, no spaces (for example view.belfiusdirect.be)" }; }
     if (!nm) { return { error: "link name: 1 to 60 characters, no < or >" }; }
     return { key: lk, value: pat + LSEP + nm };
   }
@@ -401,7 +407,7 @@ function handlePost() {
     }
     if (a === "link_set") {
       var lpat = cleanLinkPattern(req.pattern), lnm = cleanLinkName(req.name);
-      if (!lpat) return { error: "link pattern: 3 to 150 characters, no spaces (e.g. view.belfiusdirect.be or belfiusdirect.be/*/contactus)" };
+      if (!lpat) return { error: "link pattern: 3 to 150 characters, no spaces (for example view.belfiusdirect.be)" };
       if (!lnm) return { error: "link name: 1 to 60 characters, no < or >" };
       var rules = linkRules(), lkey = "", maxN = 0;
       for (var li = 0; li < rules.length; li++) {
@@ -422,8 +428,8 @@ function handlePost() {
       var psrc = ucase(trim(req.source)), pval = ucase(trim(req.value)), pgrp = ucase(trim(req.group));
       if (PM_SOURCES[psrc] !== 1) return { error: "source must be EMAIL, LEAD or CONTRACT" };
       if (!/^[A-Z0-9_]{1,30}$/.test(pgrp)) return { error: "product group: 1 to 30 letters, digits or _" };
-      if (psrc === "EMAIL" && pval.indexOf("|") < 0 && /^[A-Z0-9_]{1,20}$/.test(pval)) { pval = pval + "|%"; }   /* un code produit seul : tous les emails de ce produit */
-      if (!pval || pval.length > 100 || /[\x00-\x1f<>"']/.test(pval)) return { error: "value: 1 to 100 characters (% = any text)" };
+      if (psrc === "EMAIL" && pval.indexOf("|") < 0 && /^[A-Z0-9_]{1,20}$/.test(pval)) { pval = pval + "|" + PCT; }   /* un code produit seul : tous les emails de ce produit */
+      if (!pval || pval.length > 100 || hasBadChar(pval, false)) return { error: "value: 1 to 100 characters (use the percent sign for any text)" };
       if (a === "pm_add") { addPm(psrc, pval, pgrp); logAdmin("pm_add", psrc + " " + pval, pgrp); }
       else { if (!hasPm(psrc, pval, pgrp)) return { error: "this mapping does not exist" }; removePm(psrc, pval, pgrp); logAdmin("pm_remove", psrc + " " + pval, pgrp); }
       var r7 = snapshot(); r7.message = a === "pm_add" ? "Mapping saved: " + psrc + " " + pval + " -> " + pgrp : "Mapping removed"; return r7;
@@ -433,7 +439,7 @@ function handlePost() {
       if (!seeds || !seeds.length || seeds.length > 100) return { error: "nothing to add" };
       for (var sd = 0; sd < seeds.length; sd++) {
         var ss = ucase(trim(seeds[sd][0])), sv = ucase(trim(seeds[sd][1])), sg = ucase(trim(seeds[sd][2]));
-        if (PM_SOURCES[ss] !== 1 || !sv || sv.length > 100 || !/^[A-Z0-9_]{1,30}$/.test(sg) || /[\x00-\x1f<>"']/.test(sv)) { return { error: "invalid default mapping" }; }
+        if (PM_SOURCES[ss] !== 1 || !sv || sv.length > 100 || !/^[A-Z0-9_]{1,30}$/.test(sg) || hasBadChar(sv, false)) { return { error: "invalid default mapping" }; }
         if (!hasPm(ss, sv, sg)) { addPm(ss, sv, sg); added++; }
       }
       logAdmin("pm_seed", "defaults", added + " rows");

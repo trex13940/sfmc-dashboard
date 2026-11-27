@@ -111,7 +111,7 @@ for (var ck in CFG) {
 }
 var assetStrip = [], sx = cfgv("asset_strip_extra", "").split(";");
 for (var si = 0; si < sx.length; si++) { var sv = trim(sx[si]); if (sv) assetStrip.push(sv); }
-var linkMap = [], lsep = " =" + "> ";   /* regles "motif => nom" ecrites par la page d'administration (cles linkmap_NNN) */
+var linkMap = [], lsep = " " + String.fromCharCode(61, 62) + " ";   /* regles "motif => nom" ecrites par la page d'administration (cles linkmap_NNN) */
 for (var lk in CFG) {
   if (lk.indexOf("linkmap_") === 0) { var lpp = CFG[lk].split(lsep); if (lpp.length === 2 && trim(lpp[0]) && trim(lpp[1])) { linkMap.push([trim(lpp[0]), trim(lpp[1])]); } }
 }
