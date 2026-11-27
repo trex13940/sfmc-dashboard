@@ -103,4 +103,4 @@ Basées sur votre requête de reporting (quarterly) et adaptées au rythme mensu
 - Si 17 dépasse le délai de 30 minutes sur une très grande base, me le dire pour passer à un calcul par lots (la requête 18 est légère : elle ne lit que les contacts).
 
 ## Page d'administration
-Voir la section « Page d'administration » du README (page ). La page écrit dans `DASH_IP_Allowlist` et `DASH_Config` (par WSProxy, avec repli sur `UpsertData` / `DeleteData` par nom de DE) et vérifie chaque écriture par relecture. Les champs lus sont `IPAddress` / `Description` et `ConfigKey` / `Value`.
+Voir la section « Page d'administration » du README (page `html/cloudpage_admin.html`). La page écrit dans `DASH_IP_Allowlist` et `DASH_Config` (par WSProxy, avec repli sur `UpsertData` / `DeleteData` par nom de DE) et vérifie chaque écriture par relecture. Les champs lus sont `IPAddress` / `Description` et `ConfigKey` / `Value`.
