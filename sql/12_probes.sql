@@ -22,7 +22,7 @@ SELECT TOP 5 Domain, JobID, EventDate FROM _Sent WHERE EventDate >= DATEADD(day,
 SELECT TOP 40 EmailName, COUNT(*) AS N FROM _Job WHERE EmailName LIKE 'MKT[_]%' OR EmailName LIKE 'O__[_]%' GROUP BY EmailName ORDER BY COUNT(*) DESC
 
 
--- P8 : taux de correspondance abonnes actifs <-> contacts (jointure SubscriberKey = Contact Id)
+-- P8 : (facultatif, pour l analyse des abonnes) correspondance abonnes actifs <-> contacts via SubscriberKey = Contact Id
 SELECT COUNT(*) AS ActiveSubscribers, SUM(CASE WHEN c.Id IS NOT NULL THEN 1 ELSE 0 END) AS MatchedContacts
 FROM _Subscribers s LEFT JOIN Contact_Salesforce_1 c ON c.Id = s.SubscriberKey WHERE s.Status = 'Active'
 

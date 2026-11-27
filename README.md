@@ -13,7 +13,7 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 | DASH_Domain_Monthly | **Domain** Text(100), **Month** Text(7), Sends, Bounces, Complaints (Number) |
 | DASH_Sub_Monthly | **SubscriberKey** Text(100), **Month** Text(7), RecMkt, RecOps, OpenMkt, ClickMkt (Number) : par abonné et par mois, journeys MKT_ / Oxx_ (s'accumule, jamais écrasée) |
 | DASH_Audience_Dist | **AsOf** Text(7), **Win** Text(2), **RecBucket** Text(6), **Seg** Text(15), Subscribers, ReceivedMkt, ReceivedOps, OpensMkt, ClicksMkt, Months (Number) |
-| DASH_Audience_Geo | **AsOf** Text(7), **Win** Text(2), **PostalCode** Text(10), Subscribers, Reached, Engaged, Clickers, ReceivedMkt, ReceivedOps (Number) |
+| DASH_Contact_Geo | **PostalCode** Text(10), Contacts (Number), AsOf Text(10) : nombre de contacts par code postal (indication seule, sans lien avec les envois) ; écrasée chaque jour |
 | DASH_SMS_Monthly | **JourneyName** Text(200), **Month** Text(7), **AssetName** Text(200), Sent, **Messages**, UniqueRecipients, Delivered, Bounced (Number) |
 | DASH_Config | **ConfigKey** Text(50), Value Text(200) → voir « Configuration (DE DASH_Config) » ci-dessous |
 | DASH_IP_Allowlist | **IPAddress** Text(50), Description Text(200) → une ligne par IP (`203.0.113.7`) ou plage IPv4 CIDR (`203.0.113.0/24`) ; IPv6 en correspondance exacte |
@@ -31,7 +31,7 @@ Tous les réglages sont des lignes de la DE `DASH_Config` (colonnes `ConfigKey` 
 | `link_de_key` | `DASH_Link_Monthly` | = `link_de_name` | Customer Key de cette DE (repli) |
 | `link_budget_ms` | `20000` | `20000` | temps maximum de lecture des liens avant résultat partiel |
 | `audience_dist_de` | `DASH_Audience_Dist` | `DASH_Audience_Dist` | Customer Key de la DE de répartition des abonnés |
-| `audience_geo_de` | `DASH_Audience_Geo` | `DASH_Audience_Geo` | Customer Key de la DE de géographie |
+| `contact_geo_de` | `DASH_Contact_Geo` | `DASH_Contact_Geo` | Customer Key de la DE de géographie des contacts |
 | `alert_drop_pct` | `15` | `15` | baisse de volume (en %) qui déclenche une alerte |
 | `alert_min_sends` | `500` | `500` | envois du mois précédent au-dessus desquels une journey est surveillée |
 | `alert_min_days` | `3` | `3` | jours complets nécessaires avant de comparer les volumes |
@@ -60,7 +60,8 @@ Exemple de contenu :
 5. SQL `sql/10_domain_monthly.sql` → DASH_Domain_Monthly, **Update**
 6. SQL `sql/13_sms_monthly.sql` → DASH_SMS_Monthly, **Update** (backfill : `sql/14_backfill_sms.sql`)
 7. SQL `sql/15_sub_monthly.sql` → DASH_Sub_Monthly, **Update** (backfill : `sql/16_backfill_sub_monthly.sql`)
-8. SQL `sql/17_audience_dist.sql` → DASH_Audience_Dist, **Update**, puis `sql/18_audience_geo.sql` → DASH_Audience_Geo, **Update** (à placer **après** l'étape 7 dans l'automation ; une exécution par jour suffit)
+8. SQL `sql/17_audience_dist.sql` → DASH_Audience_Dist, **Update** (à placer **après** l'étape 7 dans l'automation ; une exécution par jour suffit)
+9. SQL `sql/18_audience_geo.sql` → DASH_Contact_Geo, mode **Overwrite** (indépendante des étapes précédentes : elle ne lit que `Contact_Salesforce_1`)
 
 Premier chargement (backfill depuis le 01/06/2026) : lancer **une fois** `sql/03_backfill_kpi.sql`, `04_backfill_conversions.sql`, `07_backfill_email_kpi.sql`, `09_backfill_link_clicks.sql` et `11_backfill_domain.sql` (Run Once, mêmes DE cibles, mode Update), puis activer les requêtes récurrentes 01 et 02. Si le timeout de 30 min est atteint, chaque fichier contient un tableau de dates pour découper le chargement mois par mois. Les fichiers SQL des automations ne contiennent aucun commentaire (Automation Studio les refuse parfois) : voir `sql/NOTES.md`. `sql/00_diagnostics.sql` sert à comprendre un résultat vide.
 
@@ -90,7 +91,7 @@ Libellés lisibles : renseigner `LABELS.type` / `LABELS.product` en haut du scri
 - **Insights** : trois vues.
   - *Deliverability* : top 5 des domaines (envois, bounces, complaints) et top 5 des journeys par bounces.
   - *Subscriber base* : base d'abonnés actifs, nombre d'e-mails marketing et opérationnels reçus sur les 3, 6 ou 12 mois complets précédents, et engagement (clic, ouverture sans clic, aucun) par volume reçu.
-  - *Geography* : carte de la Belgique par province ou par code postal (`MailingPostalCode` de `Contact_Salesforce_1`), colorée par nombre d'abonnés, engagement, taux de clic ou e-mails reçus.
+  - *Geography* : simple indication de la répartition des **contacts** (`MailingPostalCode` de `Contact_Salesforce_1`) sur une carte de la Belgique, par province ou par code postal. Elle ne reflète ni les envois ni l'engagement.
 - **Alerts** : volume du mois en cours comparé au mois précédent (ramené au prorata des jours écoulés) ; alerte si plus de 15 % en dessous, pour les journeys de plus de 500 envois le mois dernier. Réglages `ALERT_DROP`, `ALERT_MIN`, `ALERT_MIN_DAYS` en haut du script du dashboard.
 - **SMS** : par journey et asset (DASH_SMS_Monthly, requêtes 13 et 14).
 
@@ -111,4 +112,4 @@ L'API (`cloudpage_api.html`) renvoie les données principales par défaut ; `&pa
 - **Historique** : les Data Views ne gardent qu'environ 6 mois. `DASH_Sub_Monthly` garde, pour chaque abonné et chaque mois, le nombre d'e-mails reçus et l'engagement ; elle s'accumule donc mois après mois et la fenêtre de 12 mois se complète avec le temps. Le dashboard indique « Only X of the previous 12 months of history are available » tant qu'elle n'est pas complète.
 - **Chargement initial** : `sql/16_backfill_sub_monthly.sql` (une fois, depuis le 01/06/2026), puis l'automation quotidienne.
 - **Carte** : données incluses dans `cloudpage_dashboard.html` (contours des provinces simplifiés et position de chaque code postal belge, 51 Ko). Sources : GeoNames (CC BY 4.0) et Natural Earth (domaine public). Pour les régénérer : `python3 tools/build_geo.py && python3 tools/inject_geo.py`.
-- **Jointure abonné / contact** : `_Subscribers.SubscriberKey = Contact_Salesforce_1.Id` (valeur par défaut de Marketing Cloud Connect). Vérifiez le taux de correspondance avec les sondes P8 à P10 de `sql/12_probes.sql`. Les codes postaux qui ne sont pas à 4 chiffres (étranger, vide) sont comptés « sans code postal utilisable ».
+- **Géographie** : uniquement le nombre de contacts de `Contact_Salesforce_1` par code postal (4 chiffres belges ; les codes étrangers, vides ou mal formés sont comptés « sans code postal utilisable »). Aucune jointure avec les abonnés ni avec les envois. La sonde P9 de `sql/12_probes.sql` montre les formats réels des codes postaux.

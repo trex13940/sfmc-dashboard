@@ -196,15 +196,15 @@ try {
       Write(Stringify({ part: "links", j: jn, links: links, warnings: warnings }));
     }
   } else if (part === "audience") {
-    /* base abonnes : repartition (DASH_Audience_Dist) et geographie (DASH_Audience_Geo) du mois demande (&asof=yyyy-mm) */
+    /* base abonnes : repartition (DASH_Audience_Dist) du mois demande (&asof=yyyy-mm) et geographie des contacts (DASH_Contact_Geo) */
     var asof = trim(Platform.Request.GetQueryStringParameter("asof"));
     if (asof.split("-").length !== 2) { Write(Stringify({ error: "missing or invalid parameter asof (yyyy-mm) for part=audience" })); }
     else {
       var aflt = { Property: "AsOf", SimpleOperator: "equals", Value: asof };
       var dist = optional(cfgv("audience_dist_de", "DASH_Audience_Dist"), ["AsOf","Win","RecBucket","Seg","Subscribers","ReceivedMkt","ReceivedOps","OpensMkt","ClicksMkt","Months"],
                           ["Subscribers","ReceivedMkt","ReceivedOps","OpensMkt","ClicksMkt","Months"], "DASH_Audience_Dist", aflt);
-      var geo = optional(cfgv("audience_geo_de", "DASH_Audience_Geo"), ["AsOf","Win","PostalCode","Subscribers","Reached","Engaged","Clickers","ReceivedMkt","ReceivedOps"],
-                         ["Subscribers","Reached","Engaged","Clickers","ReceivedMkt","ReceivedOps"], "DASH_Audience_Geo", aflt);
+      /* geographie des contacts : indication seule (nombre de contacts par code postal), sans lien avec les envois ; la DE est ecrasee chaque jour */
+      var geo = optional(cfgv("contact_geo_de", "DASH_Contact_Geo"), ["PostalCode","Contacts","AsOf"], ["Contacts"], "DASH_Contact_Geo");
       Write(Stringify({ part: "audience", asof: asof, dist: dist, geo: geo, warnings: warnings }));
     }
   } else if (part === "sms") {

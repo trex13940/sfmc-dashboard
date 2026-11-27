@@ -326,7 +326,6 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <div id="geoMsg" class="warn" role="status" hidden></div>
       <div id="geoCards" class="cards"></div>
       <div class="cbar">
-        <label>Colour by<select id="fGm"><option value="subs">Subscribers</option><option value="eng">Engagement rate (open or click)</option><option value="click">Click rate</option><option value="recv">Marketing emails received per subscriber</option></select></label>
         <span role="group" aria-label="Map level"><button type="button" class="chip" data-gl="prov" aria-pressed="true">Provinces</button><button type="button" class="chip" data-gl="postal" aria-pressed="false">Postal codes</button></span>
       </div>
       <div class="mapgrid">
@@ -364,7 +363,7 @@ const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this man
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
 const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:false, sub:'deliv', win:'3', gm:'subs', gl:'prov'};
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:false, sub:'deliv', win:'3', gl:'prov'};
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
@@ -796,11 +795,10 @@ function viewInsDeliv(){
 
 /* ---------- Insights : sous-vues ---------- */
 function viewIns(){
-  $('ins-deliv').hidden = S.sub!=='deliv'; $('ins-aud').hidden = S.sub!=='aud'; $('ins-geo').hidden = S.sub!=='geo'; $('winBar').hidden = S.sub==='deliv';
+  $('ins-deliv').hidden = S.sub!=='deliv'; $('ins-aud').hidden = S.sub!=='aud'; $('ins-geo').hidden = S.sub!=='geo'; $('winBar').hidden = S.sub!=='aud';   /* the geography is not tied to a look-back window */
   document.querySelectorAll('[data-sub]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.sub===S.sub));
   document.querySelectorAll('[data-win]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.win===S.win));
   document.querySelectorAll('[data-gl]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.gl===S.gl));
-  $('fGm').value = S.gm;
   if (S.sub==='deliv') return viewInsDeliv();
   const msg = $(S.sub==='aud' ? 'audMsg' : 'geoMsg');
   if (D.audErr){
@@ -819,9 +817,10 @@ function loadAudience(){
   const cur = brusselsMonth(D.generatedMs||Date.now()), prev = mStr(mIdx(cur)-1);
   LOADING.audience = (async()=>{
     try{
-      let r = await api('audience',{asof:cur});
-      if (!(r.dist||[]).length && !(r.geo||[]).length){ const r2 = await api('audience',{asof:prev}); if ((r2.dist||[]).length || (r2.geo||[]).length) r = r2; }
-      D.aud = {asof:r.asof, dist:r.dist||[], geo:r.geo||[]}; D.audErr = ''; showWarn(r.warnings);
+      const r = await api('audience',{asof:cur});
+      let dist = r.dist||[], asof = r.asof;
+      if (!dist.length){ const r2 = await api('audience',{asof:prev}); if ((r2.dist||[]).length){ dist = r2.dist; asof = r2.asof; } }   /* snapshot of the previous month until the new one is computed */
+      D.aud = {asof, dist, geo:r.geo||[]}; D.audErr = ''; showWarn(r.warnings);
     }catch(e){ D.aud = null; D.audErr = e.message; }
     finally{ delete LOADING.audience; }
   })();
@@ -880,70 +879,56 @@ function ramp(x){
   x = Math.max(0, Math.min(1, x)); const dark = DARK(), a = dark ? [58,36,48] : [253,231,238], b = dark ? [255,92,138] : [195,0,69];
   return 'rgb('+a.map((v,i)=>Math.round(v+(b[i]-v)*x)).join(',')+')';
 }
-const MINR = 30;   /* rates are shown only where at least this many subscribers were reached */
 function viewGeo(){
   const box = $('mapBox'), msg = $('geoMsg'), tip = $('mapTip');
   charts.forEach(c=>c.destroy()); charts = [];
   if (!GEO){ msg.hidden = false; msg.textContent = 'Map data is not embedded in this page (run tools/inject_geo.py).'; return; }
-  const rows = D.aud.geo.filter(r=>r.Win===S.win);
+  const rows = D.aud.geo;
   msg.hidden = true;
-  if (!rows.length){ msg.hidden = false; msg.textContent = 'No geography snapshot for the previous '+S.win+' months yet (DASH_Audience_Geo).'; box.innerHTML = ''; $('tGeo').innerHTML = ''; cards('geoCards',[]); $('mapLegend').textContent=''; return; }
-  const pcm = new Map(), pvm = new Map(); let total = 0, na = 0;
-  const add = (m, key, r, extra) => { let a = m.get(key); if (!a){ a = Object.assign({key,Subs:0,Reached:0,Engaged:0,Clickers:0,Recv:0}, extra||{}); m.set(key,a); } a.Subs+=r.Subscribers; a.Reached+=r.Reached; a.Engaged+=r.Engaged; a.Clickers+=r.Clickers; a.Recv+=r.ReceivedMkt; };
+  if (!rows.length){ msg.hidden = false; msg.textContent = 'No contact geography yet (DASH_Contact_Geo).'; box.innerHTML = ''; $('tGeo').innerHTML = ''; cards('geoCards',[]); $('mapLegend').textContent=''; return; }
+  const pcm = new Map(), pvm = new Map(); let total = 0, na = 0, asof = '';
+  const add = (m, key, c, extra) => { let a = m.get(key); if (!a){ a = Object.assign({key,Contacts:0}, extra||{}); m.set(key,a); } a.Contacts += c; };
   for (const r of rows){
-    total += r.Subscribers; const g = GEO.postal[r.PostalCode];
-    if (r.PostalCode==='N/A' || !g){ na += r.Subscribers; continue; }
-    add(pcm, r.PostalCode, r, {name:g[3], prov:g[2], x:g[0], y:g[1]}); add(pvm, g[2], r);
+    total += r.Contacts; if (r.AsOf) asof = r.AsOf; const g = GEO.postal[r.PostalCode];
+    if (r.PostalCode==='N/A' || !g){ na += r.Contacts; continue; }
+    add(pcm, r.PostalCode, r.Contacts, {name:g[3], prov:g[2], x:g[0], y:g[1]}); add(pvm, g[2], r.Contacts);
   }
   const provName = id => { const p = GEO.provinces.find(x=>x.id===id); return p ? p.en : id; };
-  const rate = (a,b) => b>=MINR ? a/b : null;
-  const GM = {
-    subs:{l:'Subscribers',        v:e=>e.Subs,                                   f:n},
-    eng: {l:'Engagement rate',    v:e=>rate(e.Engaged,e.Reached),                f:x=>PF.format(x)},
-    click:{l:'Click rate',        v:e=>rate(e.Clickers,e.Reached),               f:x=>PF.format(x)},
-    recv:{l:'Marketing emails per subscriber', v:e=>e.Subs>=MINR?e.Recv/e.Subs:null, f:fx1}
-  }, m = GM[S.gm];
-  const ents = S.gl==='prov' ? pvm : pcm;
-  const vals = [...ents.values()].map(e=>m.v(e)).filter(v=>v!==null), lo = Math.min(...vals), hi = Math.max(...vals);
-  const col = v => v===null ? 'var(--map-neutral)' : ramp((v-lo)/((hi-lo)||1));
-  let svg = '<svg viewBox="'+GEO.viewBox.join(' ')+'" role="img" aria-label="Map of Belgium: '+esc(m.l)+' by '+(S.gl==='prov'?'province':'postal code')+'. The same figures are in the table next to the map.">';
-  for (const p of GEO.provinces){ const e = pvm.get(p.id); svg += '<path class="prov" d="'+p.d+'" fill="'+(S.gl==='prov' ? col(e ? m.v(e) : null) : 'var(--map-neutral)')+'" data-k="v:'+p.id+'"/>'; }
+  const known = total - na, ents = S.gl==='prov' ? pvm : pcm;
+  const vals = [...ents.values()].map(e=>e.Contacts), lo = Math.min(...vals), hi = Math.max(...vals);
+  let svg = '<svg viewBox="'+GEO.viewBox.join(' ')+'" role="img" aria-label="Map of Belgium: number of contacts by '+(S.gl==='prov'?'province':'postal code')+'. The same figures are in the table next to the map.">';
+  for (const p of GEO.provinces){ const e = pvm.get(p.id); svg += '<path class="prov" d="'+p.d+'" fill="'+(S.gl==='prov' && e ? ramp((e.Contacts-lo)/((hi-lo)||1)) : 'var(--map-neutral)')+'" data-k="v:'+p.id+'"/>'; }
   if (S.gl==='postal'){
-    const maxS = Math.max(...[...pcm.values()].map(e=>e.Subs), 1);
-    [...pcm.values()].sort((a,b)=>b.Subs-a.Subs).forEach(e=>{ svg += '<circle class="pc" cx="'+e.x+'" cy="'+e.y+'" r="'+(4+30*Math.sqrt(e.Subs/maxS)).toFixed(1)+'" fill="'+(S.gm==='subs' ? ramp(.75) : col(m.v(e)))+'" data-k="p:'+e.key+'"/>'; });
+    const maxC = Math.max(...vals, 1);
+    [...pcm.values()].sort((a,b)=>b.Contacts-a.Contacts).forEach(e=>{ svg += '<circle class="pc" cx="'+e.x+'" cy="'+e.y+'" r="'+(4+30*Math.sqrt(e.Contacts/maxC)).toFixed(1)+'" fill="'+ramp(.75)+'" data-k="p:'+e.key+'"/>'; });
   }
   box.innerHTML = svg + '</svg>';
-  $('mapLegend').innerHTML = (S.gl==='postal' && S.gm==='subs')
-    ? '<span>Bubble area = number of subscribers</span>'
-    : '<span>'+(vals.length?m.f(lo):'–')+'</span><i style="background:linear-gradient(90deg,'+ramp(0)+','+ramp(1)+')"></i><span>'+(vals.length?m.f(hi):'–')+'</span><span>'+(S.gm==='subs'?'':'grey = fewer than '+MINR+' reached')+(S.gl==='postal'?' · bubble area = subscribers':'')+'</span>';
-  const info = e => '<b>'+esc(e.title)+'</b>Subscribers: '+n(e.Subs)+'<br>Engagement: '+(rate(e.Engaged,e.Reached)===null?'–':PF.format(e.Engaged/e.Reached))+' · Clicks: '+(rate(e.Clickers,e.Reached)===null?'–':PF.format(e.Clickers/e.Reached))+'<br>Marketing emails / subscriber: '+(e.Subs?fx1(e.Recv/e.Subs):'–');
+  $('mapLegend').innerHTML = S.gl==='postal' ? '<span>Bubble area = number of contacts</span>'
+    : '<span>'+n(lo)+'</span><i style="background:linear-gradient(90deg,'+ramp(0)+','+ramp(1)+')"></i><span>'+n(hi)+' contacts</span>';
+  const share = e => e.Contacts/total < 0.001 ? '< 0,1 %' : pct(e.Contacts,total);
+  const info = (title,e) => '<b>'+esc(title)+'</b>Contacts: '+n(e.Contacts)+' ('+share(e)+' of all contacts)';
   const show = ev => {
     const t = ev.target.closest && ev.target.closest('[data-k]'); if (!t){ tip.hidden = true; return; }
     const [kind,key] = t.dataset.k.split(':'), e = kind==='v' ? pvm.get(key) : pcm.get(key);
-    tip.innerHTML = e ? info(Object.assign({title: kind==='v' ? provName(key) : key+' '+e.name+' ('+provName(e.prov)+')'}, e)) : '<b>'+esc(kind==='v'?provName(key):key)+'</b>No subscribers';
+    tip.innerHTML = e ? info(kind==='v' ? provName(key) : key+' '+e.name+' ('+provName(e.prov)+')', e) : '<b>'+esc(kind==='v'?provName(key):key)+'</b>No contacts';
     tip.hidden = false; tip.style.left = Math.min(ev.clientX+14, innerWidth-290)+'px'; tip.style.top = (ev.clientY+14)+'px';
   };
   box.onmousemove = show; box.onmouseleave = ()=>{ tip.hidden = true; };
-  const known = total - na;
-  const best = [...pvm.values()].filter(e=>rate(e.Engaged,e.Reached)!==null).sort((a,b)=>b.Engaged/b.Reached-a.Engaged/a.Reached)[0];
-  cards('geoCards', [[n(total),'Active subscribers'],[pct(known,total),'With a Belgian postal code'],[n(pcm.size),'Postal codes covered'],[n(na),'Without a usable postal code'],
-    [best ? PF.format(best.Engaged/best.Reached) : '–', best ? 'Highest engagement: '+provName(best.key) : 'Highest engagement']]);
-  const rcols = [
-    {k:'Subs',l:'Subscribers',v:a=>a.Subs,f:a=>n(a.Subs)},{k:'Share',l:'% of base',v:a=>a.Subs,f:a=>pct(a.Subs,total)},
-    {k:'Reached',l:'Reached',v:a=>a.Reached,f:a=>n(a.Reached)},
-    {k:'rEng',l:'Engagement',v:a=>rate(a.Engaged,a.Reached)??-1,f:a=>rate(a.Engaged,a.Reached)===null?'–':PF.format(a.Engaged/a.Reached)},
-    {k:'rClick',l:'Click rate',v:a=>rate(a.Clickers,a.Reached)??-1,f:a=>rate(a.Clickers,a.Reached)===null?'–':PF.format(a.Clickers/a.Reached)},
-    {k:'Avg',l:'Marketing emails / subscriber',v:a=>a.Subs?a.Recv/a.Subs:-1,f:a=>a.Subs?fx1(a.Recv/a.Subs):'–'}];
+  const top = [...pvm.values()].sort((a,b)=>b.Contacts-a.Contacts)[0];
+  cards('geoCards', [[n(total),'Contacts'],[pct(known,total),'With a Belgian postal code'],[n(pcm.size),'Postal codes covered'],[n(na),'Without a usable postal code'],
+    [top ? pct(top.Contacts,total) : '–', top ? 'Largest province: '+provName(top.key) : 'Largest province']]);
+  const shareCol = {k:'Share',l:'% of contacts',v:a=>a.Contacts,f:a=>a.Contacts && a.Contacts/total < 0.001 ? '< 0,1 %' : pct(a.Contacts,total)};
   if (S.gl==='prov'){
     $('geoTblTitle').textContent = 'Provinces';
-    const list = GEO.provinces.map(p=>Object.assign({name:p.en,key:p.id,Subs:0,Reached:0,Engaged:0,Clickers:0,Recv:0}, pvm.get(p.id)||{}, {name:p.en}));
-    renderTable('tGeo', [{k:'name',l:'Province',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)}], rcols, list, null, {defK:'Subs'});
+    const list = GEO.provinces.map(p=>({name:p.en,key:p.id,Contacts:(pvm.get(p.id)||{}).Contacts||0}));
+    renderTable('tGeo', [{k:'name',l:'Province',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)}], [{k:'Contacts',l:'Contacts',v:a=>a.Contacts,f:a=>n(a.Contacts)}, shareCol], list, null, {defK:'Contacts'});
   } else {
     $('geoTblTitle').textContent = 'Top 25 postal codes';
-    const list = [...pcm.values()].sort((a,b)=>b.Subs-a.Subs).slice(0,25);
-    renderTable('tGeo', [{k:'pc',l:'Postal code',v:a=>a.key,f:a=>esc(a.key)},{k:'place',l:'Place',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)},{k:'prov',l:'Province',v:a=>provName(a.prov),f:a=>esc(provName(a.prov))}], rcols, list, null, {defK:'Subs'});
+    const list = [...pcm.values()].sort((a,b)=>b.Contacts-a.Contacts).slice(0,25);
+    renderTable('tGeo', [{k:'pc',l:'Postal code',v:a=>a.key,f:a=>esc(a.key)},{k:'place',l:'Place',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)},{k:'prov',l:'Province',v:a=>provName(a.prov),f:a=>esc(provName(a.prov))}],
+      [{k:'Contacts',l:'Contacts',v:a=>a.Contacts,f:a=>n(a.Contacts)}, shareCol], list, null, {defK:'Contacts'});
   }
-  $('geoNote').textContent = 'Postal code = first 4-digit Belgian code found in MailingPostalCode (Contact_Salesforce_1), joined on SubscriberKey = Contact Id. Rates are shown only where at least '+MINR+' subscribers were reached. Active subscribers as of '+D.aud.asof+', previous '+S.win+' complete months. '+(GEO.attribution||'');
+  $('geoNote').textContent = 'Indication only: number of contacts per postal code, from MailingPostalCode in Contact_Salesforce_1 (4-digit Belgian codes). It is not linked to email sends or engagement. Snapshot of '+(asof||'–')+'. '+(GEO.attribution||'');
 }
 
 /* ---------- SMS ---------- */
@@ -985,7 +970,7 @@ const HSEL = {fam:'fFam',type:'fType',prod:'fProd',from:'fFrom',to:'fTo',gran:'f
 function saveHash(){
   try{
     const p = new URLSearchParams();
-    for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert','sub','win','gm','gl']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
+    for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert','sub','win','gl']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
     if (S.compact) p.set('compact','1');
     const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
   }catch(e){}
@@ -995,8 +980,7 @@ function loadHash(){
   if (TABS[p.get('tab')]) S.tab = p.get('tab');
   for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
   if (p.get('q')){ S.q=p.get('q'); $('fQ').value=S.q; }
-  for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gm',['subs','eng','click','recv']],['gl',['prov','postal']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
-  $('fGm').value = S.gm;
+  for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gl',['prov','postal']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
   S.compact = p.get('compact')==='1';
 }
 function selectTab(t, focus){
@@ -1063,7 +1047,7 @@ function setup(){
   const js = [...last.keys()].sort((a,b)=>(last.get(b)>last.get(a)?1:last.get(b)<last.get(a)?-1:0)||(covKey(b)>covKey(a)?1:covKey(b)<covKey(a)?-1:0)||(a<b?-1:1));
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
   S.j = js[0] || ''; JSET = new Set(js);
-  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gm:'subs',gl:'prov'};
+  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
@@ -1074,7 +1058,6 @@ function setup(){
   document.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{ S.sub=b.dataset.sub; render(); });
   document.querySelectorAll('[data-win]').forEach(b=>b.onclick=()=>{ S.win=b.dataset.win; render(); });
   document.querySelectorAll('[data-gl]').forEach(b=>b.onclick=()=>{ S.gl=b.dataset.gl; render(); });
-  $('fGm').onchange = e=>{ S.gm=e.target.value; render(); };
   $('bReset').onclick = ()=>{ for (const k of ['fam','type','prod','gran','from','to']){ S[k]=DEF[k]; $(HSEL[k]).value=DEF[k]; } S.q=''; $('fQ').value=''; SORT.tbl=null; render(); };
   $('fQ').oninput = e=>{S.q=e.target.value;render();};
   document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab));
