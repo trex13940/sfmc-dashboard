@@ -12,8 +12,10 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 | DASH_Link_Monthly | **JourneyName** Text(200), **Month** Text(7), **RowKey** Text(32) (clé primaire composée dans cet ordre, pour des lectures rapides), EmailName Text(200), LinkName Text(300), LinkContent Text(300), UniqueClicks, TotalClicks (Number) |
 | DASH_Domain_Monthly | **Domain** Text(100), **Month** Text(7), Sends, Bounces, Complaints (Number) |
 | DASH_Sub_Monthly | **SubscriberKey** Text(100), **Month** Text(7), RecMkt, RecOps, OpenMkt, ClickMkt (Number) : par abonné et par mois, journeys MKT_ / Oxx_ (s'accumule, jamais écrasée) |
-| DASH_Audience_Dist | **AsOf** Text(7), **Win** Text(2), **RecBucket** Text(6), **Seg** Text(15), Subscribers, ReceivedMkt, ReceivedOps, OpensMkt, ClicksMkt, Months (Number) |
-| DASH_Contact_Geo | **PostalCode** Text(10), Contacts (Number), AsOf Text(10) : nombre de contacts par code postal (indication seule, sans lien avec les envois) ; écrasée chaque jour |
+| DASH_Audience_Dist | **AsOf** Text(7), **Win** Text(2), **Contract** Text(3) (Yes/No), **RecBucket** Text(6), **Seg** Text(15), Subscribers, ReceivedMkt, ReceivedOps, OpensMkt, ClicksMkt, Months (Number) |
+| DASH_Contact_Geo | **PostalCode** Text(10), Contacts (Number), WithContract (Number : dont contacts avec un contrat Active ou Future), AsOf Text(10) : nombre de contacts par code postal (indication seule, sans lien avec les envois) ; écrasée chaque jour |
+
+> **Leads et contrats** : les leads (SubscriberKey / Id commençant par `00QP`) sont exclus de la base abonnés et de la géographie (pas des KPI journeys ni des conversions). « Avec contrat » = au moins une ligne de `Contract_Salesforce_1` avec `Contact__c` = SubscriberKey et `Status__c` = `Active` ou `Future`. Si vous aviez déjà créé `DASH_Audience_Dist`, **recréez-la** (la clé inclut maintenant `Contract`) et ajoutez `WithContract` à `DASH_Contact_Geo`.
 | DASH_Admin_Log (facultative) | **LogId** Text(40), Ts Text(25), AdminIP Text(50), Action Text(30), Target Text(100), Detail Text(200) : journal des modifications faites depuis la page d'administration |
 | DASH_SMS_Monthly | **JourneyName** Text(200), **Month** Text(7), **AssetName** Text(200), Sent, **Messages**, UniqueRecipients, Delivered, Bounced (Number) |
 | DASH_Config | **ConfigKey** Text(50), Value Text(200) → voir « Configuration (DE DASH_Config) » ci-dessous |

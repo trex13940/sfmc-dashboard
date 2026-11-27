@@ -14,4 +14,5 @@ LEFT JOIN _Click c ON c.JobID=s.JobID AND c.ListID=s.ListID AND c.BatchID=s.Batc
 WHERE s.EventDate >= '20260531 16:00:00'
   AND s.EventDate < '20261201 00:00:00'
   AND (j.JourneyName LIKE 'MKT[_]%' OR j.JourneyName LIKE 'O__[_]%')
+  AND s.SubscriberKey NOT LIKE '00QP%'
 GROUP BY s.SubscriberKey, CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120)

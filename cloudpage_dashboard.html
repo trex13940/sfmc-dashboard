@@ -310,6 +310,8 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <button type="button" class="chip" data-sub="aud" aria-pressed="false">Subscriber base</button>
       <button type="button" class="chip" data-sub="geo" aria-pressed="false">Geography</button>
       <span class="grow"></span>
+      <span id="segBar" role="group" aria-label="Contract segment" hidden><span class="lbl">Contract</span>
+        <button type="button" class="chip" data-seg="all" aria-pressed="true">All</button><button type="button" class="chip" data-seg="yes" aria-pressed="false">Active or future</button><button type="button" class="chip" data-seg="no" aria-pressed="false">No active contract</button></span>
       <span id="winBar" role="group" aria-label="Look-back window" hidden><span class="lbl">Previous complete months</span>
         <button type="button" class="chip" data-win="3" aria-pressed="true">3</button><button type="button" class="chip" data-win="6" aria-pressed="false">6</button><button type="button" class="chip" data-win="12" aria-pressed="false">12</button></span>
     </div>
@@ -323,6 +325,8 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <div class="charts"><div class="card"><canvas id="c4"></canvas></div><div class="card"><canvas id="c5"></canvas></div></div>
       <div class="h2">Engagement by number of marketing emails received</div>
       <div class="wrap"><table id="tAud"></table></div>
+      <div id="segBlock" hidden><div class="h2">With vs. without an active or future contract</div>
+      <div class="wrap"><table id="tSeg"></table></div></div>
       <div class="note" id="audNote"></div>
     </div>
     <div id="ins-geo" hidden>
@@ -366,7 +370,7 @@ const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this man
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
 const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:false, sub:'deliv', win:'3', gl:'prov'};
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:false, sub:'deliv', win:'3', gl:'prov', seg:'all'};
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
@@ -810,10 +814,11 @@ function viewInsDeliv(){
 
 /* ---------- Insights : sous-vues ---------- */
 function viewIns(){
-  $('ins-deliv').hidden = S.sub!=='deliv'; $('ins-aud').hidden = S.sub!=='aud'; $('ins-geo').hidden = S.sub!=='geo'; $('winBar').hidden = S.sub!=='aud';   /* the geography is not tied to a look-back window */
+  $('ins-deliv').hidden = S.sub!=='deliv'; $('ins-aud').hidden = S.sub!=='aud'; $('ins-geo').hidden = S.sub!=='geo'; $('winBar').hidden = S.sub!=='aud'; $('segBar').hidden = S.sub==='deliv';   /* the geography is not tied to a look-back window */
   document.querySelectorAll('[data-sub]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.sub===S.sub));
   document.querySelectorAll('[data-win]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.win===S.win));
   document.querySelectorAll('[data-gl]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.gl===S.gl));
+  document.querySelectorAll('[data-seg]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.seg===S.seg));
   if (S.sub==='deliv') return viewInsDeliv();
   const msg = $(S.sub==='aud' ? 'audMsg' : 'geoMsg');
   if (D.audErr){
@@ -845,13 +850,15 @@ function loadAudience(){
 /* ---------- Insights : base abonnés ---------- */
 const BUCKETS = ['0','1-2','3-5','6-10','11-20','21+'];
 function viewAud(){
-  const msg = $('audMsg'), rows = D.aud.dist.filter(r=>r.Win===S.win);
+  const msg = $('audMsg'), allRows = D.aud.dist.filter(r=>r.Win===S.win), hasC = allRows.some(r=>r.Contract!==undefined), rows = hasC && S.seg!=='all' ? allRows.filter(r=>r.Contract===(S.seg==='yes'?'Yes':'No')) : allRows;
+  $('segBar').hidden = !hasC; $('segBlock').hidden = true;
   charts.forEach(c=>c.destroy()); charts = [];
   if (!rows.length){
     msg.hidden = false; msg.textContent = 'No subscriber snapshot for the previous '+S.win+' months yet (DASH_Audience_Dist).';
     cards('audCards',[]); $('tAud').innerHTML = ''; $('audNote').textContent = ''; return;
   }
   const months = Math.max(...rows.map(r=>r.Months||0));
+  const segTxt = !hasC||S.seg==='all' ? '' : S.seg==='yes' ? ' with an active or future contract' : ' without an active contract';
   msg.hidden = months >= +S.win;
   if (!msg.hidden) msg.textContent = 'Only '+months+' of the previous '+S.win+' months of history are available yet (history starts '+mStr(mIdx(D.aud.asof)-months)+'): the figures cover those months only.';
   const by = {}; let pop=0, rec=0, ops=0, reached=0, clickers=0, openers=0;
@@ -863,7 +870,7 @@ function viewAud(){
     if (r.Seg!=='NotReached') reached += r.Subscribers;
   }
   const engaged = clickers + openers;
-  cards('audCards', [[n(pop),'Active subscribers'],[n(reached),'Received at least 1 marketing email'],[pct(reached,pop),'Reach rate'],
+  cards('audCards', [[n(pop),'Active subscribers'+segTxt],[n(reached),'Received at least 1 marketing email'],[pct(reached,pop),'Reach rate'],
     [pct(engaged,reached),'Engaged (opened or clicked), of reached'],[pct(clickers,reached),'Clickers, of reached'],
     [reached?fx1(rec/reached):'–','Marketing emails per reached subscriber'],[pop?fx1(ops/pop):'–','Operational emails per subscriber']]);
   const list = BUCKETS.map(b=>by[b]);
@@ -886,7 +893,19 @@ function viewAud(){
     {k:'Avg',l:'Avg marketing emails',v:a=>a.Subs?a.Rec/a.Subs:-1,f:a=>a.Subs?fx1(a.Rec/a.Subs):'–'}
   ];
   renderTable('tAud', keyCols, cols, list, null, {cmp:(a,b)=>BUCKETS.indexOf(a.b)-BUCKETS.indexOf(b.b)});
-  $('audNote').textContent = 'Active subscribers only (_Subscribers, Status = Active), as of '+D.aud.asof+'. "Previous N months" = the N complete months before the current month (CET). Emails received = sent and not bounced, journeys MKT_ (marketing) and Oxx_ (operational). Engagement is measured on marketing emails: Clicked = at least one unique click, Opened = at least one unique open but no click. The 12-month window fills up as history accumulates (Data Views only keep about 6 months).';
+  if (hasC){
+    const sg = {Yes:{k:'Yes',name:'Active or future contract',Subs:0,Reached:0,Click:0,Open:0,Rec:0,Ops:0}, No:{k:'No',name:'No active contract',Subs:0,Reached:0,Click:0,Open:0,Rec:0,Ops:0}}; let tot=0;
+    for (const r of allRows){ const x = sg[r.Contract]; if(!x) continue; x.Subs+=r.Subscribers; tot+=r.Subscribers; x.Rec+=r.ReceivedMkt; x.Ops+=r.ReceivedOps; if(r.Seg!=='NotReached') x.Reached+=r.Subscribers; if(r.Seg==='Clicker') x.Click+=r.Subscribers; if(r.Seg==='Opener') x.Open+=r.Subscribers; }
+    $('segBlock').hidden = false;
+    renderTable('tSeg', [{k:'name',l:'Segment',v:a=>a.name,f:a=>esc(a.name)}], [
+      {k:'Subs',l:'Subscribers',v:a=>a.Subs,f:a=>n(a.Subs)},{k:'Share',l:'% of base',v:a=>a.Subs,f:a=>pct(a.Subs,tot)},
+      {k:'Reach',l:'Reach rate',v:a=>a.Subs?a.Reached/a.Subs:-1,f:a=>pct(a.Reached,a.Subs)},
+      {k:'Eng',l:'Engaged, of reached',v:a=>a.Reached?(a.Click+a.Open)/a.Reached:-1,f:a=>pct(a.Click+a.Open,a.Reached)},
+      {k:'Clk',l:'Clickers, of reached',v:a=>a.Reached?a.Click/a.Reached:-1,f:a=>pct(a.Click,a.Reached)},
+      {k:'Avg',l:'Avg marketing emails (reached)',v:a=>a.Reached?a.Rec/a.Reached:-1,f:a=>a.Reached?fx1(a.Rec/a.Reached):'–'},
+      {k:'Ops',l:'Avg operational emails',v:a=>a.Subs?a.Ops/a.Subs:-1,f:a=>a.Subs?fx1(a.Ops/a.Subs):'–'}], [sg.Yes,sg.No], null, {defK:'Subs'});
+  }
+  $('audNote').textContent = 'Active subscribers only (_Subscribers, Status = Active), leads (SubscriberKey starting with 00QP) excluded. Contract = at least one contract in Contract_Salesforce_1 with Status__c Active or Future for that contact (Contact__c = SubscriberKey); other statuses cannot receive communications.'+(hasC?'':' [Contract split unavailable: recreate DASH_Audience_Dist with the Contract column and rerun query 17.]')+' As of '+D.aud.asof+'. "Previous N months" = the N complete months before the current month (CET). Emails received = sent and not bounced, journeys MKT_ (marketing) and Oxx_ (operational). Engagement is measured on marketing emails: Clicked = at least one unique click, Opened = at least one unique open but no click. The 12-month window fills up as history accumulates (Data Views only keep about 6 months).';
 }
 
 /* ---------- Insights : géographie ---------- */
@@ -898,17 +917,20 @@ function viewGeo(){
   const box = $('mapBox'), msg = $('geoMsg'), tip = $('mapTip');
   charts.forEach(c=>c.destroy()); charts = [];
   if (!GEO){ msg.hidden = false; msg.textContent = 'Map data is not embedded in this page (run tools/inject_geo.py).'; return; }
-  const rows = D.aud.geo;
+  const rows = D.aud.geo, hasG = rows.length && rows.every(r=>r.WithContract!==undefined && r.WithContract!==null);
+  $('segBar').hidden = !hasG; const sg = hasG ? S.seg : 'all';
+  const cnt = r => sg==='yes' ? (r.WithContract||0) : sg==='no' ? r.Contacts-(r.WithContract||0) : r.Contacts;
   msg.hidden = true;
   if (!rows.length){ msg.hidden = false; msg.textContent = 'No contact geography yet (DASH_Contact_Geo).'; box.innerHTML = ''; $('tGeo').innerHTML = ''; cards('geoCards',[]); $('mapLegend').textContent=''; return; }
   const pcm = new Map(), pvm = new Map(); let total = 0, na = 0, asof = '';
-  const add = (m, key, c, extra) => { let a = m.get(key); if (!a){ a = Object.assign({key,Contacts:0}, extra||{}); m.set(key,a); } a.Contacts += c; };
+  const add = (m, key, c, wc, extra) => { let a = m.get(key); if (!a){ a = Object.assign({key,Contacts:0,All:0,WC:0}, extra||{}); m.set(key,a); } a.Contacts += c; a.All += wc[0]; a.WC += wc[1]; };
   for (const r of rows){
-    total += r.Contacts; if (r.AsOf) asof = r.AsOf; const g = GEO.postal[r.PostalCode];
-    if (r.PostalCode==='N/A' || !g){ na += r.Contacts; continue; }
-    add(pcm, r.PostalCode, r.Contacts, {name:g[3], prov:g[2], x:g[0], y:g[1]}); add(pvm, g[2], r.Contacts);
+    const c = cnt(r), wc = [r.Contacts, r.WithContract||0]; total += c; if (r.AsOf) asof = r.AsOf; const g = GEO.postal[r.PostalCode];
+    if (r.PostalCode==='N/A' || !g){ na += c; continue; }
+    add(pcm, r.PostalCode, c, wc, {name:g[3], prov:g[2], x:g[0], y:g[1]}); add(pvm, g[2], c, wc);
   }
   const provName = id => { const p = GEO.provinces.find(x=>x.id===id); return p ? p.en : id; };
+  const segTxt = sg==='yes' ? ' with an active or future contract' : sg==='no' ? ' without an active contract' : '';
   const known = total - na, ents = S.gl==='prov' ? pvm : pcm;
   const vals = [...ents.values()].map(e=>e.Contacts), lo = Math.min(...vals), hi = Math.max(...vals);
   let svg = '<svg viewBox="'+GEO.viewBox.join(' ')+'" role="img" aria-label="Map of Belgium: number of contacts by '+(S.gl==='prov'?'province':'postal code')+'. The same figures are in the table next to the map.">';
@@ -921,7 +943,7 @@ function viewGeo(){
   $('mapLegend').innerHTML = S.gl==='postal' ? '<span>Bubble area = number of contacts</span>'
     : '<span>'+n(lo)+'</span><i style="background:linear-gradient(90deg,'+ramp(0)+','+ramp(1)+')"></i><span>'+n(hi)+' contacts</span>';
   const share = e => e.Contacts/total < 0.001 ? '< 0,1 %' : pct(e.Contacts,total);
-  const info = (title,e) => '<b>'+esc(title)+'</b>Contacts: '+n(e.Contacts)+' ('+share(e)+' of all contacts)';
+  const info = (title,e) => '<b>'+esc(title)+'</b>Contacts'+segTxt+': '+n(e.Contacts)+' ('+share(e)+(sg==='all'?' of all contacts':' of the segment')+')'+(hasG?'<br>With contract: '+n(e.WC||0)+' of '+n(e.All||0):'');
   const show = ev => {
     const t = ev.target.closest && ev.target.closest('[data-k]'); if (!t){ tip.hidden = true; return; }
     const [kind,key] = t.dataset.k.split(':'), e = kind==='v' ? pvm.get(key) : pcm.get(key);
@@ -930,20 +952,21 @@ function viewGeo(){
   };
   box.onmousemove = show; box.onmouseleave = ()=>{ tip.hidden = true; };
   const top = [...pvm.values()].sort((a,b)=>b.Contacts-a.Contacts)[0];
-  cards('geoCards', [[n(total),'Contacts'],[pct(known,total),'With a Belgian postal code'],[n(pcm.size),'Postal codes covered'],[n(na),'Without a usable postal code'],
+  cards('geoCards', [[n(total),'Contacts'+segTxt],[pct(known,total),'With a Belgian postal code'],[n(pcm.size),'Postal codes covered'],[n(na),'Without a usable postal code'],
     [top ? pct(top.Contacts,total) : '–', top ? 'Largest province: '+provName(top.key) : 'Largest province']]);
-  const shareCol = {k:'Share',l:'% of contacts',v:a=>a.Contacts,f:a=>a.Contacts && a.Contacts/total < 0.001 ? '< 0,1 %' : pct(a.Contacts,total)};
+  const shareCol = {k:'Share',l:'% of contacts'+(sg==='all'?'':' in segment'),v:a=>a.Contacts,f:a=>a.Contacts && a.Contacts/total < 0.001 ? '< 0,1 %' : pct(a.Contacts,total)};
+  const wcCols = hasG ? [{k:'WC',l:'With contract',v:a=>a.WC||0,f:a=>n(a.WC||0)},{k:'PWC',l:'% with contract',v:a=>a.All?(a.WC||0)/a.All:-1,f:a=>a.All?pct(a.WC||0,a.All):'–'}] : [];
   if (S.gl==='prov'){
     $('geoTblTitle').textContent = 'Provinces';
-    const list = GEO.provinces.map(p=>({name:p.en,key:p.id,Contacts:(pvm.get(p.id)||{}).Contacts||0}));
-    renderTable('tGeo', [{k:'name',l:'Province',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)}], [{k:'Contacts',l:'Contacts',v:a=>a.Contacts,f:a=>n(a.Contacts)}, shareCol], list, null, {defK:'Contacts'});
+    const list = GEO.provinces.map(p=>{ const e = pvm.get(p.id)||{}; return {name:p.en,key:p.id,Contacts:e.Contacts||0,All:e.All||0,WC:e.WC||0}; });
+    renderTable('tGeo', [{k:'name',l:'Province',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)}], [{k:'Contacts',l:'Contacts'+(sg==='all'?'':' (segment)'),v:a=>a.Contacts,f:a=>n(a.Contacts)}, shareCol].concat(wcCols), list, null, {defK:'Contacts'});
   } else {
     $('geoTblTitle').textContent = 'Top 25 postal codes';
     const list = [...pcm.values()].sort((a,b)=>b.Contacts-a.Contacts).slice(0,25);
     renderTable('tGeo', [{k:'pc',l:'Postal code',v:a=>a.key,f:a=>esc(a.key)},{k:'place',l:'Place',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)},{k:'prov',l:'Province',v:a=>provName(a.prov),f:a=>esc(provName(a.prov))}],
-      [{k:'Contacts',l:'Contacts',v:a=>a.Contacts,f:a=>n(a.Contacts)}, shareCol], list, null, {defK:'Contacts'});
+      [{k:'Contacts',l:'Contacts'+(sg==='all'?'':' (segment)'),v:a=>a.Contacts,f:a=>n(a.Contacts)}, shareCol].concat(wcCols), list, null, {defK:'Contacts'});
   }
-  $('geoNote').textContent = 'Indication only: number of contacts per postal code, from MailingPostalCode in Contact_Salesforce_1 (4-digit Belgian codes). It is not linked to email sends or engagement. Snapshot of '+(asof||'–')+'. '+(GEO.attribution||'');
+  $('geoNote').textContent = 'Indication only: number of contacts per postal code, from MailingPostalCode in Contact_Salesforce_1 (4-digit Belgian codes); leads (Id starting with 00QP) are excluded. With contract = Status__c Active or Future in Contract_Salesforce_1.'+(hasG?'':' [Contract split unavailable: add the WithContract column to DASH_Contact_Geo and rerun query 18.]')+' It is not linked to email sends or engagement. Snapshot of '+(asof||'–')+'. '+(GEO.attribution||'');
 }
 
 /* ---------- SMS ---------- */
@@ -985,7 +1008,7 @@ const HSEL = {fam:'fFam',type:'fType',prod:'fProd',from:'fFrom',to:'fTo',gran:'f
 function saveHash(){
   try{
     const p = new URLSearchParams();
-    for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert','sub','win','gl']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
+    for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert','sub','win','gl','seg']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
     if (S.compact) p.set('compact','1');
     const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
   }catch(e){}
@@ -995,7 +1018,7 @@ function loadHash(){
   if (TABS[p.get('tab')]) S.tab = p.get('tab');
   for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
   if (p.get('q')){ S.q=p.get('q'); $('fQ').value=S.q; }
-  for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gl',['prov','postal']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
+  for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
   S.compact = p.get('compact')==='1';
 }
 function selectTab(t, focus){
@@ -1062,7 +1085,7 @@ function setup(){
   const js = [...last.keys()].sort((a,b)=>(last.get(b)>last.get(a)?1:last.get(b)<last.get(a)?-1:0)||(covKey(b)>covKey(a)?1:covKey(b)<covKey(a)?-1:0)||(a<b?-1:1));
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
   S.j = js[0] || ''; JSET = new Set(js);
-  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov'};
+  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
@@ -1073,6 +1096,7 @@ function setup(){
   document.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{ S.sub=b.dataset.sub; render(); });
   document.querySelectorAll('[data-win]').forEach(b=>b.onclick=()=>{ S.win=b.dataset.win; render(); });
   document.querySelectorAll('[data-gl]').forEach(b=>b.onclick=()=>{ S.gl=b.dataset.gl; render(); });
+  document.querySelectorAll('[data-seg]').forEach(b=>b.onclick=()=>{ S.seg=b.dataset.seg; render(); });
   $('bReset').onclick = ()=>{ for (const k of ['fam','type','prod','gran','from','to']){ S[k]=DEF[k]; $(HSEL[k]).value=DEF[k]; } S.q=''; $('fQ').value=''; SORT.tbl=null; render(); };
   $('fQ').oninput = e=>{S.q=e.target.value;render();};
   document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab));
