@@ -159,6 +159,19 @@ option{background:var(--card);color:var(--fg)}
 .bar .btn,.bar .btn2{height:40px;padding-top:0;padding-bottom:0}
 .bar .acts{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-left:auto}
 @keyframes shim{0%{background-position:100% 0}100%{background-position:-100% 0}}
+#lJ{display:flex;flex-direction:column;gap:4px}
+#lJ>label{display:block;font-size:.75rem;color:var(--mute);font-weight:600}
+.combo{position:relative}
+#fJq{width:min(480px,86vw);padding-right:36px;cursor:text}
+.jclear{position:absolute;right:6px;top:7px;width:26px;height:26px;padding:0;border:0;border-radius:13px;background:none;color:var(--mute);font-size:1.2rem;line-height:1;cursor:pointer}
+.jclear:hover{background:var(--pink-bg);color:var(--tx-red)}
+#jList{position:absolute;z-index:30;left:0;top:44px;width:max(100%,460px);max-height:360px;overflow:auto;margin:0;padding:4px;list-style:none;background:var(--card);border:2px solid var(--ctl-brd);border-radius:12px;box-shadow:var(--shadow)}
+#jList li{display:flex;flex-direction:column;gap:1px;padding:7px 10px;border-radius:8px;cursor:pointer}
+#jList li b{font-weight:600;color:var(--fg);word-break:break-word}
+#jList li span{font-size:.75rem;color:var(--mute)}
+#jList li:hover,#jList li.act{background:var(--pink-bg)}
+#jList li[aria-selected=true]{box-shadow:inset 3px 0 0 var(--red)}
+#jList li.jmore{cursor:default;font-size:.75rem;color:var(--mute);background:none}
 .wbox{position:relative}
 .wfade{position:absolute;top:0;right:0;bottom:0;width:44px;pointer-events:none;border-radius:0 16px 16px 0;background:linear-gradient(to left,var(--card),transparent);opacity:0;transition:opacity .15s}
 .wbox.more .wfade{opacity:1}
@@ -289,7 +302,10 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     <label class="ctl" id="lFam">Family<select id="fFam"><option value="ALL">All</option><option value="MKT">Marketing (MKT_)</option><option value="OPS">Operational (Oxx_)</option></select></label>
     <label class="ctl" id="lType">Campaign type<select id="fType"><option value="">All</option></select></label>
     <label class="ctl" id="lProd">Product<select id="fProd"><option value="">All</option></select></label>
-    <label class="ctl" id="lJ">Journey<select id="fJ"></select></label>
+    <div class="ctl" id="lJ"><label for="fJq" class="lbl">Journey</label>
+      <div class="combo"><input id="fJq" type="text" role="combobox" aria-expanded="false" aria-controls="jList" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search a journey (name, product, type…)">
+        <button type="button" id="fJclear" class="jclear" aria-label="Clear the selected journey" hidden>&times;</button>
+        <ul id="jList" role="listbox" aria-label="Journeys" hidden></ul><select id="fJ" hidden tabindex="-1" aria-hidden="true"></select></div></div>
     <label class="ctl" id="lFrom">From month<select id="fFrom"></select></label>
     <label class="ctl" id="lTo">To month<select id="fTo"></select></label>
     <label class="ctl" id="lGran">Granularity<select id="fGran"><option value="total">Period total</option><option value="month">By month</option></select></label>
@@ -315,6 +331,8 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
   </section>
 
   <section id="v-ana" hidden>
+    <div id="anaEmpty" class="warn" role="status" hidden>Select a journey above to see its analysis.</div>
+    <div id="anaBody">
     <div id="aCards" class="cards"></div>
     <div class="charts"><div class="card"><canvas id="c3"></canvas></div></div>
     <div class="h2">By language</div>
@@ -324,6 +342,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     <div class="h2">Links</div>
     <div class="wrap"><table id="tLinks"></table></div>
     <div class="note" id="aNote"></div>
+      </div>
   </section>
 
   <section id="v-ins" hidden>
@@ -791,8 +810,46 @@ function updateBadge(){ const A=computeAlerts(); const c=A.rows.filter(a=>a.aler
 /* règles de noms de liens (page d'administration) : motif contenu dans l'adresse, * = joker, le motif le plus long l'emporte */
 const LINKRULES = ((CFG.linkMap)||[]).map(([p,nm])=>({re:new RegExp(p.split('*').map(s=>s.replace(/[.+?^${}()|[\]\\]/g,'\\$&')).join('.*'),'i'), len:p.length, name:nm, pat:p})).sort((a,b)=>b.len-a.len);
 function mapLinkName(url){ const u = String(url||'').replace(/^https?:\/\//i,''); if (!u) return null; for (const r of LINKRULES) if (r.re.test(u)) return r; return null; }
+let JOPTS = [], JSHOWN = [], JACT = -1;
+function buildJourneyList(js, last){
+  JOPTS = js.map(j=>{ const p = parse(j), mo = p.covered==='ongoing' ? 'ongoing (last send '+last.get(j)+')' : (p.covered||'–'), meta = [mo,p.fam,lab('type',p.type),lab('product',p.product)].join(' · ');
+    return {name:j, campaign:p.campaign, meta, hay:(j+' '+meta+' '+p.type+' '+p.product).toLowerCase()}; });
+}
+const jText = name => { const o = JOPTS.find(x=>x.name===name); return o ? o.campaign+' · '+o.meta : ''; };
+function syncJ(){ const i = $('fJq'); if (document.activeElement!==i) i.value = jText(S.j); $('fJclear').hidden = !S.j; $('fJ').value = S.j; }
+function closeJ(){ $('jList').hidden = true; $('fJq').setAttribute('aria-expanded','false'); $('fJq').removeAttribute('aria-activedescendant'); JACT = -1; }
+function openJ(filter){
+  const q = String(filter||'').toLowerCase().split(/\s+/).filter(Boolean), CAP = 60;
+  JSHOWN = JOPTS.filter(o=>q.every(w=>o.hay.includes(w))); JACT = -1;
+  let h = JSHOWN.slice(0,CAP).map((o,i)=>`<li role="option" id="jo${i}" data-i="${i}" aria-selected="${o.name===S.j}"><b>${esc(o.campaign)}</b><span>${esc(o.meta)}</span></li>`).join('');
+  if (JSHOWN.length>CAP) h += `<li class="jmore" aria-hidden="true">${JSHOWN.length-CAP} more: type to narrow the list</li>`;
+  if (!JSHOWN.length) h = '<li class="jmore">No journey matches this search</li>';
+  $('jList').innerHTML = h; $('jList').hidden = false; $('fJq').setAttribute('aria-expanded','true');
+}
+function moveJ(d){
+  const n = Math.min(JSHOWN.length,60); if (!n) return;
+  JACT = (JACT+d+n)%n; document.querySelectorAll('#jList li').forEach((li,i)=>li.classList.toggle('act',i===JACT));
+  const el = $('jo'+JACT); if (el){ el.scrollIntoView({block:'nearest'}); $('fJq').setAttribute('aria-activedescendant','jo'+JACT); }
+}
+function chooseJ(name){ S.j = name; closeJ(); $('fJq').blur(); SORT.tbl = null; render(); }
+function wireJourneyBox(){
+  const i = $('fJq');
+  i.onfocus = ()=>{ i.select(); openJ(''); };
+  i.oninput = ()=>openJ(i.value);
+  i.onblur = ()=>setTimeout(()=>{ if (document.activeElement!==i){ closeJ(); syncJ(); } },120);
+  i.onkeydown = e=>{
+    if (e.key==='ArrowDown'){ e.preventDefault(); if ($('jList').hidden) openJ(''); moveJ(1); }
+    else if (e.key==='ArrowUp'){ e.preventDefault(); moveJ(-1); }
+    else if (e.key==='Enter'){ if (!$('jList').hidden){ e.preventDefault(); const o = JSHOWN[JACT>=0?JACT:(JSHOWN.length===1?0:-1)]; if (o) chooseJ(o.name); } }
+    else if (e.key==='Escape'){ closeJ(); i.value = jText(S.j); }
+  };
+  $('jList').onmousedown = e=>{ const li = e.target.closest('li[data-i]'); if (li){ e.preventDefault(); chooseJ(JSHOWN[+li.dataset.i].name); } };
+  $('fJclear').onclick = ()=>{ S.j = ''; render(); i.focus(); };
+}
 async function viewAna(){
-  if (!S.j){ $('aCards').innerHTML=''; return; }
+  syncJ();
+  $('anaBody').hidden = !S.j; $('anaEmpty').hidden = !!S.j;
+  if (!S.j){ charts.forEach(c=>c.destroy()); charts = []; $('aNote').textContent = ''; return; }
   const kRows = D.kpi.filter(r=>r.JourneyName===S.j && inMonths(r.Month));
   const eRows = D.email.filter(r=>r.JourneyName===S.j && inMonths(r.Month));
   const tot = group(kRows, r=>['','']) [0] || group(eRows, r=>['','']) [0] || ZERO();
@@ -1080,10 +1137,11 @@ function selectTab(t, focus){
 }
 function render(){
   const cfg = TABS[S.tab];
-  const ctl = (S.tab==='ins' && S.sub!=='deliv') ? [] : cfg.ctl;   /* the filter bar does not apply to the subscriber / geography views */
+  let ctl = (S.tab==='ins' && S.sub!=='deliv') ? [] : cfg.ctl;
+  if (S.tab==='ana' && !S.j) ctl = ctl.filter(id=>['lJ','lFrom','lTo'].includes(id));   /* nothing to act on until a journey is chosen */   /* the filter bar does not apply to the subscriber / geography views */
   document.querySelectorAll('.ctl').forEach(el=>el.hidden = !ctl.includes(el.id));
   if (S.tab==='conv' && S.grp!=='journey') $('lExp').hidden = true;
-  $('bCsv').hidden = !cfg.csv;
+  $('bCsv').hidden = !cfg.csv || (S.tab==='ana' && !S.j);
   $('bReset').hidden = !(FILTERS.some(k=>S[k]!==DEF[k]) && ['journeys','cats','conv','ins','sms'].includes(S.tab) && !(S.tab==='ins' && S.sub!=='deliv'));
   document.querySelector('.bar').hidden = [...document.querySelectorAll('.ctl')].every(e=>e.hidden) && $('bCsv').hidden && $('bReset').hidden;
   $('bCompact').setAttribute('aria-pressed', S.compact); $('bCompact').textContent = S.compact ? 'All columns' : 'Rates only';
@@ -1148,12 +1206,13 @@ function setup(){
   const last = new Map(); D.kpi.forEach(r=>{ if((last.get(r.JourneyName)||'')<r.Month) last.set(r.JourneyName,r.Month); });
   const js = [...last.keys()].sort((a,b)=>(last.get(b)>last.get(a)?1:last.get(b)<last.get(a)?-1:0)||(covKey(b)>covKey(a)?1:covKey(b)<covKey(a)?-1:0)||(a<b?-1:1));
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
-  S.j = js[0] || ''; JSET = new Set(js);
+  S.j = ''; JSET = new Set(js);   /* no journey is preselected: the analysis page stays empty until one is chosen */
+  $('fJ').innerHTML = '<option value=""></option>' + $('fJ').innerHTML; buildJourneyList(js, last);
   DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
-  on('fJ',v=>S.j=v); on('fAlert',v=>S.alert=v);
+  on('fAlert',v=>S.alert=v); wireJourneyBox();
   $('bExp').onclick = ()=>{ (EXPKEYS[S.tab==='ana'?'tLinks':'tbl']||[]).forEach(k=>EXP.add(k)); render(); };
   $('bCol').onclick = ()=>{ (EXPKEYS[S.tab==='ana'?'tLinks':'tbl']||[]).forEach(k=>EXP.delete(k)); render(); };
   $('bCompact').onclick = ()=>{ S.compact = !S.compact; render(); };
