@@ -136,3 +136,6 @@ Une CloudPage séparée pour gérer sans passer par Contact Builder. Elle est or
 - Garde-fous anti-verrouillage : on ne peut pas supprimer l'entrée qui autorise sa propre IP, ni pointer `ip_de_key` vers une DE illisible ou qui ne contient pas sa propre IP. `token`, `admin_token` et `api_url` ne peuvent pas être supprimés depuis la page.
 - Chaque écriture est vérifiée par une relecture de la DE. Chaque modification est journalisée dans `DASH_Admin_Log` si cette DE existe.
 - Recommandation : ajoutez à la liste d'IP uniquement les adresses des administrateurs qui ouvrent cette page.
+
+### Compatibilité navigateurs et lisibilité
+Testée dans Chromium (Edge, Chrome) et WebKit (Safari). Les listes déroulantes ont la même hauteur et la même flèche partout (la liste ouverte reste celle du système, non personnalisable). Les tableaux plus larges que l'écran affichent un dégradé et l'indication « scroll → » ; la première colonne reste figée. Pendant le chargement, des cartes « squelette » s'affichent.

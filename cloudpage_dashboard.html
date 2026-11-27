@@ -124,6 +124,7 @@ Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").repl
 <style>
 /* Design tokens inspirés du funnel Belfius Direct (couleurs, rayons, ombres, boutons en pilule) */
 :root{
+  color-scheme:light dark;
   --red:#c30045; --red-dark:#8c193c; --pink-bg:#fff5f8; --pink-light:#f6d8e3; --pink-mid:#f6c4d6; --pink-soft:#ffc2d7;
   --ink:#101820; --grey-dark:#51626f; --grey-light:#e8ebed; --grey-track:#e9eaeb; --focus:#ad0cdf; --err:#f5002d; --ok:#4b9b30; --tx-red:#c30045; --err-text:#c40026; --ok-text:#2f7a1c; --ctl-brd:#7b8794; --map-neutral:#e9eaeb;
   --bg:#f6f7f8; --card:#fff; --fg:#101820; --mute:#51626f; --line:#e8ebed; --acc:#c30045;
@@ -147,7 +148,20 @@ h1{font-size:1.25rem;font-weight:700;margin:0 auto 2px}
 main{max-width:1500px;margin:auto;padding:20px 24px 48px}
 .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:0 0 16px;background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px 20px}
 .bar label{display:flex;flex-direction:column;font-size:.75rem;color:var(--mute);gap:4px;font-weight:600}
-select,input{font:inherit;color:var(--fg);padding:9px 12px;border:2px solid var(--ctl-brd);border-radius:12px;background:var(--card);min-width:120px;transition:border-color .15s;max-width:420px}
+select,input{font:inherit;font-size:.85rem;color:var(--fg);height:40px;box-sizing:border-box;padding:0 12px;border:2px solid var(--ctl-brd);border-radius:12px;background-color:var(--card);min-width:120px;transition:border-color .15s;max-width:420px;-webkit-appearance:none;appearance:none}
+select{padding-right:34px;background-repeat:no-repeat;background-position:right 12px center;background-size:12px 8px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2351626f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");cursor:pointer}
+@media (prefers-color-scheme:dark){select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b4c0ca' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}}
+option{background:var(--card);color:var(--fg)}
+.bar .btn,.bar .btn2{height:40px;padding-top:0;padding-bottom:0}
+.bar .acts{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-left:auto}
+@keyframes shim{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.wbox{position:relative}
+.wfade{position:absolute;top:0;right:0;bottom:0;width:44px;pointer-events:none;border-radius:0 16px 16px 0;background:linear-gradient(to left,var(--card),transparent);opacity:0;transition:opacity .15s}
+.wbox.more .wfade{opacity:1}
+.wbox.more::after{content:"scroll →";position:absolute;right:10px;bottom:8px;font-size:.7rem;font-weight:600;color:var(--mute);background:var(--card);padding:2px 8px;border-radius:10px;box-shadow:var(--shadow);pointer-events:none}
+body.loading .cards:empty{min-height:78px;border-radius:16px;background:linear-gradient(90deg,var(--card) 25%,var(--pink-bg) 50%,var(--card) 75%);background-size:200% 100%;animation:shim 1.4s linear infinite}
+body.loading .charts .card{background:linear-gradient(90deg,var(--card) 25%,var(--pink-bg) 50%,var(--card) 75%);background-size:200% 100%;animation:shim 1.4s linear infinite}
+@media (prefers-reduced-motion:reduce){body.loading .cards:empty,body.loading .charts .card{animation:none}}
 select:hover,input:hover{border-color:var(--pink-soft)}
 select:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--red)}
 button.btn{font:inherit;font-weight:600;padding:10px 24px;border-radius:25px;cursor:pointer;background:var(--red);color:#fff;border:2px solid var(--red);transition:border-color .15s}
@@ -159,7 +173,7 @@ button.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .card b{display:block;font-size:1.5rem;line-height:1.1;font-weight:600;color:var(--tx-red);margin-bottom:4px}
 .card span{font-size:.75rem;color:var(--mute)}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:16px}
-.charts .card{height:260px}.charts .card:hover{transform:none;border-color:transparent}
+.charts .card{height:260px;min-width:0;position:relative;overflow:hidden}.charts .card:hover{transform:none;border-color:transparent}
 .wrap{overflow:auto;border-radius:16px;background:var(--card);box-shadow:var(--shadow);max-height:70vh}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
@@ -238,6 +252,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
 .mapcard:hover{transform:none;border-color:transparent}
 #mapBox svg{width:100%;height:auto;max-height:82vh;display:block;margin:0 auto}
 .mapfull{margin-bottom:14px}
+#segCharts{grid-template-columns:minmax(320px,640px)}
 .prov{stroke:var(--mute);stroke-width:1.2;stroke-linejoin:round}
 .prov:hover{stroke:var(--tx-red);stroke-width:2.5}
 .pc{stroke:rgba(16,24,32,.4);stroke-width:.6;fill-opacity:.82}
@@ -274,14 +289,16 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     <label class="ctl" id="lFrom">From month<select id="fFrom"></select></label>
     <label class="ctl" id="lTo">To month<select id="fTo"></select></label>
     <label class="ctl" id="lGran">Granularity<select id="fGran"><option value="total">Period total</option><option value="month">By month</option></select></label>
-    <span class="ctl" id="lCompact"><button class="btn2" id="bCompact" type="button" aria-pressed="false">Rates only</button></span>
-    <span class="ctl" id="lExp"><button class="btn2" id="bExp" type="button">Expand all</button><button class="btn2" id="bCol" type="button">Collapse all</button></span>
     <label class="ctl" id="lGrp">Group by<select id="fGrp"><option value="journey">Journey</option><option value="cat">Category</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
     <label class="ctl" id="lView">View by<select id="fView"><option value="cat">Category (prefix)</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
     <label class="ctl" id="lAlert">Alert scope<select id="fAlert"><option value="ongoing">Ongoing journeys only</option><option value="all">All journeys</option></select></label>
     <label class="ctl" id="lQ">Search<input id="fQ" placeholder="journey name…"></label>
+    <div class="acts">
+    <span class="ctl" id="lCompact"><button class="btn2" id="bCompact" type="button" aria-pressed="false">Rates only</button></span>
+    <span class="ctl" id="lExp"><button class="btn2" id="bExp" type="button">Expand all</button><button class="btn2" id="bCol" type="button">Collapse all</button></span>
     <button class="btn2" id="bReset" type="button" hidden>Reset filters</button>
     <button class="btn" id="bCsv">Export CSV</button>
+    </div>
   </div>
   <div id="warn" class="warn" role="status" hidden></div>
 
@@ -327,6 +344,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <div class="h2">Engagement by number of marketing emails received</div>
       <div class="wrap"><table id="tAud"></table></div>
       <div id="segBlock" hidden><div class="h2">With vs. without an active or future contract</div>
+      <div class="charts" id="segCharts"><div class="card"><canvas id="c6"></canvas></div></div>
       <div class="wrap"><table id="tSeg"></table></div></div>
       <div class="note" id="audNote"></div>
     </div>
@@ -335,6 +353,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <div id="geoCards" class="cards"></div>
       <div class="card mapcard mapfull"><div id="mapBox"></div><div class="legend" id="mapLegend"></div></div>
       <div class="cbar">
+        <span id="gcBar" role="group" aria-label="Map colour" hidden><span class="lbl">Colour by</span> <button type="button" class="chip" data-gc="n" aria-pressed="true">Contacts</button><button type="button" class="chip" data-gc="pc" aria-pressed="false">% with contract</button></span>
         <span role="group" aria-label="Map level"><button type="button" class="chip" data-gl="prov" aria-pressed="true">Provinces</button><button type="button" class="chip" data-gl="postal" aria-pressed="false">Postal codes</button></span>
       </div>
       <div class="h2" id="geoTblTitle" style="margin-top:0"></div><div class="wrap"><table id="tGeo"></table></div>
@@ -369,7 +388,7 @@ const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this man
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
 const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:false, sub:'deliv', win:'3', gl:'prov', seg:'all'};
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:false, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
@@ -613,9 +632,9 @@ function drawCharts(defs, ids){
   });
 }
 const byMonthCharts = rows => {
-  const byM = group(rows, r=>['',r.Month]).sort((a,b)=>a.month<b.month?-1:1);
+  const byM = group(rows, r=>['',r.Month]).sort((a,b)=>a.month<b.month?-1:1), few = byM.length<=2 ? 'bar' : undefined;
   return [
-    {title:'Volumes by month',labels:byM.map(a=>a.month),sets:[{l:'Sends',d:byM.map(a=>a.Sends)},{l:'Opens',d:byM.map(a=>a.Opens)},{l:'Unique clicks',d:byM.map(a=>a.Clicks)}]},
+    {title:'Volumes by month',type:few,labels:byM.map(a=>a.month),sets:[{l:'Sends',d:byM.map(a=>a.Sends)},{l:'Opens',d:byM.map(a=>a.Opens)},{l:'Unique clicks',d:byM.map(a=>a.Clicks)}]},
     {title:'Rates by month',pct:true,axisL:'Open %',axisR:'CTR % and Bounce %',labels:byM.map(a=>a.month),sets:[{l:'Open % (left axis)',d:byM.map(a=>deliv(a)?a.Opens/deliv(a):0)},{l:'CTR % (right axis)',right:true,d:byM.map(a=>deliv(a)?a.Clicks/deliv(a):0)},{l:'Bounce % (right axis)',right:true,d:byM.map(a=>a.Sends?a.Bounces/a.Sends:0)}]}
   ];
 };
@@ -704,7 +723,7 @@ function viewConv(){
   const ms = Object.keys(byM).sort();
   drawCharts([
     {title:'Leads by send month',labels:ms,sets:[{l:'Leads',d:ms.map(x=>byM[x].l)},{l:'Signed',d:ms.map(x=>byM[x].c)}]},
-    {title:'Leads by status (period)',type:'bar',labels:stList,sets:[{l:'Leads',d:stList.map(s=>statuses[s])}]}
+    {title:'Leads by status (period)',type:'bar',horizontal:true,labels:stList,sets:[{l:'Leads',d:stList.map(s=>statuses[s])}]}
   ]);
   $('note').textContent = "Only journeys MKT_XSELL, MKT_PROMO, MKT_NEWS, ODO_, OCL_, ODD_OFF_ and OCX_XSELL_. A lead is attributed to the last send received in the 30 days before its creation (email match), only if the journey product equals the lead product (or the journey product is ALL), and only for statuses that trigger emails (Incomplete: ODO_BANK_CAR_DropOut only; Offer Created: ODD_OFF only) plus Signed (converted). Each lead counts for one journey only. Click the arrow in front of a journey to show the split by email activity.";
 }
@@ -818,6 +837,7 @@ function viewIns(){
   document.querySelectorAll('[data-win]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.win===S.win));
   document.querySelectorAll('[data-gl]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.gl===S.gl));
   document.querySelectorAll('[data-seg]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.seg===S.seg));
+  document.querySelectorAll('[data-gc]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.gc===S.gc));
   if (S.sub==='deliv') return viewInsDeliv();
   const msg = $(S.sub==='aud' ? 'audMsg' : 'geoMsg');
   if (D.audErr){
@@ -873,13 +893,22 @@ function viewAud(){
     [pct(engaged,reached),'Engaged (opened or clicked), of reached'],[pct(clickers,reached),'Clickers, of reached'],
     [reached?fx1(rec/reached):'–','Marketing emails per reached subscriber'],[pop?fx1(ops/pop):'–','Operational emails per subscriber']]);
   const list = BUCKETS.map(b=>by[b]);
-  const lbl = BUCKETS.map(b=>b==='0'?'0 (not reached)':b);
-  const shares = list.slice(1);
-  drawCharts([
-    {title:'Subscribers by number of marketing emails received',type:'bar',labels:lbl,sets:[{l:'Subscribers',d:list.map(x=>x.Subs)}]},
-    {title:'Engagement mix by number of marketing emails received',type:'bar',horizontal:true,stacked:true,pct:true,max:1,labels:BUCKETS.slice(1),
-     sets:[{l:'Clicked',color:'#2f7a1c',colorD:'#7fd36a',d:shares.map(x=>x.Subs?x.Clicker/x.Subs:0)},{l:'Opened, no click',color:'#2a7fb8',colorD:'#6cb8ee',d:shares.map(x=>x.Subs?x.Opener/x.Subs:0)},{l:'No open / click',color:'#8a97a2',colorD:'#6b7885',d:shares.map(x=>x.Subs?x.None/x.Subs:0)}]}
-  ], ['c4','c5']);
+  const shares = list.slice(1), MINN = 30, ok = x => x.Subs >= MINN;
+  const defs = [
+    {title:'Subscribers who received at least 1 marketing email, by number received',type:'bar',labels:BUCKETS.slice(1),sets:[{l:'Subscribers',d:shares.map(x=>x.Subs)}]},
+    {title:'Engagement mix by number of marketing emails received',type:'bar',horizontal:true,stacked:true,pct:true,max:1,labels:shares.map(x=>x.b+' (n='+n(x.Subs)+(ok(x)?'':', too few')+')'),
+     sets:[{l:'Clicked',color:'#2f7a1c',colorD:'#7fd36a',d:shares.map(x=>ok(x)?x.Clicker/x.Subs:null)},{l:'Opened, no click',color:'#2a7fb8',colorD:'#6cb8ee',d:shares.map(x=>ok(x)?x.Opener/x.Subs:null)},{l:'No open / click',color:'#8a97a2',colorD:'#6b7885',d:shares.map(x=>ok(x)?x.None/x.Subs:null)}]}
+  ], ids = ['c4','c5'];
+  const sgs = {Yes:{k:'Yes',name:'Active or future contract',Subs:0,Reached:0,Click:0,Open:0,Rec:0,Ops:0}, No:{k:'No',name:'No active contract',Subs:0,Reached:0,Click:0,Open:0,Rec:0,Ops:0}}; let segTot = 0;
+  if (hasC){
+    for (const r of allRows){ const x = sgs[r.Contract]; if(!x) continue; x.Subs+=r.Subscribers; segTot+=r.Subscribers; x.Rec+=r.ReceivedMkt; x.Ops+=r.ReceivedOps; if(r.Seg!=='NotReached') x.Reached+=r.Subscribers; if(r.Seg==='Clicker') x.Click+=r.Subscribers; if(r.Seg==='Opener') x.Open+=r.Subscribers; }
+    const sh = (v,d) => d ? v/d : 0;
+    defs.push({title:'Contract vs. no contract',type:'bar',pct:true,labels:['Reach rate','Engaged, of reached','Clickers, of reached'],
+      sets:[{l:sgs.Yes.name,color:'#c30045',colorD:'#ff7da3',d:[sh(sgs.Yes.Reached,sgs.Yes.Subs),sh(sgs.Yes.Click+sgs.Yes.Open,sgs.Yes.Reached),sh(sgs.Yes.Click,sgs.Yes.Reached)]},
+            {l:sgs.No.name,color:'#8a97a2',colorD:'#9aa8b4',d:[sh(sgs.No.Reached,sgs.No.Subs),sh(sgs.No.Click+sgs.No.Open,sgs.No.Reached),sh(sgs.No.Click,sgs.No.Reached)]}]});
+    ids.push('c6');
+  }
+  drawCharts(defs, ids);
   const keyCols = [{k:'b',l:'Marketing emails received',v:a=>BUCKETS.indexOf(a.b),f:a=>esc(a.b==='0'?'0 (not reached)':a.b)}];
   const cols = [
     {k:'Subs',l:'Subscribers',v:a=>a.Subs,f:a=>n(a.Subs)},
@@ -893,18 +922,16 @@ function viewAud(){
   ];
   renderTable('tAud', keyCols, cols, list, null, {cmp:(a,b)=>BUCKETS.indexOf(a.b)-BUCKETS.indexOf(b.b)});
   if (hasC){
-    const sg = {Yes:{k:'Yes',name:'Active or future contract',Subs:0,Reached:0,Click:0,Open:0,Rec:0,Ops:0}, No:{k:'No',name:'No active contract',Subs:0,Reached:0,Click:0,Open:0,Rec:0,Ops:0}}; let tot=0;
-    for (const r of allRows){ const x = sg[r.Contract]; if(!x) continue; x.Subs+=r.Subscribers; tot+=r.Subscribers; x.Rec+=r.ReceivedMkt; x.Ops+=r.ReceivedOps; if(r.Seg!=='NotReached') x.Reached+=r.Subscribers; if(r.Seg==='Clicker') x.Click+=r.Subscribers; if(r.Seg==='Opener') x.Open+=r.Subscribers; }
     $('segBlock').hidden = false;
     renderTable('tSeg', [{k:'name',l:'Segment',v:a=>a.name,f:a=>esc(a.name)}], [
-      {k:'Subs',l:'Subscribers',v:a=>a.Subs,f:a=>n(a.Subs)},{k:'Share',l:'% of base',v:a=>a.Subs,f:a=>pct(a.Subs,tot)},
+      {k:'Subs',l:'Subscribers',v:a=>a.Subs,f:a=>n(a.Subs)},{k:'Share',l:'% of base',v:a=>a.Subs,f:a=>pct(a.Subs,segTot)},
       {k:'Reach',l:'Reach rate',v:a=>a.Subs?a.Reached/a.Subs:-1,f:a=>pct(a.Reached,a.Subs)},
       {k:'Eng',l:'Engaged, of reached',v:a=>a.Reached?(a.Click+a.Open)/a.Reached:-1,f:a=>pct(a.Click+a.Open,a.Reached)},
       {k:'Clk',l:'Clickers, of reached',v:a=>a.Reached?a.Click/a.Reached:-1,f:a=>pct(a.Click,a.Reached)},
       {k:'Avg',l:'Avg marketing emails (reached)',v:a=>a.Reached?a.Rec/a.Reached:-1,f:a=>a.Reached?fx1(a.Rec/a.Reached):'–'},
-      {k:'Ops',l:'Avg operational emails',v:a=>a.Subs?a.Ops/a.Subs:-1,f:a=>a.Subs?fx1(a.Ops/a.Subs):'–'}], [sg.Yes,sg.No], null, {defK:'Subs'});
+      {k:'Ops',l:'Avg operational emails',v:a=>a.Subs?a.Ops/a.Subs:-1,f:a=>a.Subs?fx1(a.Ops/a.Subs):'–'}], [sgs.Yes,sgs.No], null, {cmp:(a,b)=>a.k==='Yes'?-1:1});
   }
-  $('audNote').textContent = 'Active subscribers only (_Subscribers, Status = Active), leads (SubscriberKey starting with 00QP) excluded. Contract = at least one contract in Contract_Salesforce_1 with Status__c Active or Future for that contact (Contact__c = SubscriberKey); other statuses cannot receive communications.'+(hasC?'':' [Contract split unavailable: recreate DASH_Audience_Dist with the Contract column and rerun query 17.]')+' As of '+D.aud.asof+'. "Previous N months" = the N complete months before the current month (CET). Emails received = sent and not bounced, journeys MKT_ (marketing) and Oxx_ (operational). Engagement is measured on marketing emails: Clicked = at least one unique click, Opened = at least one unique open but no click. The 12-month window fills up as history accumulates (Data Views only keep about 6 months).';
+  $('audNote').textContent = 'Chart and table: subscribers who received no marketing email (the largest group) are left out of the first chart but counted in the table; engagement bars are shown only for groups of at least 30 subscribers. Active subscribers only (_Subscribers, Status = Active), leads (SubscriberKey starting with 00QP) excluded. Contract = at least one contract in Contract_Salesforce_1 with Status__c Active or Future for that contact (Contact__c = SubscriberKey); other statuses cannot receive communications.'+(hasC?'':' [Contract split unavailable: recreate DASH_Audience_Dist with the Contract column and rerun query 17.]')+' As of '+D.aud.asof+'. "Previous N months" = the N complete months before the current month (CET). Emails received = sent and not bounced, journeys MKT_ (marketing) and Oxx_ (operational). Engagement is measured on marketing emails: Clicked = at least one unique click, Opened = at least one unique open but no click. The 12-month window fills up as history accumulates (Data Views only keep about 6 months).';
 }
 
 /* ---------- Insights : géographie ---------- */
@@ -917,7 +944,7 @@ function viewGeo(){
   charts.forEach(c=>c.destroy()); charts = [];
   if (!GEO){ msg.hidden = false; msg.textContent = 'Map data is not embedded in this page (run tools/inject_geo.py).'; return; }
   const rows = D.aud.geo, hasG = rows.length && rows.every(r=>r.WithContract!==undefined && r.WithContract!==null);
-  $('segBar').hidden = !hasG; const sg = hasG ? S.seg : 'all';
+  const byPc = hasG && S.gc==='pc'; $('gcBar').hidden = !hasG; $('segBar').hidden = !hasG || byPc; const sg = hasG && !byPc ? S.seg : 'all';
   const cnt = r => sg==='yes' ? (r.WithContract||0) : sg==='no' ? r.Contacts-(r.WithContract||0) : r.Contacts;
   msg.hidden = true;
   if (!rows.length){ msg.hidden = false; msg.textContent = 'No contact geography yet (DASH_Contact_Geo).'; box.innerHTML = ''; $('tGeo').innerHTML = ''; cards('geoCards',[]); $('mapLegend').textContent=''; return; }
@@ -931,16 +958,18 @@ function viewGeo(){
   const provName = id => { const p = GEO.provinces.find(x=>x.id===id); return p ? p.en : id; };
   const segTxt = sg==='yes' ? ' with an active or future contract' : sg==='no' ? ' without an active contract' : '';
   const known = total - na, ents = S.gl==='prov' ? pvm : pcm;
-  const vals = [...ents.values()].map(e=>e.Contacts), lo = Math.min(...vals), hi = Math.max(...vals);
+  const mv = e => byPc ? (e.All ? e.WC/e.All : 0) : e.Contacts;
+  const vals = [...ents.values()].map(mv), lo = Math.min(...vals), hi = Math.max(...vals), fv = v => byPc ? fx1(v*100)+' %' : n(v);
   let svg = '<svg viewBox="'+GEO.viewBox.join(' ')+'" role="img" aria-label="Map of Belgium: number of contacts by '+(S.gl==='prov'?'province':'postal code')+'. The same figures are in the table next to the map.">';
-  for (const p of GEO.provinces){ const e = pvm.get(p.id); svg += '<path class="prov" d="'+p.d+'" fill="'+(S.gl==='prov' && e ? ramp((e.Contacts-lo)/((hi-lo)||1)) : 'var(--map-neutral)')+'" data-k="v:'+p.id+'"/>'; }
+  for (const p of GEO.provinces){ const e = pvm.get(p.id); svg += '<path class="prov" d="'+p.d+'" fill="'+(S.gl==='prov' && e ? ramp((mv(e)-lo)/((hi-lo)||1)) : 'var(--map-neutral)')+'" data-k="v:'+p.id+'"/>'; }
   if (S.gl==='postal'){
     const maxC = Math.max(...vals, 1);
-    [...pcm.values()].sort((a,b)=>b.Contacts-a.Contacts).forEach(e=>{ svg += '<circle class="pc" cx="'+e.x+'" cy="'+e.y+'" r="'+(4+30*Math.sqrt(e.Contacts/maxC)).toFixed(1)+'" fill="'+ramp(.75)+'" data-k="p:'+e.key+'"/>'; });
+    [...pcm.values()].sort((a,b)=>b.Contacts-a.Contacts).forEach(e=>{ svg += '<circle class="pc" cx="'+e.x+'" cy="'+e.y+'" r="'+(4+30*Math.sqrt(e.Contacts/maxC)).toFixed(1)+'" fill="'+(byPc ? ramp((mv(e)-lo)/((hi-lo)||1)) : ramp(.75))+'" data-k="p:'+e.key+'"/>'; });
   }
   box.innerHTML = svg + '</svg>';
-  $('mapLegend').innerHTML = S.gl==='postal' ? '<span>Bubble area = number of contacts</span>'
-    : '<span>'+n(lo)+'</span><i style="background:linear-gradient(90deg,'+ramp(0)+','+ramp(1)+')"></i><span>'+n(hi)+' contacts</span>';
+  const grad = '<i style="background:linear-gradient(90deg,'+ramp(0)+','+ramp(1)+')"></i>';
+  $('mapLegend').innerHTML = S.gl==='postal' ? (byPc ? '<span>Bubble area = number of contacts · colour = </span><span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+' with contract</span>' : '<span>Bubble area = number of contacts</span>')
+    : '<span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+(byPc ? ' of contacts with a contract' : ' contacts')+'</span>';
   const share = e => e.Contacts/total < 0.001 ? '< 0,1 %' : pct(e.Contacts,total);
   const info = (title,e) => '<b>'+esc(title)+'</b>Contacts'+segTxt+': '+n(e.Contacts)+' ('+share(e)+(sg==='all'?' of all contacts':' of the segment')+')'+(hasG?'<br>With contract: '+n(e.WC||0)+' of '+n(e.All||0):'');
   const show = ev => {
@@ -1007,7 +1036,7 @@ const HSEL = {fam:'fFam',type:'fType',prod:'fProd',from:'fFrom',to:'fTo',gran:'f
 function saveHash(){
   try{
     const p = new URLSearchParams();
-    for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert','sub','win','gl','seg']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
+    for (const k of ['tab','fam','type','prod','from','to','gran','grp','view','q','j','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
     if (S.compact) p.set('compact','1');
     const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
   }catch(e){}
@@ -1017,7 +1046,7 @@ function loadHash(){
   if (TABS[p.get('tab')]) S.tab = p.get('tab');
   for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
   if (p.get('q')){ S.q=p.get('q'); $('fQ').value=S.q; }
-  for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
+  for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']],['gc',['n','pc']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
   S.compact = p.get('compact')==='1';
 }
 function selectTab(t, focus){
@@ -1070,7 +1099,19 @@ async function loadPart(part){
 }
 
 /* ---------- init ---------- */
+function wireScroll(){
+  document.querySelectorAll('.wrap').forEach(w=>{
+    if (w.parentNode.classList.contains('wbox')) return;
+    const b = document.createElement('div'); b.className = 'wbox'; w.parentNode.insertBefore(b,w); b.appendChild(w);
+    const f = document.createElement('div'); f.className = 'wfade'; f.setAttribute('aria-hidden','true'); b.appendChild(f);
+    const upd = () => b.classList.toggle('more', w.scrollWidth - w.clientWidth - w.scrollLeft > 2);
+    w.addEventListener('scroll', upd, {passive:true});
+    if (window.ResizeObserver){ const ro = new ResizeObserver(upd); ro.observe(w); if (w.firstElementChild) ro.observe(w.firstElementChild); }
+    upd();
+  });
+}
 function setup(){
+  wireScroll();
   const months = [...new Set([...D.kpi.map(r=>r.Month),...D.conv.map(r=>r.SendMonth),...D.email.map(r=>r.Month),...D.domain.map(r=>r.Month)])].filter(Boolean).sort();
   const opts = months.map(m=>`<option>${m}</option>`).join('');
   $('fFrom').innerHTML = opts; $('fTo').innerHTML = opts;
@@ -1084,7 +1125,7 @@ function setup(){
   const js = [...last.keys()].sort((a,b)=>(last.get(b)>last.get(a)?1:last.get(b)<last.get(a)?-1:0)||(covKey(b)>covKey(a)?1:covKey(b)<covKey(a)?-1:0)||(a<b?-1:1));
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
   S.j = js[0] || ''; JSET = new Set(js);
-  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all'};
+  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',from:S.from,to:S.to,gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
@@ -1096,6 +1137,7 @@ function setup(){
   document.querySelectorAll('[data-win]').forEach(b=>b.onclick=()=>{ S.win=b.dataset.win; render(); });
   document.querySelectorAll('[data-gl]').forEach(b=>b.onclick=()=>{ S.gl=b.dataset.gl; render(); });
   document.querySelectorAll('[data-seg]').forEach(b=>b.onclick=()=>{ S.seg=b.dataset.seg; render(); });
+  document.querySelectorAll('[data-gc]').forEach(b=>b.onclick=()=>{ S.gc=b.dataset.gc; render(); });
   $('bReset').onclick = ()=>{ for (const k of ['fam','type','prod','gran','from','to']){ S[k]=DEF[k]; $(HSEL[k]).value=DEF[k]; } S.q=''; $('fQ').value=''; SORT.tbl=null; render(); };
   $('fQ').oninput = e=>{S.q=e.target.value;render();};
   document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab));
@@ -1129,16 +1171,16 @@ function friendly(msg){
   return 'The dashboard could not load its data. Please retry in a moment.';
 }
 async function load(){
-  $('errBox').hidden = true; document.body.classList.remove('failed'); $('gen').textContent = 'Loading…';
+  $('errBox').hidden = true; document.body.classList.remove('failed'); document.body.classList.add('loading'); $('gen').textContent = 'Loading…';
   try{
     const j = await api('');
     D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], linksByJ:{}, linksErr:{}, sms:null, aud:null, audErr:'', generatedMs:j.generatedMs||0};
     LOADING = {}; $('warn').hidden = true;
     $('gen').textContent = 'Data as of '+(j.generatedMs ? new Intl.DateTimeFormat('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels',timeZoneName:'short'}).format(new Date(j.generatedMs)) : '–')+' · months in CET/CEST';
     showWarn(j.warnings);
-    setup(); selectTab(S.tab);
+    document.body.classList.remove('loading'); setup(); selectTab(S.tab);
   }catch(e){
-    document.body.classList.add('failed');
+    document.body.classList.remove('loading'); document.body.classList.add('failed');
     $('errMsg').textContent = friendly(String(e.message||e)); $('errDetail').textContent = 'Technical detail: '+String(e.message||e);
     $('errBox').hidden = false; $('gen').textContent = 'Data unavailable';
   }
