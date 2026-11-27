@@ -6,7 +6,7 @@ SELECT
     z.PageOrigin AS PageOrigin,
     ISNULL(z.OGroup, z.AnyGroup) AS LeadGroup,
     CASE WHEN z.SubFound = 0 THEN '1 No email on the lead, or email not found in _Subscribers'
-         WHEN z.SendsCand = 0 THEN '2 No email from a tracked journey within 30 days before or after creation'
+         WHEN z.SendsCand = 0 THEN '2 No email from a tracked journey between 30 days before and 90 days after creation'
          WHEN z.SendsProd = 0 THEN '3 Emails found, but the product of the journey does not match the lead product'
          WHEN z.SendsKind = 0 THEN '4 Emails found, but outside the time rules (marketing email after the lead, triggered email before it)'
          WHEN z.OKind = 'M' THEN '8 Lead generated after a marketing email'
@@ -32,14 +32,14 @@ FROM (SELECT y.LeadId AS LeadId, MAX(y.CreatedDate) AS CreatedDate, MAX(y.Status
            MAX(CASE WHEN y.rnO = 1 AND y.Kind IS NOT NULL THEN y.JobID END) AS OJob,
            MAX(CASE WHEN y.rnO = 1 AND y.Kind IS NOT NULL THEN y.ListID END) AS OList,
            MAX(CASE WHEN y.rnO = 1 AND y.Kind IS NOT NULL THEN y.BatchID END) AS OBatch,
-           MAX(CASE WHEN y.rnC = 1 AND y.Kind IS NOT NULL THEN y.JourneyName END) AS CJourney,
-           MAX(CASE WHEN y.rnC = 1 AND y.Kind IS NOT NULL THEN y.EventDate END) AS CSend,
-           MAX(CASE WHEN y.rnC = 1 AND y.Kind IS NOT NULL THEN y.JobID END) AS CJob
+           MAX(CASE WHEN y.rnC = 1 AND y.KindC = 1 THEN y.JourneyName END) AS CJourney,
+           MAX(CASE WHEN y.rnC = 1 AND y.KindC = 1 THEN y.EventDate END) AS CSend,
+           MAX(CASE WHEN y.rnC = 1 AND y.KindC = 1 THEN y.JobID END) AS CJob
     FROM (SELECT x.*,
            ROW_NUMBER() OVER (PARTITION BY x.LeadId ORDER BY CASE WHEN x.Kind = 'M' THEN 0 WHEN x.Kind = 'T' THEN 1 ELSE 2 END,
                                                             CASE WHEN x.Kind = 'M' THEN x.EventDate END DESC,
                                                             CASE WHEN x.Kind = 'T' THEN x.EventDate END ASC) AS rnO,
-           ROW_NUMBER() OVER (PARTITION BY x.LeadId ORDER BY CASE WHEN x.Kind IS NULL THEN 1 ELSE 0 END, x.EventDate DESC) AS rnC,
+           ROW_NUMBER() OVER (PARTITION BY x.LeadId ORDER BY CASE WHEN x.KindC = 1 THEN 0 ELSE 1 END, x.EventDate DESC) AS rnC,
            SUM(x.Cand) OVER (PARTITION BY x.LeadId) AS SendsCand,
            SUM(x.ProdOk) OVER (PARTITION BY x.LeadId) AS SendsProd,
            SUM(CASE WHEN x.Kind IS NULL THEN 0 ELSE 1 END) OVER (PARTITION BY x.LeadId) AS SendsKind
@@ -51,11 +51,19 @@ FROM (SELECT y.LeadId AS LeadId, MAX(y.CreatedDate) AS CreatedDate, MAX(y.Status
                CASE WHEN j.JourneyName IS NULL THEN NULL
                     WHEN NOT (j.Prod = 'ALL' OR j.JGroup = ISNULL(lm.ProductGroup, 'OTHER')) THEN NULL
                     WHEN (j.JourneyName LIKE 'MKT[_]XSELL[_]%' OR j.JourneyName LIKE 'MKT[_]PROMO[_]%' OR j.JourneyName LIKE 'MKT[_]NEWS[_]%' OR j.JourneyName LIKE 'OCX[_]XSELL[_]%') AND j.EventDate <= l.CreatedDate THEN 'M'
-                    WHEN (j.JourneyName LIKE 'OCL[_]%' OR j.JourneyName LIKE 'ODO[_]%' OR j.JourneyName LIKE 'ODD[_]OFF[_]%') AND j.EventDate >= DATEADD(hour, -1, l.CreatedDate) THEN 'T'
+                    WHEN (j.JourneyName LIKE 'OCL[_]%' OR j.JourneyName LIKE 'ODO[_]%' OR j.JourneyName LIKE 'ODD[_]OFF[_]%') AND j.EventDate >= DATEADD(hour, -1, l.CreatedDate) AND j.EventDate <= DATEADD(day, 30, l.CreatedDate) THEN 'T'
                     ELSE NULL END AS Kind,
+               CASE WHEN j.JourneyName IS NULL THEN 0
+                    WHEN NOT (j.Prod = 'ALL' OR j.JGroup = ISNULL(lm.ProductGroup, 'OTHER')) THEN 0
+                    WHEN j.EventDate > CASE WHEN l.Status = 'Signed' AND l.LastModifiedDate > l.CreatedDate
+                                            THEN CASE WHEN l.LastModifiedDate < DATEADD(day, 90, l.CreatedDate) THEN l.LastModifiedDate ELSE DATEADD(day, 90, l.CreatedDate) END
+                                            ELSE DATEADD(day, 30, l.CreatedDate) END THEN 0
+                    WHEN (j.JourneyName LIKE 'MKT[_]XSELL[_]%' OR j.JourneyName LIKE 'MKT[_]PROMO[_]%' OR j.JourneyName LIKE 'MKT[_]NEWS[_]%' OR j.JourneyName LIKE 'OCX[_]XSELL[_]%') THEN 1
+                    WHEN (j.JourneyName LIKE 'OCL[_]%' OR j.JourneyName LIKE 'ODO[_]%' OR j.JourneyName LIKE 'ODD[_]OFF[_]%') AND j.EventDate >= DATEADD(hour, -1, l.CreatedDate) THEN 1
+                    ELSE 0 END AS KindC,
                j.EventDate AS EventDate, j.JobID AS JobID, j.ListID AS ListID, j.BatchID AS BatchID, j.SubscriberID AS SendSub,
                j.JourneyName AS JourneyName, j.Prod AS JProd
-        FROM (SELECT Id, Email, Status, CreatedDate, Page_Origin__c
+        FROM (SELECT Id, Email, Status, CreatedDate, LastModifiedDate, Page_Origin__c
               FROM Lead_Salesforce_1
               WHERE CreatedDate >= '20260831 16:00:00' AND CreatedDate < '20260930 16:00:00') l
         LEFT JOIN DASH_Product_Map lm ON lm.Source = 'LEAD' AND UPPER(l.Page_Origin__c) LIKE lm.Value
@@ -84,7 +92,7 @@ FROM (SELECT y.LeadId AS LeadId, MAX(y.CreatedDate) AS CreatedDate, MAX(y.Status
                    WHERE s.EventDate >= '20260731 00:00:00') j
                ON j.SubscriberID = sub.SubscriberID
               AND j.EventDate > DATEADD(day, -30, l.CreatedDate)
-              AND j.EventDate <= DATEADD(day, 30, l.CreatedDate)) x) y
+              AND j.EventDate <= DATEADD(day, 90, l.CreatedDate)) x) y
     GROUP BY y.LeadId) z
 LEFT JOIN _Job ojb ON ojb.JobID = z.OJob
 LEFT JOIN _Job cjb ON cjb.JobID = z.CJob
