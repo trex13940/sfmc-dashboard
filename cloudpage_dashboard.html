@@ -658,13 +658,13 @@ async function viewAna(){
   const lc = [{k:'email',l:'Email',v:a=>a.email.toLowerCase(),f:a=>esc(a.email)},{k:'lang',l:'Lang',v:a=>a.lang,f:a=>esc(a.lang||'–')},
               {k:'link',l:'Link name',v:a=>a.link.toLowerCase(),f:a=>esc(a.link||'–')},{k:'content',l:'Link content',v:a=>a.content.toLowerCase(),f:a=>`<span title="${esc(a.content)}">${esc(a.content.length>80?a.content.slice(0,80)+'…':a.content||'–')}</span>`}];
   const lcols = [{k:'uq',l:'Unique clicks',v:a=>a.uq,f:a=>n(a.uq)},{k:'tot',l:'Total clicks',v:a=>a.tot,f:a=>n(a.tot)}];
-  const LJ = D.linksByJ[S.j];
-  if (D.linksErr[S.j]){
-    $('tLinks').innerHTML = `<tbody><tr><td class="l msg" role="alert">Links could not be loaded: ${esc(D.linksErr[S.j])} <button type="button" class="btn2" id="bLinksRetry">Retry</button></td></tr></tbody>`;
-    $('bLinksRetry').onclick = ()=>{ delete D.linksErr[S.j]; render(); };
+  const LK = S.j+'|'+S.from+'|'+S.to, LJ = D.linksByJ[LK];
+  if (D.linksErr[LK]){
+    $('tLinks').innerHTML = `<tbody><tr><td class="l msg" role="alert">Links could not be loaded: ${esc(D.linksErr[LK])} <button type="button" class="btn2" id="bLinksRetry">Retry</button></td></tr></tbody>`;
+    $('bLinksRetry').onclick = ()=>{ delete D.linksErr[LK]; render(); };
   } else if (LJ===undefined){
-    $('tLinks').innerHTML = '<tbody><tr><td class="l msg">Loading links…</td></tr></tbody>';
-    loadLinks(S.j).then(()=>{ if (S.tab==='ana') render(); });
+    $('tLinks').innerHTML = '<tbody><tr><td class="l msg">Loading links… (this can take a few seconds)</td></tr></tbody>';
+    loadLinks(S.j, S.from, S.to).then(()=>{ if (S.tab==='ana') render(); });
   } else {
     const m = new Map();
     for (const r of LJ){ if ((r.JourneyName && r.JourneyName!==S.j) || !inMonths(r.Month)) continue;
@@ -770,7 +770,7 @@ function render(){
 async function api(part, extra){
   const k = new URLSearchParams(location.search).get('k')||'';
   let url = API_URL+'?k='+encodeURIComponent(k)+(part?'&part='+part:'');
-  if (extra && extra.j) url += '&j='+encodeURIComponent(extra.j);
+  if (extra && extra.j) url += '&j='+encodeURIComponent(extra.j)+'&from='+encodeURIComponent(extra.from||'')+'&to='+encodeURIComponent(extra.to||'');
   const res = await fetch(url,{cache:'no-store'});
   const txt = await res.text();
   let j;
@@ -779,11 +779,11 @@ async function api(part, extra){
   if (j.error) throw new Error(j.error); return j;
 }
 function showWarn(w){ if (w && w.length){ $('warn').hidden=false; $('warn').textContent='Some data sources are unavailable: '+w.join(' · '); } }
-function loadLinks(j){
-  const key = 'links|'+j;
+function loadLinks(j, from, to){
+  const lk = j+'|'+from+'|'+to, key = 'links|'+lk;
   if (LOADING[key]) return LOADING[key];
-  LOADING[key] = api('links',{j}).then(r=>{ D.linksByJ[j] = r.links||[]; showWarn(r.warnings); })
-    .catch(e=>{ D.linksErr[j] = e.message; })
+  LOADING[key] = api('links',{j,from,to}).then(r=>{ D.linksByJ[lk] = r.links||[]; showWarn(r.warnings); })
+    .catch(e=>{ D.linksErr[lk] = e.message; })
     .finally(()=>{ delete LOADING[key]; });
   return LOADING[key];
 }

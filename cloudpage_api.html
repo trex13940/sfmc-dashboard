@@ -117,6 +117,44 @@ function numFields(rows, fields) {
   return rows;
 }
 var warnings = [];
+/* ---- Liens : lecture rapide par journey et par mois (LookupRows = requête SQL directe, bien plus rapide que le SOAP) ---- */
+var LINK_DE_NAME = "DASH_Link_Monthly";   /* NOM de la DE (LookupRows) */
+var LINK_DE_KEY  = "DASH_Link_Monthly";   /* Customer Key de la DE (repli WSProxy) */
+var LINK_BUDGET_MS = 20000;               /* au-delà, on renvoie un résultat partiel plutôt qu une erreur 408 */
+function monthsBetween(from, to) {
+  var out = [];
+  if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to)) return out;
+  var y = parseInt(from.substr(0, 4), 10), m = parseInt(from.substr(5, 2), 10), ty = parseInt(to.substr(0, 4), 10), tm = parseInt(to.substr(5, 2), 10);
+  while ((y < ty || (y === ty && m <= tm)) && out.length < 24) { out.push(y + "-" + (m < 10 ? "0" + m : "" + m)); m++; if (m > 12) { m = 1; y++; } }
+  return out;
+}
+function fetchLinks(jn, from, to) {
+  var months = monthsBetween(from, to), out = [], t0 = new Date().getTime(), skipped = [], full = [];
+  var cols = ["JourneyName","Month","EmailName","LinkName","LinkContent","UniqueClicks","TotalClicks"];
+  if (!months.length) {   /* pas de période : repli sur toute la journey */
+    return numFields(fetchAll(LINK_DE_KEY, cols, { Property: "JourneyName", SimpleOperator: "equals", Value: jn }), ["UniqueClicks","TotalClicks"]);
+  }
+  try {
+    for (var i = months.length - 1; i >= 0; i--) {   /* mois les plus récents d abord */
+      if (new Date().getTime() - t0 > LINK_BUDGET_MS) { skipped.push(months[i]); continue; }
+      var rows = Platform.Function.LookupRows(LINK_DE_NAME, ["JourneyName", "Month"], [jn, months[i]]);
+      if (rows) {
+        for (var r = 0; r < rows.length; r++) {
+          var o = {}; for (var c = 0; c < cols.length; c++) { o[cols[c]] = rows[r][cols[c]]; }
+          out.push(o);
+        }
+        if (rows.length >= 2000) full.push(months[i]);
+      }
+    }
+  } catch (eLk) {
+    warnings.push("DASH_Link_Monthly (LookupRows): " + String(eLk.message || eLk) + " - repli sur WSProxy");
+    out = fetchAll(LINK_DE_KEY, cols, { Property: "JourneyName", SimpleOperator: "equals", Value: jn });
+    skipped = []; full = [];
+  }
+  if (skipped.length) warnings.push("links partial: months not loaded in time: " + skipped.join(", "));
+  if (full.length) warnings.push("links truncated at 2000 rows for: " + full.join(", "));
+  return numFields(out, ["UniqueClicks","TotalClicks"]);
+}
 function optional(deKey, cols, nums, label, filter) {
   try { return numFields(fetchAll(deKey, cols, filter), nums); }
   catch (eOpt) { warnings.push(label + ": " + String(eOpt.message || eOpt)); return []; }
@@ -135,12 +173,13 @@ try {
   if (why) {
     Write(Stringify({ error: "unauthorized: " + why + (cfgDiag ? " [" + cfgDiag + "]" : "") }));
   } else if (part === "links") {
-    /* links : une seule journey par appel (&j=<JourneyName>) pour garder la réponse petite et rapide */
+    /* links : une journey et une période par appel (&j=<JourneyName>&from=yyyy-mm&to=yyyy-mm) pour rester sous le temps maximum de la CloudPage */
     var jn = trim(Platform.Request.GetQueryStringParameter("j"));
     if (!jn) { Write(Stringify({ error: "missing parameter j (journey name) for part=links" })); }
     else {
-      var links = optional("DASH_Link_Monthly", ["JourneyName","Month","EmailName","LinkName","LinkContent","UniqueClicks","TotalClicks"], ["UniqueClicks","TotalClicks"], "DASH_Link_Monthly",
-                           { Property: "JourneyName", SimpleOperator: "equals", Value: jn });
+      var lf = trim(Platform.Request.GetQueryStringParameter("from")), lt = trim(Platform.Request.GetQueryStringParameter("to"));
+      var links = [];
+      try { links = fetchLinks(jn, lf, lt); } catch (eL) { warnings.push("DASH_Link_Monthly: " + String(eL.message || eL)); }
       Write(Stringify({ part: "links", j: jn, links: links, warnings: warnings }));
     }
   } else if (part === "sms") {
