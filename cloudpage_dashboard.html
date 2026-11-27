@@ -108,7 +108,9 @@ for (var ck in CFG) {
   if (ck.indexOf("label_type_") === 0) labels.type[ck.substring(11).toUpperCase()] = CFG[ck];
   else if (ck.indexOf("label_product_") === 0) labels.product[ck.substring(14).toUpperCase()] = CFG[ck];
 }
-var clientCfg = { apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), labels: labels };
+var assetStrip = [], sx = cfgv("asset_strip_extra", "").split(";");
+for (var si = 0; si < sx.length; si++) { var sv = trim(sx[si]); if (sv) assetStrip.push(sv); }
+var clientCfg = { apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), labels: labels, assetStrip: assetStrip };
 Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").replace(/%/g, "\\u0025"));
 </script>
 %%[ IF @ipOk == "1" THEN ]%%
@@ -401,12 +403,24 @@ function parse(name){
 }
 
 /* Email / asset names: MKT|Oxx _ TYPE _ PRODUCT _ Campaign[-info] _ FR|NL _ EMx _ mmyyyy|ongoing
-   -> activity = FAM_TYPE_PRODUCT[(detail)]_Campaign ; "-info" after the campaign name, language, EMx and period are ignored */
+   -> activity = FAM_TYPE_PRODUCT[(detail)]_Campaign ; "-info" after the campaign name, language, EMx and period are ignored.
+   Before anything else, version / format markers are removed so that identical emails are grouped together:
+   "-vxx-xx" (version), "-xx-xx", "-PDF" and "Website" (plus any text listed in DASH_Config, row asset_strip_extra). */
+const ASSET_EXTRA = (CFG.assetStrip||[]).map(s=>new RegExp('[-_ ]?'+String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'));
+function cleanAsset(name){
+  let s = String(name||'');
+  s = s.replace(/-v\d{1,3}(?:-\d{1,3})*/gi,'')            /* -v01-02 */
+       .replace(/-\d{2}-\d{2}(?!\d)/g,'')                 /* -12-03 */
+       .replace(/-pdf(?![a-z0-9])/gi,'')                   /* -PDF */
+       .replace(/[-_ ]?website/gi,'');                     /* Website, _Website, -Website */
+  for (const re of ASSET_EXTRA) s = s.replace(re,'');
+  return s.replace(/_{2,}/g,'_').replace(/^_+|_+$/g,'');
+}
 const _ec = new Map();
 function parseEmail(name){
   if (_ec.has(name)) return _ec.get(name);
-  const raw = String(name||''), p = raw.split('_');
-  const o = {raw, fam:(p[0]||'').toUpperCase(), type:(p[1]||'').toUpperCase(), product:normProd(p[2]), campaign:'', lang:'', detail:'', label:raw};
+  const raw = String(name||''), clean = cleanAsset(raw), p = clean.split('_');
+  const o = {raw, clean, fam:(p[0]||'').toUpperCase(), type:(p[1]||'').toUpperCase(), product:normProd(p[2]), campaign:'', lang:'', detail:'', label:clean};
   if (p.length >= 4){
     const campRaw = p[3]||'';
     o.campaign = campRaw.split('-')[0];
@@ -747,7 +761,7 @@ async function viewAna(){
   renderTable('tLang', keyL, kpiCols(), byLang, byLang.length>1?tot:null, {defK:'Sends', empty});
   const keyE = [{k:'name',l:'Email',v:a=>a.name.toLowerCase(),f:a=>`<span title="${esc(parseEmail(a.name).label)}">${esc(a.name)}</span>`},
                 {k:'lang',l:'Lang',v:a=>parseEmail(a.name).lang,f:a=>esc(parseEmail(a.name).lang||'–')}];
-  const byEmail = group(eRows, r=>[r.EmailName||'(unknown)','']);
+  const byEmail = group(eRows, r=>[r.EmailName ? parseEmail(r.EmailName).clean : '(unknown)','']);   /* identical emails (versions, PDF, Website...) merged */
   renderTable('tEmail', keyE, kpiCols(), byEmail, byEmail.length>1?tot:null, {defK:'Sends', empty});
   /* links : chargés à la demande */
   const lc = [{k:'email',l:'Email',v:a=>a.email.toLowerCase(),f:a=>esc(a.email)},{k:'lang',l:'Lang',v:a=>a.lang,f:a=>esc(a.lang||'–')},
@@ -764,8 +778,8 @@ async function viewAna(){
     const m = new Map();
     for (const r of LJ){ if ((r.JourneyName && r.JourneyName!==S.j) || !inMonths(r.Month)) continue;
       const ln=stripParams(r.LinkName), lc=stripParams(r.LinkContent);   /* URLs shown without ?parameters / #anchor; identical links are merged */
-      const key=r.EmailName+'|'+ln+'|'+lc; let a=m.get(key);
-      if(!a){ a={email:r.EmailName||'',lang:parseEmail(r.EmailName).lang,link:ln,content:lc,uq:0,tot:0}; m.set(key,a); }
+      const en = r.EmailName ? parseEmail(r.EmailName).clean : '', key=en+'|'+ln+'|'+lc; let a=m.get(key);
+      if(!a){ a={email:en,lang:parseEmail(r.EmailName).lang,link:ln,content:lc,uq:0,tot:0}; m.set(key,a); }
       a.uq+=r.UniqueClicks; a.tot+=r.TotalClicks; }
     const list=[...m.values()], lt={uq:list.reduce((x,a)=>x+a.uq,0),tot:list.reduce((x,a)=>x+a.tot,0)};
     renderTable('tLinks', lc, lcols, list, list.length>1?lt:null, {defK:'uq', empty:'No link data for this journey (DASH_Link_Monthly).'});

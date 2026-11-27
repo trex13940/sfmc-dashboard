@@ -30,6 +30,7 @@ Tous les réglages sont des lignes de la DE `DASH_Config` (colonnes `ConfigKey` 
 | `link_de_name` | `DASH_Link_Monthly` | `DASH_Link_Monthly` | nom de la DE des liens (lecture rapide) |
 | `link_de_key` | `DASH_Link_Monthly` | = `link_de_name` | Customer Key de cette DE (repli) |
 | `link_budget_ms` | `20000` | `20000` | temps maximum de lecture des liens avant résultat partiel |
+| `asset_strip_extra` | `Preview;Test` | – | textes supplémentaires retirés des noms d'e-mails / assets, séparés par `;` (en plus des règles intégrées ci-dessous) |
 | `audience_dist_de` | `DASH_Audience_Dist` | `DASH_Audience_Dist` | Customer Key de la DE de répartition des abonnés |
 | `contact_geo_de` | `DASH_Contact_Geo` | `DASH_Contact_Geo` | Customer Key de la DE de géographie des contacts |
 | `alert_drop_pct` | `15` | `15` | baisse de volume (en %) qui déclenche une alerte |
@@ -98,7 +99,7 @@ Libellés lisibles : renseigner `LABELS.type` / `LABELS.product` en haut du scri
 L'API (`cloudpage_api.html`) renvoie les données principales par défaut ; `&part=links` et `&part=sms` sont chargés à la demande.
 
 ## Convention de nommage des emails (activités)
-`MKT|Oxx_Type_Produit_Campagne[-info]_FR|NL_EMx_mmyyyy|ongoing`. Le split par activité ignore la langue, `EMx`, la période et tout ce qui suit un `-` dans le nom de campagne. BIKE devient BIK. Pour les produits PET et HOM, le détail cat/dog ou renters/owner est lu dans le nom.
+`MKT|Oxx_Type_Produit_Campagne[-info]_FR|NL_EMx_mmyyyy|ongoing`. Le split par activité ignore la langue, `EMx`, la période et tout ce qui suit un `-` dans le nom de campagne. Avant tout regroupement, les mentions `-vxx-xx` (version), `-xx-xx`, `-PDF` et `Website` sont retirées du nom, de sorte que les e-mails identiques sont regroupés (activités des journeys, onglet Journey analysis, liens, SMS). D'autres textes peuvent être ajoutés via la ligne `asset_strip_extra` de `DASH_Config`. BIKE devient BIK. Pour les produits PET et HOM, le détail cat/dog ou renters/owner est lu dans le nom.
 
 ## Accessibilité et confort (audit)
 - Contrastes corrigés (thème sombre, bordures des champs, onglets) ; séries des graphiques distinguées par la forme et le style de trait ; axe de droite pour CTR % et Bounce % ; texte alternatif sur chaque graphique.
