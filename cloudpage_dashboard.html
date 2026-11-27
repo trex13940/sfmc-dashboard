@@ -437,6 +437,7 @@ const normProd = p => { p = String(p||'n/a').toUpperCase(); return p==='BIKE' ? 
 const _pc = new Map();
 function parse(name){
   if (_pc.has(name)) return _pc.get(name);
+  if (name==='(no email)'){ const o = {fam:'–',type:'–',product:'–',campaign:name,period:'',covered:''}; _pc.set(name,o); return o; }
   const p = String(name||'').split('_');
   const o = {fam:(p[0]||'n/a').toUpperCase(), type:'n/a', product:'n/a', campaign:name, period:'', covered:''};
   if (p.length >= 3){
@@ -493,7 +494,7 @@ const n = v => NF.format(v||0);
 const pct = (a,b) => b>0 ? PF.format(a/b) : '–';
 const stripParams = s => { s = String(s||'').trim(); return /^https?:\/\//i.test(s) ? s.split(/[?#]/)[0] : s; };
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const famOf = name => /^MKT_/i.test(name) ? 'MKT' : 'OPS';
+const famOf = name => name==='(no email)' ? 'NONE' : /^MKT_/i.test(name) ? 'MKT' : 'OPS';
 
 /* ---------- filtres ---------- */
 const baseOk = name =>
@@ -706,33 +707,46 @@ function viewKpi(dim){
 }
 
 /* ---------- Conversions ---------- */
-function convAgg(rows, dim, monthly, act){
+const NOEMAIL = '(no email)';
+const kindOf = r => r.OriginKind || (r.JourneyName===NOEMAIL ? 'N' : 'M');   /* M = after a marketing email, T = triggered an email, N = no email (legacy rows without OriginKind count as M) */
+/* conversion credited to the LAST email received; a Signed lead without any email is credited to "(no email)"; legacy rows (no ConvJourney field): the journey of the row */
+const credOf = r => { if (!r.IsConverted) return null; if (r.ConvJourney!==undefined) return r.ConvJourney ? {j:r.ConvJourney, mo:r.ConvSendMonth||r.SendMonth, em:r.ConvEmailName||''} : {j:NOEMAIL, mo:r.SendMonth, em:''}; return {j:r.JourneyName, mo:r.SendMonth, em:r.EmailName||''}; };
+function convAgg(rows, cred, dim, monthly, act){
   const src = (act ? D.email : D.kpi).filter(r=>inScope(r.JourneyName,r.Month));
   const kg = group(src, r=>[dimVal(r,dim), monthly?r.Month:'', act?parseEmail(r.EmailName).label:'']);
   const dmap = new Map(kg.map(a=>[a.name+'|'+a.act+'|'+a.month, deliv(a)]));
   const m = new Map();
+  const get = (nm, ac, mo, last) => {
+    const key = nm+'|'+ac+'|'+mo; let a = m.get(key);
+    if (!a){ a={name:nm,act:ac,month:mo,last,Leads:0,Conv:0,Cred:0,Att:0,Open:0,Click:0,Days:0,St:{}}; m.set(key,a); }
+    if (last>a.last) a.last = last; return a;
+  };
   for (const r of rows){
-    const nm = dimVal(r,dim), ac = act ? parseEmail(r.EmailName).label : '', mo = monthly?r.SendMonth:'', key = nm+'|'+ac+'|'+mo;
-    let a = m.get(key);
-    if(!a){ a={name:nm,act:ac,month:mo,last:r.SendMonth,Leads:0,Conv:0,Open:0,Click:0,Days:0,St:{}}; m.set(key,a); }
-    if (r.SendMonth>a.last) a.last=r.SendMonth;
-    a.Leads++; a.Conv+=r.IsConverted; a.Open+=r.Opened; a.Click+=r.Clicked; a.Days+=r.DaysToLead;
+    const a = get(dimVal(r,dim), act ? (r.JourneyName===NOEMAIL ? '' : parseEmail(r.EmailName).label) : '', monthly?r.SendMonth:'', r.SendMonth);
+    a.Leads++; a.Conv+=r.IsConverted;
+    if (kindOf(r)!=='N'){ a.Att++; a.Open+=r.Opened; a.Click+=r.Clicked; a.Days+=r.DaysToLead; }
     const s=r.LeadStatus||'(empty)'; a.St[s]=(a.St[s]||0)+1;
   }
+  for (const c of cred){ const a = get(dimVal({JourneyName:c.j},dim), act ? (c.j===NOEMAIL||!c.em ? '' : parseEmail(c.em).label) : '', monthly?c.mo:'', c.mo); a.Cred++; }
   const out = [...m.values()]; out.forEach(a=>a.Deliv=dmap.get(a.name+'|'+a.act+'|'+a.month)||0);
   return {out, dmap};
 }
 function viewConv(){
   const dim = S.grp, monthly = S.gran==='month';
   const rows = D.conv.filter(r=>inScope(r.JourneyName,r.SendMonth));
-  const {out, dmap} = convAgg(rows, dim, monthly, false);
+  const cred = D.conv.map(credOf).filter(c=>c && inScope(c.j,c.mo));
+  const {out, dmap} = convAgg(rows, cred, dim, monthly, false);
   const statuses = {}; rows.forEach(r=>statuses[r.LeadStatus||'(empty)']=(statuses[r.LeadStatus||'(empty)']||0)+1);
-  const stList = Object.keys(statuses).sort((a,b)=>statuses[b]-statuses[a]);
-  const tot = {name:'',Leads:0,Conv:0,Open:0,Click:0,Days:0,St:{},Deliv:[...dmap.values()].reduce((x,y)=>x+y,0)};
-  out.forEach(a=>{tot.Leads+=a.Leads;tot.Conv+=a.Conv;tot.Open+=a.Open;tot.Click+=a.Click;tot.Days+=a.Days;for(const s in a.St)tot.St[s]=(tot.St[s]||0)+a.St[s];});
-  cards('cards', [[n(tot.Leads),'Leads generated after send'],[n(tot.Conv),'Converted leads (Signed)'],[pct(tot.Conv,tot.Leads),'Conversion rate'],
-         [tot.Deliv?(tot.Leads/tot.Deliv*1000).toFixed(2).replace('.',','):'–','Leads / 1,000 delivered'],[pct(tot.Open,tot.Leads),'Leads who opened'],[pct(tot.Click,tot.Leads),'Leads who clicked'],
-         [tot.Leads?(tot.Days/tot.Leads).toFixed(1).replace('.',','):'–','Avg. delay (days)']]);
+  const stAll = Object.keys(statuses).sort((a,b)=>statuses[b]-statuses[a]), stList = stAll.slice(0,8);   /* the table keeps the 8 most frequent statuses */
+  const tot = {name:'',Leads:0,Conv:0,Cred:0,Att:0,Open:0,Click:0,Days:0,St:{},Deliv:[...dmap.values()].reduce((x,y)=>x+y,0)};
+  out.forEach(a=>{tot.Leads+=a.Leads;tot.Conv+=a.Conv;tot.Cred+=a.Cred;tot.Att+=a.Att;tot.Open+=a.Open;tot.Click+=a.Click;tot.Days+=a.Days;for(const s in a.St)tot.St[s]=(tot.St[s]||0)+a.St[s];});
+  const kinds = {M:0,T:0,N:0}; rows.forEach(r=>kinds[kindOf(r)]++);
+  const legacy = !D.conv.some(r=>r.OriginKind!==undefined);
+  cards('cards', legacy
+    ? [[n(tot.Leads),'Leads generated after send'],[n(tot.Conv),'Converted leads (Signed)'],[pct(tot.Conv,tot.Leads),'Conversion rate'],[tot.Deliv?(tot.Leads/tot.Deliv*1000).toFixed(2).replace('.',','):'–','Leads / 1,000 delivered'],[pct(tot.Open,tot.Leads),'Leads who opened'],[pct(tot.Click,tot.Leads),'Leads who clicked'],[tot.Leads?(tot.Days/tot.Leads).toFixed(1).replace('.',','):'–','Avg. delay (days)']]
+    : [[n(tot.Leads),'Leads (all)'],[n(kinds.M),'Generated after a marketing email'],[n(kinds.T),'Triggered an operational email'],[n(kinds.N),'No email found'],
+       [n(tot.Conv),'Signed'],[pct(tot.Conv,tot.Leads),'Conversion rate'],[tot.Deliv?(tot.Att/tot.Deliv*1000).toFixed(2).replace('.',','):'–','Leads / 1,000 delivered'],
+       [pct(tot.Open,tot.Att),'Leads who opened (email found)'],[pct(tot.Click,tot.Att),'Leads who clicked (email found)'],[tot.Att?(tot.Days/tot.Att).toFixed(1).replace('.',','):'–','Avg. delay email ↔ lead (days)']]);
   const isJ = dim==='journey';
   const keyCols = isJ ? journeyCols(false, monthly)
     : [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}].concat(monthly?[{k:'month',l:'Send month',v:a=>a.month,f:a=>esc(a.month)}]:[]);
@@ -740,28 +754,31 @@ function viewConv(){
     {k:'Deliv',l:'Delivered',v:a=>a.Deliv,f:a=>n(a.Deliv)},
     {k:'Leads',l:'Leads',v:a=>a.Leads,f:a=>n(a.Leads)},
     {k:'Per1k',l:'Leads / 1,000 deliv.',v:a=>a.Deliv?a.Leads/a.Deliv:-1,f:a=>a.Deliv?(a.Leads/a.Deliv*1000).toFixed(2).replace('.',','):'–'},
-    {k:'Conv',l:'Converted',v:a=>a.Conv,f:a=>n(a.Conv)},
-    {k:'ConvR',l:'Conv. %',v:a=>a.Leads?a.Conv/a.Leads:-1,f:a=>pct(a.Conv,a.Leads)},
+    {k:'Conv',l:'Signed (these leads)',v:a=>a.Conv,f:a=>n(a.Conv)},
+    {k:'ConvR',l:'Signed %',v:a=>a.Leads?a.Conv/a.Leads:-1,f:a=>pct(a.Conv,a.Leads)},
+    {k:'Cred',l:'Conversions credited (last email)',v:a=>a.Cred,f:a=>n(a.Cred)},
     {k:'Open',l:'Leads openers',v:a=>a.Open,f:a=>n(a.Open)},
     {k:'Click',l:'Leads clickers',v:a=>a.Click,f:a=>n(a.Click)},
-    {k:'Days',l:'Avg. delay (d)',v:a=>a.Leads?a.Days/a.Leads:-1,f:a=>a.Leads?(a.Days/a.Leads).toFixed(1).replace('.',','):'–'},
+    {k:'Days',l:'Avg. delay (d)',v:a=>a.Att?a.Days/a.Att:-1,f:a=>a.Att?(a.Days/a.Att).toFixed(1).replace('.',','):'–'},
     ...stList.map(s=>({k:'st_'+s,l:'Status: '+s,v:a=>a.St[s]||0,f:a=>n(a.St[s]||0)}))
   ];
   let opts = {defK:monthly?'month':null};
   if (isJ){
-    const acts = D.email.length ? convAgg(rows, 'journey', monthly, true).out : [];
+    const acts = D.email.length ? convAgg(rows, cred, 'journey', monthly, true).out.filter(a=>a.act) : [];   /* no activity row for leads without an email */
     opts = {cmp:recentCmp, children:childMap(acts, monthly), childCell:actChildCell};
   }
   opts.empty = D.conv.length ? 'No data for the current selection. Try "Reset filters".' : 'No leads loaded yet (DASH_Conversions).';
   setSummary(out.length, dim);
   renderTable('tbl', keyCols, cols, out, tot, opts);
-  const byM = {}; rows.forEach(r=>{(byM[r.SendMonth]=byM[r.SendMonth]||{l:0,c:0}); byM[r.SendMonth].l++; byM[r.SendMonth].c+=r.IsConverted;});
+  const byM = {}; rows.forEach(r=>{ const x = byM[r.SendMonth] = byM[r.SendMonth] || {M:0,T:0,N:0}; x[kindOf(r)]++; });
   const ms = Object.keys(byM).sort();
   drawCharts([
-    {title:'Leads by send month',labels:ms,sets:[{l:'Leads',d:ms.map(x=>byM[x].l)},{l:'Signed',d:ms.map(x=>byM[x].c)}]},
-    {title:'Leads by status (period)',type:'bar',horizontal:true,labels:stList,sets:[{l:'Leads',d:stList.map(s=>statuses[s])}]}
+    legacy ? {title:'Leads by send month',labels:ms,sets:[{l:'Leads',d:ms.map(x=>byM[x].M)}]}
+           : {title:'Leads by month (email month, else creation month)',type:'bar',stacked:true,labels:ms,sets:[{l:'After a marketing email',color:'#c30045',colorD:'#ff7da3',d:ms.map(x=>byM[x].M)},{l:'Triggered an email',color:'#2a7fb8',colorD:'#6cb8ee',d:ms.map(x=>byM[x].T)},{l:'No email found',color:'#8a97a2',colorD:'#6b7885',d:ms.map(x=>byM[x].N)}]},
+    {title:'Leads by status (period)',type:'bar',horizontal:true,labels:stAll,sets:[{l:'Leads',d:stAll.map(s=>statuses[s])}]}
   ]);
-  $('note').textContent = "Only journeys MKT_XSELL, MKT_PROMO, MKT_NEWS, ODO_, OCL_, ODD_OFF_ and OCX_XSELL_. A lead is attributed to the last send received in the 30 days before its creation (email match), only if the journey product equals the lead product (or the journey product is ALL), and only for statuses that trigger emails (Incomplete: ODO_BANK_CAR_DropOut only; Offer Created: ODD_OFF only) plus Signed (converted). Each lead counts for one journey only. Click the arrow in front of a journey to show the split by email activity.";
+  $('note').textContent = "All leads of Lead_Salesforce_1 are listed, then compared with the emails received (journeys MKT_XSELL_, MKT_PROMO_, MKT_NEWS_, OCX_XSELL_, OCL_, ODO_, ODD_OFF_) whose product matches the lead product (or is ALL; see Product mapping in the admin page). Generated after a marketing email: the last such email received in the 30 days before the lead was created. Triggered an email: the lead triggered an OCL / ODO / ODD_OFF journey (first email within 30 days after creation; used when no marketing email precedes it). No email found: leads without email, not in _Subscribers or without a matching email, shown as \"(no email)\". Signed leads are credited to the LAST email received (within 30 days before or after creation), shown in \"Conversions credited\"; \"Signed (these leads)\" counts the Signed leads among those generated by the journey. Delay = days between the email and the lead (either direction). Click the arrow in front of a journey to show the split by email activity." +
+    (legacy ? " DASH_Conversions still has the old structure: rerun query 04 (backfill) after adding the new fields (see the README)." : "");
 }
 
 /* ---------- Alerts ---------- */
@@ -1199,7 +1216,7 @@ function setup(){
   $('fFrom').innerHTML = opts; $('fTo').innerHTML = opts;
   S.from = months[Math.max(0,months.length-12)] || ''; S.to = months[months.length-1] || '';
   $('fFrom').value = S.from; $('fTo').value = S.to;
-  const names = [...new Set([...D.kpi,...D.conv].map(r=>r.JourneyName))];
+  const names = [...new Set([...D.kpi,...D.conv].map(r=>r.JourneyName))].filter(x=>x!=='(no email)');
   const fill = (id,kind) => { const vals=[...new Set(names.map(nm=>parse(nm)[kind]))].sort();
     $(id).innerHTML = '<option value="">All</option>'+vals.map(v=>`<option value="${esc(v)}">${esc(lab(kind,v))}</option>`).join(''); };
   fill('fType','type'); fill('fProd','product');

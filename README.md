@@ -7,7 +7,7 @@ Les DE gardent l'historique au-delà des ~6 mois de rétention des Data Views.
 | DE | Champs (PK en gras) |
 |---|---|
 | DASH_Journey_KPI_Monthly | **JourneyName** Text(200), **Month** Text(7), Category Text(3), Sends, Bounces, Opens, UniqueClicks, Unsubscribes, Complaints (Number) |
-| DASH_Conversions | **LeadId** Text(18), JourneyName Text(200), Category Text(50), SendMonth Text(7), SendDate Text(50), LeadCreatedDate Text(50), LeadStatus Text(100), **Product Text(20), LeadProduct Text(20), EmailName Text(200)** (nouveaux champs), IsConverted, DaysToLead, Opened, Clicked (Number) |
+| DASH_Conversions | **LeadId** Text(18) ; une ligne par lead : JourneyName Text(200) (journey d'origine ou « (no email) »), Category Text(50), SendMonth Text(7), SendDate Text(50), LeadCreatedDate Text(50), LeadStatus Text(100), Product Text(20), LeadProduct Text(20), EmailName Text(200), **OriginKind Text(1), ConvJourney Text(200), ConvEmailName Text(200), ConvSendMonth Text(7)** (nouveaux champs : voir `sql/NOTES.md`), IsConverted, DaysToLead, Opened, Clicked (Number) |
 | DASH_Email_KPI_Monthly | **JourneyName** Text(200), **Month** Text(7), **EmailName** Text(200), Sends, Bounces, Opens, UniqueClicks, Unsubscribes, Complaints (Number) |
 | DASH_Link_Monthly | **JourneyName** Text(200), **Month** Text(7), **RowKey** Text(32) (clé primaire composée dans cet ordre, pour des lectures rapides), EmailName Text(200), LinkName Text(300), LinkContent Text(300), UniqueClicks, TotalClicks (Number) |
 | DASH_Domain_Monthly | **Domain** Text(100), **Month** Text(7), Sends, Bounces, Complaints (Number) |
@@ -145,3 +145,6 @@ Testée dans Chromium (Edge, Chrome) et WebKit (Safari). Les listes déroulantes
 ### Noms de liens et mapping des produits (page d'administration)
 - Onglet **Link names** : règles « motif d'adresse = nom ». Tout lien dont l'adresse (sans paramètres) contient le motif (`*` = joker) prend ce nom dans Journey analysis, ex. `view.belfiusdirect.be` = ReadOnline, `belfiusdirect.be/*/contactus` = ContactUs. Le motif le plus long l'emporte. Les règles sont stockées dans `DASH_Config` (clés `linkmap_001`, ...) et s'appliquent immédiatement (pas de requête à relancer).
 - Onglet **Product mapping** : relie le produit du nom de l'email, `Page_Origin__c` du lead et `Product2__c` du contrat par un groupe de produits commun (DE `DASH_Product_Map`). Créez la DE, puis cliquez sur « Add the default mapping ». Les requêtes 02 et 04 lisent ce mapping à leur prochain passage ; relancez 04 (backfill) pour recalculer l'historique.
+
+### Leads : attribution « leads d'abord »
+Le dashboard liste **tous** les leads, puis les compare aux emails reçus : leads générés après un email marketing (MKT_, OCX_XSELL_), leads qui ont déclenché un email opérationnel (OCL_, ODO_, ODD_OFF_), leads sans email (« (no email) »). Une conversion (statut Signed) est créditée au **dernier email reçu**. Détail des règles et migration de la DE : `sql/NOTES.md`, section « Conversions ».
