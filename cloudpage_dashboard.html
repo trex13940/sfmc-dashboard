@@ -392,13 +392,14 @@ const S = {tab:'journeys', fam:'ALL', type:'', prod:'', from:'', to:'', gran:'to
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
+const LKINIT = new Set();
 const EXPKEYS = {};      /* keys of the rows that can be expanded, per table */
 
 const TABS = {
   journeys:{view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lCompact','lExp','lQ'], csv:'tbl'},
   cats:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lCompact','lView','lQ'], csv:'tbl'},
   conv:    {view:'main', ctl:['lFam','lType','lProd','lFrom','lTo','lGran','lGrp','lExp','lQ'], csv:'tbl'},
-  ana:     {view:'ana',  ctl:['lJ','lFrom','lTo','lCompact'], csv:'tEmail'},
+  ana:     {view:'ana',  ctl:['lJ','lFrom','lTo','lCompact','lExp'], csv:'tEmail'},
   ins:     {view:'ins',  ctl:['lFam','lType','lProd','lFrom','lTo'], csv:null},
   alerts:  {view:'alerts', ctl:['lAlert'], csv:'tAlerts'},
   sms:     {view:'sms',  ctl:['lFrom','lTo','lQ'], csv:'tSms'}
@@ -559,7 +560,7 @@ function renderTable(id, keyCols, cols, rows, total, opts){
       return `<td class="${(c.left?'l ':'')+(c.cls?c.cls(r):'')}">${inner}</td>`;
     }).join('')+'</tr>';
     if (open) for (const x of [...ch].sort((a,b)=>kc.v(b)>kc.v(a)?1:kc.v(b)<kc.v(a)?-1:0))
-      h += '<tr class="child">'+all.map((c,i)=> c.left ? (i===0 ? `<td class="l ind">↳ ${esc(x.act||x.name)}</td>` : '<td class="l"></td>') : `<td>${c.f(x)}</td>`).join('')+'</tr>';
+      h += '<tr class="child">'+all.map((c,i)=> c.left ? (opts.childCell ? opts.childCell(c,x,i) : i===0 ? `<td class="l ind">↳ ${esc(x.act||x.name)}</td>` : '<td class="l"></td>') : `<td>${c.f(x)}</td>`).join('')+'</tr>';
   }
   if (!rows.length) h += `<tr><td class="l msg" colspan="${all.length}">${esc(opts.empty||'No data for the current selection.')}</td></tr>`;
   h += '</tbody>';
@@ -787,8 +788,10 @@ async function viewAna(){
   const byEmail = group(eRows, r=>[r.EmailName ? parseEmail(r.EmailName).clean : '(unknown)','']);   /* identical emails (versions, PDF, Website...) merged */
   renderTable('tEmail', keyE, kpiCols(), byEmail, byEmail.length>1?tot:null, {defK:'Sends', empty});
   /* links : chargés à la demande */
-  const lc = [{k:'email',l:'Email',v:a=>a.email.toLowerCase(),f:a=>esc(a.email)},{k:'lang',l:'Lang',v:a=>a.lang,f:a=>esc(a.lang||'–')},
-              {k:'link',l:'Link name',v:a=>a.link.toLowerCase(),f:a=>esc(a.link||'–')},{k:'content',l:'Link content',v:a=>a.content.toLowerCase(),f:a=>`<span title="${esc(a.content)}">${esc(a.content.length>80?a.content.slice(0,80)+'…':a.content||'–')}</span>`}];
+  const lc = [{k:'email',l:'Email',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)},{k:'lang',l:'Lang',v:a=>a.lang,f:a=>esc(a.lang||'–')},
+              {k:'link',l:'Link name',v:a=>'',f:a=>''},{k:'content',l:'Link content',v:a=>'',f:a=>''}];
+  const linkCell = (c,x,i) => i===0 ? '<td class="l ind">↳</td>' : c.k==='link' ? `<td class="l">${esc(x.link||'–')}</td>`
+    : c.k==='content' ? `<td class="l"><span title="${esc(x.content)}">${esc(x.content.length>80?x.content.slice(0,80)+'…':x.content||'–')}</span></td>` : '<td class="l"></td>';
   const lcols = [{k:'uq',l:'Unique clicks',v:a=>a.uq,f:a=>n(a.uq)},{k:'tot',l:'Total clicks',v:a=>a.tot,f:a=>n(a.tot)}];
   const LK = S.j+'|'+S.from+'|'+S.to, LJ = D.linksByJ[LK];
   if (D.linksErr[LK]){
@@ -804,10 +807,13 @@ async function viewAna(){
       const en = r.EmailName ? parseEmail(r.EmailName).clean : '', key=en+'|'+ln+'|'+lc; let a=m.get(key);
       if(!a){ a={email:en,lang:parseEmail(r.EmailName).lang,link:ln,content:lc,uq:0,tot:0}; m.set(key,a); }
       a.uq+=r.UniqueClicks; a.tot+=r.TotalClicks; }
-    const list=[...m.values()], lt={uq:list.reduce((x,a)=>x+a.uq,0),tot:list.reduce((x,a)=>x+a.tot,0)};
-    renderTable('tLinks', lc, lcols, list, list.length>1?lt:null, {defK:'uq', empty:'No link data for this journey (DASH_Link_Monthly).'});
+    const byE = new Map();
+    for (const x of m.values()){ let e = byE.get(x.email); if(!e){ e={name:x.email||'(unknown)',lang:x.lang,uq:0,tot:0,links:[]}; byE.set(x.email,e); } e.uq+=x.uq; e.tot+=x.tot; e.links.push(x); if(!e.lang) e.lang=x.lang; }
+    const list=[...byE.values()], lt={uq:list.reduce((s,a)=>s+a.uq,0),tot:list.reduce((s,a)=>s+a.tot,0)};
+    if (!LKINIT.has(LK)){ LKINIT.add(LK); list.forEach(e=>EXP.add('tLinks|'+e.name+'|')); }   /* links are shown expanded the first time */
+    renderTable('tLinks', lc, lcols, list, list.length>1?lt:null, {defK:'uq', childCell:linkCell, children:e=>e.links.map(x=>({...x,name:x.link})), empty:'No link data for this journey (DASH_Link_Monthly).'});
   }
-  $('aNote').textContent = "FR / NL are read from the email name (_FR_ / _NL_). Links: unique clicks = first click of a recipient on a link, total clicks = all clicks; attributed to the send month; URLs are shown without their parameters. Same rate definitions as the Journeys tab.";
+  $('aNote').textContent = "FR / NL are read from the email name (_FR_ / _NL_). Links are grouped by email (click the arrow to show / hide them): unique clicks = first click of a recipient on a link, total clicks = all clicks; attributed to the send month; URLs are shown without their parameters. Same rate definitions as the Journeys tab.";
 }
 
 /* ---------- Insights ---------- */
@@ -1130,8 +1136,8 @@ function setup(){
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fFrom',v=>S.from=v); on('fTo',v=>S.to=v); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
   on('fJ',v=>S.j=v); on('fAlert',v=>S.alert=v);
-  $('bExp').onclick = ()=>{ (EXPKEYS.tbl||[]).forEach(k=>EXP.add(k)); render(); };
-  $('bCol').onclick = ()=>{ (EXPKEYS.tbl||[]).forEach(k=>EXP.delete(k)); render(); };
+  $('bExp').onclick = ()=>{ (EXPKEYS[S.tab==='ana'?'tLinks':'tbl']||[]).forEach(k=>EXP.add(k)); render(); };
+  $('bCol').onclick = ()=>{ (EXPKEYS[S.tab==='ana'?'tLinks':'tbl']||[]).forEach(k=>EXP.delete(k)); render(); };
   $('bCompact').onclick = ()=>{ S.compact = !S.compact; render(); };
   document.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{ S.sub=b.dataset.sub; render(); });
   document.querySelectorAll('[data-win]').forEach(b=>b.onclick=()=>{ S.win=b.dataset.win; render(); });
