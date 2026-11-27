@@ -667,7 +667,7 @@ async function viewAna(){
     loadLinks(S.j).then(()=>{ if (S.tab==='ana') render(); });
   } else {
     const m = new Map();
-    for (const r of LJ){ if (!inMonths(r.Month)) continue;
+    for (const r of LJ){ if ((r.JourneyName && r.JourneyName!==S.j) || !inMonths(r.Month)) continue;
       const key=r.EmailName+'|'+r.LinkName+'|'+r.LinkContent; let a=m.get(key);
       if(!a){ a={email:r.EmailName||'',lang:parseEmail(r.EmailName).lang,link:r.LinkName||'',content:r.LinkContent||'',uq:0,tot:0}; m.set(key,a); }
       a.uq+=r.UniqueClicks; a.tot+=r.TotalClicks; }
