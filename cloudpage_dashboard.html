@@ -298,6 +298,16 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
 </header>
 <main id="content" tabindex="-1">
   <div id="errBox" class="errbox" role="alert" hidden><b id="errMsg"></b><p id="errDetail"></p><button class="btn" id="bRetry" type="button">Retry</button></div>
+    <div class="subnav" id="insNav" role="group" aria-label="Insights views" hidden>
+      <button type="button" class="chip" data-sub="deliv" aria-pressed="true">Deliverability</button>
+      <button type="button" class="chip" data-sub="aud" aria-pressed="false">Subscriber base</button>
+      <button type="button" class="chip" data-sub="geo" aria-pressed="false">Geography</button>
+      <span class="grow"></span>
+      <span id="segBar" role="group" aria-label="Contract segment" hidden><span class="lbl">Contract</span>
+        <button type="button" class="chip" data-seg="all" aria-pressed="true">All</button><button type="button" class="chip" data-seg="yes" aria-pressed="false">Active or future</button><button type="button" class="chip" data-seg="no" aria-pressed="false">No active contract</button></span>
+      <span id="winBar" role="group" aria-label="Look-back window" hidden><span class="lbl">Previous complete months</span>
+        <button type="button" class="chip" data-win="3" aria-pressed="true">3</button><button type="button" class="chip" data-win="6" aria-pressed="false">6</button><button type="button" class="chip" data-win="12" aria-pressed="false">12</button></span>
+    </div>
   <div class="bar">
     <label class="ctl" id="lFam">Family<select id="fFam"><option value="ALL">All</option><option value="MKT">Marketing (MKT_)</option><option value="OPS">Operational (Oxx_)</option></select></label>
     <label class="ctl" id="lType">Campaign type<select id="fType"><option value="">All</option></select></label>
@@ -346,16 +356,6 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
   </section>
 
   <section id="v-ins" hidden>
-    <div class="subnav" role="group" aria-label="Insights views">
-      <button type="button" class="chip" data-sub="deliv" aria-pressed="true">Deliverability</button>
-      <button type="button" class="chip" data-sub="aud" aria-pressed="false">Subscriber base</button>
-      <button type="button" class="chip" data-sub="geo" aria-pressed="false">Geography</button>
-      <span class="grow"></span>
-      <span id="segBar" role="group" aria-label="Contract segment" hidden><span class="lbl">Contract</span>
-        <button type="button" class="chip" data-seg="all" aria-pressed="true">All</button><button type="button" class="chip" data-seg="yes" aria-pressed="false">Active or future</button><button type="button" class="chip" data-seg="no" aria-pressed="false">No active contract</button></span>
-      <span id="winBar" role="group" aria-label="Look-back window" hidden><span class="lbl">Previous complete months</span>
-        <button type="button" class="chip" data-win="3" aria-pressed="true">3</button><button type="button" class="chip" data-win="6" aria-pressed="false">6</button><button type="button" class="chip" data-win="12" aria-pressed="false">12</button></span>
-    </div>
     <div id="ins-deliv">
       <div class="tops" id="tops"></div>
       <div class="note" id="iNote"></div>
@@ -1157,6 +1157,7 @@ function render(){
   const cfg = TABS[S.tab];
   let ctl = (S.tab==='ins' && S.sub!=='deliv') ? [] : cfg.ctl;
   if (S.tab==='ana' && !S.j) ctl = ctl.filter(id=>['lJ','lFrom','lTo'].includes(id));   /* nothing to act on until a journey is chosen */   /* the filter bar does not apply to the subscriber / geography views */
+  $('insNav').hidden = S.tab!=='ins';   /* the Insights views (Deliverability / Subscriber base / Geography) stay at the very top */
   document.querySelectorAll('.ctl').forEach(el=>el.hidden = !ctl.includes(el.id));
   if (S.tab==='conv' && S.grp!=='journey') $('lExp').hidden = true;
   $('bCsv').hidden = !cfg.csv || (S.tab==='ana' && !S.j);
