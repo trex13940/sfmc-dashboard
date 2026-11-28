@@ -31,3 +31,11 @@ SELECT TOP 40 MailingPostalCode, COUNT(*) AS N FROM Contact_Salesforce_1 GROUP B
 
 -- P10 : exemples de SubscriberKey (a comparer avec l Id des contacts)
 SELECT TOP 5 SubscriberKey, EmailAddress, Status FROM _Subscribers
+
+
+/* ---- SONDE P10 : valeurs de BounceCategory (pour separer hard / soft bounces) ----
+   Cible DASH_Debug (Step Text(200) PK, N Number), mode Overwrite, Run Once.
+   Les requetes 01, 03, 10 et 11 comptent HardBounces avec BounceCategory LIKE 'Hard%' : verifier ici l orthographe exacte des categories. */
+SELECT TOP 20 'P10 BounceCategory=[' + ISNULL(CAST(BounceCategory AS varchar(60)), 'NULL') + ']' AS Step, COUNT(*) AS N
+FROM _Bounce
+GROUP BY BounceCategory

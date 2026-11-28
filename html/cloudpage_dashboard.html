@@ -394,6 +394,9 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
   <section id="v-ins" hidden>
     <div id="ins-deliv">
       <div class="tops" id="tops"></div>
+      <div class="h2" id="compTitle">Deliverability: your figures against the providers' references</div>
+      <div class="wrap"><table id="tComp"></table></div>
+      <details class="recomore" open><summary>What Google, Yahoo and Microsoft require</summary><div class="note" id="compText"></div></details>
       <div class="note" id="iNote"></div>
     </div>
     <div id="ins-aud" hidden>
@@ -567,9 +570,9 @@ function group(rows, keyFn){
   for (const r of rows){
     const [name,month,act] = keyFn(r), key = name+'|'+(act||'')+'|'+month;
     let a = m.get(key);
-    if(!a){ a={name,month,act:act||'',last:'',Sends:0,Bounces:0,Opens:0,Clicks:0,Unsubs:0,Compl:0}; m.set(key,a); }
+    if(!a){ a={name,month,act:act||'',last:'',Sends:0,Bounces:0,Hard:0,Opens:0,Clicks:0,Unsubs:0,Compl:0}; m.set(key,a); }
     if (r.Month > a.last) a.last = r.Month;
-    a.Sends+=r.Sends; a.Bounces+=r.Bounces; a.Opens+=r.Opens; a.Clicks+=r.UniqueClicks; a.Unsubs+=r.Unsubscribes; a.Compl+=r.Complaints;
+    a.Sends+=r.Sends; a.Bounces+=r.Bounces; a.Hard+=(r.HardBounces||0); a.Opens+=r.Opens; a.Clicks+=r.UniqueClicks; a.Unsubs+=r.Unsubscribes; a.Compl+=r.Complaints;
   }
   return [...m.values()];
 }
@@ -764,7 +767,7 @@ function viewKpi(dim){
   renderTable('tbl', keyCols, kpiCols(), grouped, tot, opts);
   drawCharts(byMonthCharts(rows));
   $('note').textContent = (S.tab==='journeys' ? "Most recent first (latest send month, then covered month). Click the arrow in front of a journey to show its email activities with their own type and product (FR/NL versions merged; for an ongoing journey the Month column shows the send month taken into account; anything after a \"-\" in the campaign name is ignored). " : "") +
-    "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens. The arrows on the cards compare with the previous period of the same length (percentage points for rates; green = better, red = worse). In the rates chart, Open % uses the left axis and CTR / Bounce % the right axis." +
+    "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens. Delivered means accepted by the receiving server, not necessarily in the inbox. Open rates are overstated by mail privacy protection (Apple Mail, Gmail image proxy): compare journeys with each other and give more weight to clicks. The arrows on the cards compare with the previous period of the same length (percentage points for rates; green = better, red = worse). In the rates chart, Open % uses the left axis and CTR / Bounce % the right axis." +
     (S.tab==='journeys' && !D.email.length ? " Email-level data not available yet (DASH_Email_KPI_Monthly)." : "");
 }
 
@@ -858,33 +861,43 @@ function recoRules(){
   const elig = J.filter(a=>deliv(a)>=minS), keyOf = a => { const p = parse(a.name); return p.fam+'_'+p.type; };
   const bench = (a, fn) => { let peers = elig.filter(x=>x.name!==a.name && keyOf(x)===keyOf(a)); if (peers.length<3) peers = elig.filter(x=>x.name!==a.name && parse(x.name).fam===parse(a.name).fam); return peers.length<3 ? null : {v:medianOf(peers.map(fn)), n:peers.length, key:keyOf(a)}; };
   const goJ = a => ({tab:'ana', j:a.name}), nm = a => parse(a.name).campaign;
-  /* ---- Deliverability ---- */
+  /* ---- Deliverability (references: Google and Yahoo ask for a complaint rate under 0,1 % and never 0,3 %; no provider publishes a bounce threshold, the usual benchmark is under 2 % in total and well under 1 % for hard bounces) ---- */
+  const hasHard = rows.some(r=>r.HardBounces!==undefined), hr = a => a.Sends ? a.Hard/a.Sends : 0, cpr = a => deliv(a) ? a.Compl/deliv(a) : 0;
+  const REF_COMPL = 'Google asks for a spam rate under 0,1 % and never 0,3 %; Yahoo 0,3 %.';
   run('Journey bounce rate','Deliverability',()=>{
     if (!elig.length) return 'no journey with at least '+n(minS)+' delivered emails in the period';
-    for (const a of elig){ const b = bench(a,br), r = br(a);
-      if (r>=0.05) F('high','Deliverability',nm(a)+': '+pct(a.Bounces,a.Sends)+' of emails bounce',n(a.Bounces)+' of '+n(a.Sends)+' sends bounced.','Clean the list before the next send: remove hard bounces and old addresses, and check where these addresses come from.',goJ(a),a.Sends);
-      else if (b && r>=Math.max(2*b.v, b.v+0.01) && r>=0.02) F('medium','Deliverability',nm(a)+': bounce rate '+pct(a.Bounces,a.Sends),n(a.Bounces)+' bounces on '+n(a.Sends)+' sends, against a median of '+fx1(b.v*100)+' % for '+b.n+' similar journeys ('+b.key+').','Check the quality of the addresses this journey sends to (source, age, hard bounces).',goJ(a),a.Sends); }
+    for (const a of elig){ const b = bench(a,br), r = br(a), h = hr(a), hardTxt = hasHard ? ' ('+fx1(h*100)+' % hard bounces)' : '';
+      if (hasHard && h>=0.01) F(h>=0.02?'high':'medium','Deliverability',nm(a)+': '+fx1(h*100)+' % hard bounces',n(a.Hard)+' hard bounces on '+n(a.Sends)+' sends. Hard bounces are the ones that hurt the sender reputation: the usual target is well under 1 %.','Remove the addresses that hard bounced and check where these addresses come from (old contacts, typos, purchased lists).',goJ(a),a.Sends);
+      else if (!hasHard && r>=0.05) F('high','Deliverability',nm(a)+': '+pct(a.Bounces,a.Sends)+' of emails bounce',n(a.Bounces)+' of '+n(a.Sends)+' sends bounced (hard and soft bounces are not separated yet: see the README).','Clean the list before the next send: remove hard bounces and old addresses, and check where these addresses come from.',goJ(a),a.Sends);
+      else if (b && r>=Math.max(2*b.v, b.v+0.01) && r>=0.02) F('medium','Deliverability',nm(a)+': bounce rate '+pct(a.Bounces,a.Sends),n(a.Bounces)+' bounces on '+n(a.Sends)+' sends'+hardTxt+', against a median of '+fx1(b.v*100)+' % for '+b.n+' similar journeys ('+b.key+').','Check the quality of the addresses this journey sends to and look for blocks (reputation) among the soft bounces.',goJ(a),a.Sends); }
+  });
+  run('Complaint rate by journey','Deliverability',()=>{
+    if (!elig.length) return 'no journey with at least '+n(minS)+' delivered emails in the period';
+    for (const a of elig){ const c = cpr(a); if (c>=0.001) F(c>=0.003?'high':'medium','Deliverability',nm(a)+': complaint rate '+fx1(c*100)+' %',n(a.Compl)+' complaints on '+n(deliv(a))+' delivered emails. '+REF_COMPL,'Review who receives this journey (consent, relevance, frequency) and make the unsubscribe link easy to find.',goJ(a),deliv(a)); }
   });
   run('Domains','Deliverability',()=>{
-    const dm = new Map(); for (const r of D.domain){ if (!inMonths(r.Month)) continue; let a = dm.get(r.Domain); if(!a){ a={name:r.Domain,Sends:0,Bounces:0,Compl:0}; dm.set(r.Domain,a); } a.Sends+=r.Sends; a.Bounces+=r.Bounces; a.Compl+=r.Complaints; }
+    const dm = new Map(); for (const r of D.domain){ if (!inMonths(r.Month)) continue; let a = dm.get(r.Domain); if(!a){ a={name:r.Domain,Sends:0,Bounces:0,Hard:0,Compl:0}; dm.set(r.Domain,a); } a.Sends+=r.Sends; a.Bounces+=r.Bounces; a.Hard+=(r.HardBounces||0); a.Compl+=r.Complaints; }
     const ds = [...dm.values()], tS = ds.reduce((s,a)=>s+a.Sends,0), tB = ds.reduce((s,a)=>s+a.Bounces,0); if (!ds.length || !tS) return 'no domain data (DASH_Domain_Monthly)';
-    const avg = tB/tS;
-    for (const a of ds){ if (a.Sends<minS) continue; const r = a.Bounces/a.Sends, c = a.Compl/a.Sends;
-      if (c>=0.001) F('high','Deliverability',a.name+': complaint rate '+fx1(c*100)+' %',n(a.Compl)+' complaints on '+n(a.Sends)+' sends (a rate above 0,1 % puts the sender reputation at risk).','Review who receives these emails (consent, frequency) and add a visible unsubscribe link.',{tab:'ins',sub:'deliv'},a.Sends);
-      if (r>=Math.max(2*avg,0.02)) F(r>=0.05?'high':'medium','Deliverability',a.name+': bounce rate '+fx1(r*100)+' %',n(a.Bounces)+' bounces on '+n(a.Sends)+' sends; all domains together: '+fx1(avg*100)+' %.','Check the addresses of this domain (typos, abandoned mailboxes) and the reputation of the sending domain with this provider.',{tab:'ins',sub:'deliv'},a.Sends); }
+    const avg = tB/tS, domHard = D.domain.some(r=>r.HardBounces!==undefined);
+    for (const a of ds){ if (a.Sends<minS) continue; const r = a.Bounces/a.Sends, h = a.Hard/a.Sends, dl = a.Sends-a.Bounces, c = dl ? a.Compl/dl : 0, gm = /^(gmail|googlemail)\./.test(a.name);
+      if (c>=0.001) F(c>=0.003?'high':'medium','Deliverability',a.name+': complaint rate '+fx1(c*100)+' %',n(a.Compl)+' complaints on '+n(dl)+' delivered emails. '+REF_COMPL,'Review who receives these emails (consent, frequency) and add a visible and one-click unsubscribe.',{tab:'ins',sub:'deliv'},a.Sends);
+      if (gm && a.Compl===0) F('info','Deliverability',a.name+': no complaint is visible, but Gmail does not report complaints to Marketing Cloud','0 complaints on '+n(dl)+' delivered emails. As far as we know Gmail does not send individual complaints back, so this number says nothing about your Gmail spam rate.','Check the spam rate in Google Postmaster Tools (target under 0,1 %, never 0,3 %) for the sending domain.',{tab:'ins',sub:'deliv'},a.Sends);
+      if (domHard && h>=0.01) F(h>=0.02?'high':'medium','Deliverability',a.name+': '+fx1(h*100)+' % hard bounces',n(a.Hard)+' hard bounces on '+n(a.Sends)+' sends.','Check the addresses of this domain (typos, abandoned mailboxes).',{tab:'ins',sub:'deliv'},a.Sends);
+      else if (r>=Math.max(2*avg,0.02)) F(!domHard && r>=0.05 ? 'high' : 'medium','Deliverability',a.name+': bounce rate '+fx1(r*100)+' %',n(a.Bounces)+' bounces on '+n(a.Sends)+' sends; all domains together: '+fx1(avg*100)+' %.','Check the addresses of this domain and whether the provider blocks you (reputation, authentication: SPF, DKIM, DMARC).',{tab:'ins',sub:'deliv'},a.Sends); }
   });
   run('Delivery trend','Deliverability',()=>{
     if (!prev.length) return 'no previous period of the same length to compare with';
     const c = group(rows, r=>['','']) [0], p = group(prev, r=>['','']) [0]; if (!c || !p || c.Sends<minS || p.Sends<minS) return 'not enough sends in one of the two periods';
     const dc = deliv(c)/c.Sends, dp = deliv(p)/p.Sends;
-    if (dp-dc>=0.01) F('medium','Deliverability','Delivery rate down '+fx1((dp-dc)*100)+' points',fx1(dc*100)+' % in the period against '+fx1(dp*100)+' % in the previous period ('+pr.from+' → '+pr.to+').','Look at the bounce rates by domain and by journey to find where the drop comes from.',{tab:'ins',sub:'deliv'},c.Sends);
+    if (dp-dc>=0.01) F('medium','Deliverability','Delivery rate down '+fx1((dp-dc)*100)+' points',fx1(dc*100)+' % in the period against '+fx1(dp*100)+' % in the previous period ('+pr.from+' → '+pr.to+'). A delivered email only means that the provider accepted it, not that it reached the inbox.','Look at the bounce rates by domain and by journey to find where the drop comes from.',{tab:'ins',sub:'deliv'},c.Sends);
   });
   /* ---- Performance ---- */
   run('Open and click rates against similar journeys','Performance',()=>{
     if (elig.length<4) return 'fewer than 4 journeys with at least '+n(minS)+' delivered emails: no reliable benchmark';
     for (const a of elig){ const bo = bench(a,orate), bc = bench(a,crate); if (!bo) continue;
       const g = bo.v-orate(a);
-      if (g>=gap) F(g>=2*gap?'high':'medium','Performance',nm(a)+': open rate '+fx1(g*100)+' points below similar journeys',pct(a.Opens,deliv(a))+' open rate on '+n(deliv(a))+' delivered emails, against a median of '+fx1(bo.v*100)+' % for '+bo.n+' similar journeys ('+bo.key+').','Test another subject line, sender name or send time; look at the best journey of the same type for inspiration.',goJ(a),deliv(a));
+      const clickLow = !!bc && bc.v>0 && crate(a)<=0.8*bc.v;   /* opens are inflated by mail privacy protection: only call it urgent when the clicks confirm it */
+      if (g>=gap) F(g>=2*gap && clickLow ? 'high' : 'medium','Performance',nm(a)+': open rate '+fx1(g*100)+' points below similar journeys',pct(a.Opens,deliv(a))+' open rate on '+n(deliv(a))+' delivered emails, against a median of '+fx1(bo.v*100)+' % for '+bo.n+' similar journeys ('+bo.key+')'+(bc ? '; click rate '+fx1(crate(a)*100)+' % against '+fx1(bc.v*100)+' %' : '')+'.','Test another subject line, sender name or send time; check the click rate before drawing conclusions, because opens are overstated by mail privacy protection (Apple Mail, Gmail image proxy).',goJ(a),deliv(a));
       if (bc && bc.v>=0.01 && crate(a)<=0.6*bc.v) F('medium','Performance',nm(a)+': click rate '+fx1(crate(a)*100)+' % against '+fx1(bc.v*100)+' % for similar journeys',n(a.Clicks)+' unique clicks on '+n(deliv(a))+' delivered emails.','Review the call to action (position, wording, number of links) and the content of the email.',goJ(a),deliv(a)); }
   });
   run('Change since the previous period','Performance',()=>{
@@ -981,7 +994,7 @@ function viewReco(){
     : `<div class="card"><b>Nothing to report</b><span>${res.checked ? 'No rule is triggered for this period and category.' : 'Not enough data for the checks yet.'}</span></div>`;
   $('recoList').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ const g = JSON.parse(b.dataset.go); if (g.j!==undefined) S.j = g.j; if (g.sub) S.sub = g.sub; if (g.seg) S.seg = g.seg; if (g.gc) S.gc = g.gc; if (g.q!==undefined){ S.q = g.q; $('fQ').value = g.q; } selectTab(g.tab); window.scrollTo(0,0); });
   $('recoSkipped').hidden = !res.skipped.length; $('recoSkipList').innerHTML = res.skipped.map(s=>'<li>'+esc(s)+'</li>').join('');
-  $('recoMethod').innerHTML = 'Rules run on the data already in the dashboard, for the selected period. A rule only fires when the volume is high enough (at least '+n(RECO.minSends||1000)+' delivered emails, '+n(RECO.minLeads||30)+' leads) and compares a journey with the median of similar journeys (same family and type, at least 3 of them) or with the previous period of the same length. Gaps are measured in points (default '+(RECO.gapPt||5)+'). Thresholds: <code>reco_min_sends</code>, <code>reco_min_leads</code> and <code>reco_gap_pt</code> in the admin page (Settings). These are leads to investigate, not proofs: the attribution of leads is an approximation and six months of history do not show seasonality.';
+  $('recoMethod').innerHTML = 'Rules run on the data already in the dashboard, for the selected period. A rule only fires when the volume is high enough (at least '+n(RECO.minSends||1000)+' delivered emails, '+n(RECO.minLeads||30)+' leads) and compares a journey with the median of similar journeys (same family and type, at least 3 of them) or with the previous period of the same length. Gaps are measured in points (default '+(RECO.gapPt||5)+'). Deliverability references: complaint rate under 0,1 % and never 0,3 % (Google, Yahoo); bounces under 2 % in total and hard bounces well under 1 % (industry benchmark, no provider threshold). Open rates are overstated by mail privacy protection, so an open-rate gap is only urgent when the click rate confirms it. Thresholds: <code>reco_min_sends</code>, <code>reco_min_leads</code> and <code>reco_gap_pt</code> in the admin page (Settings). These are leads to investigate, not proofs: the attribution of leads is an approximation and six months of history do not show seasonality.';
 }
 const RECO_CATS_OK = c => ['Deliverability','Performance','Leads','Audience'].includes(c);
 
@@ -1151,9 +1164,29 @@ function topList(title, items, fmtVal){
   const max = Math.max(1, ...items.map(i=>i.val));
   return `<div class="top"><h3>${esc(title)}</h3>${items.length?'<ol>'+items.map((i,x)=>`<li><span class="rk">${x+1}</span><span class="nm" title="${esc(i.title||i.name)}">${esc(i.name)}${i.sub?`<small>${esc(i.sub)}</small>`:''}</span><span class="vl">${fmtVal(i.val)}${i.extra?`<small>${esc(i.extra)}</small>`:''}</span><span class="bar2"><i style="width:${Math.round(i.val/max*100)}%"></i></span></li>`).join('')+'</ol>':'<div class="msg">No data</div>'}</div>`;
 }
+function renderCompliance(rows){
+  const t = group(rows, r=>['','']) [0], hasHard = rows.some(r=>r.HardBounces!==undefined);
+  const st = (v, watch, fix) => v>=fix ? 'Fix' : v>=watch ? 'Watch' : 'OK';
+  const line = (name, v, ref, status, note) => `<tr><td class="l">${esc(name)}</td><td>${v==null?'–':fx1(v*100)+' %'}</td><td class="l">${esc(ref)}</td><td class="l"><b>${status}</b>${note?' <span class="d">'+esc(note)+'</span>':''}</td></tr>`;
+  let h = '';
+  if (t && t.Sends){
+    const c = deliv(t) ? t.Compl/deliv(t) : 0, b = t.Bounces/t.Sends;
+    h += line('Complaint rate (feedback loops)', c, 'Google: under 0,1 %, never 0,3 %. Yahoo: under 0,3 %.', st(c,0.001,0.003), 'Gmail does not report complaints to Marketing Cloud: see Google Postmaster Tools');
+    h += hasHard ? line('Hard bounce rate', t.Hard/t.Sends, 'Industry: well under 1 % (no provider threshold)', st(t.Hard/t.Sends,0.01,0.02), '') : line('Hard bounce rate', null, 'Industry: well under 1 %', 'Not available', 'add the HardBounces field (see the README)');
+    h += line('Total bounce rate', b, 'Industry: under 2 % (no provider threshold)', st(b,0.02,0.05), '');
+    h += line('Unsubscribe rate', deliv(t) ? t.Unsubs/deliv(t) : null, 'No official threshold; opt-outs must be honoured quickly (Yahoo: 2 days)', 'Info', '');
+  }
+  $('tComp').innerHTML = '<thead><tr><th scope="col" class="l">Indicator</th><th scope="col">Period</th><th scope="col" class="l">Reference</th><th scope="col" class="l">Status</th></tr></thead><tbody>'+(h || '<tr><td colspan="4" class="l msg">No data for the period.</td></tr>')+'</tbody>';
+  $('compText').innerHTML = '<p>Rules for senders of more than 5 000 emails a day to Gmail or Outlook.com (you are in that case):</p><ul>'+
+    '<li><b>Authentication</b>: SPF, DKIM and DMARC. Microsoft requires at least a DMARC policy <code>p=none</code> that aligns with SPF or DKIM (recommended <code>p=reject</code>); otherwise mail goes to junk and may be rejected. Not measurable here: check the Sender Authentication Package and your DNS.</li>'+
+    '<li><b>One-click unsubscribe</b> for marketing mail (<code>List-Unsubscribe</code> and <code>List-Unsubscribe-Post</code> headers, RFC 8058), processed within 2 days (Yahoo).</li>'+
+    '<li><b>Complaints</b>: Google asks for a spam rate under 0,1 % and never 0,3 % or more; Yahoo stays under 0,3 %. Watch them in <a href="https://postmaster.google.com" target="_blank" rel="noopener noreferrer">Google Postmaster Tools</a>, Microsoft <a href="https://sendersupport.olc.protection.outlook.com/snds/" target="_blank" rel="noopener noreferrer">SNDS</a> and the Yahoo <a href="https://senders.yahooinc.com" target="_blank" rel="noopener noreferrer">Sender Hub</a> complaint feedback loop.</li></ul>'+
+    '<p>Limits of the figures above: <i>Delivered</i> means that the provider accepted the email, not that it reached the inbox; complaints only come from the providers that send feedback loops; open rates are overstated by mail privacy protection, so rely on clicks when comparing journeys. Sources: <a href="https://support.google.com/mail/answer/14229414" target="_blank" rel="noopener noreferrer">Google</a>, <a href="https://senders.yahooinc.com/best-practices" target="_blank" rel="noopener noreferrer">Yahoo</a>, <a href="https://techcommunity.microsoft.com/blog/outlook/strengthening-email-security-outlook-new-requirements-for-high-volume-senders/4399730" target="_blank" rel="noopener noreferrer">Microsoft</a>.</p>';
+}
 function viewInsDeliv(){
   const dm = new Map();
   for (const r of D.domain){ if(!inMonths(r.Month)) continue; let a=dm.get(r.Domain); if(!a){a={name:r.Domain,Sends:0,Bounces:0,Complaints:0};dm.set(r.Domain,a);} a.Sends+=r.Sends;a.Bounces+=r.Bounces;a.Complaints+=r.Complaints; }
+  const rows0 = D.kpi.filter(r=>inScope(r.JourneyName,r.Month));
   const doms = [...dm.values()], domSends = doms.reduce((s,a)=>s+a.Sends,0);
   const top = (arr,key,extra) => arr.filter(a=>a[key]>0).sort((a,b)=>b[key]-a[key]).slice(0,5).map(a=>({name:a.name,val:a[key],extra:extra?extra(a):''}));
   const jr = group(D.kpi.filter(r=>inScope(r.JourneyName,r.Month)), r=>[r.JourneyName,'']);
@@ -1163,6 +1196,7 @@ function viewInsDeliv(){
     topList('Top 5 domains – bounces', top(doms,'Bounces',a=>pct(a.Bounces,a.Sends)+' of sends'), n) +
     topList('Top 5 domains – complaints', top(doms,'Complaints',a=>pct(a.Complaints,a.Sends)+' of sends'), n) +
     topList('Top 5 journeys – bounces', topJ, n);
+  renderCompliance(rows0);
   $('iNote').textContent = "Domains: all MKT_/Oxx_ journeys, filtered by the selected months only (domains with at least 20 sends in a month). The journeys ranking also follows the Family / Type / Product filters." + (D.domain.length?'':' Domain data not available yet (DASH_Domain_Monthly).');
 }
 

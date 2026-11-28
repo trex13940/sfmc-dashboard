@@ -4,6 +4,7 @@ SELECT
     LEFT(j.JourneyName, 3)                          AS Category,
     COUNT(*)                                        AS Sends,
     COUNT(b.SubscriberID)                           AS Bounces,
+    SUM(CASE WHEN b.BounceCategory LIKE 'Hard%' THEN 1 ELSE 0 END)   AS HardBounces,
     COUNT(o.SubscriberID)                           AS Opens,
     COUNT(c.SubscriberID)                           AS UniqueClicks,
     COUNT(u.SubscriberID)                           AS Unsubscribes,

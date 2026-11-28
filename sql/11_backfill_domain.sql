@@ -3,6 +3,7 @@ SELECT
     CONVERT(char(7), CAST(TODATETIMEOFFSET(s.EventDate, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS [Month],
     COUNT(*) AS Sends,
     COUNT(b.SubscriberID) AS Bounces,
+    SUM(CASE WHEN b.BounceCategory LIKE 'Hard%' THEN 1 ELSE 0 END)   AS HardBounces,
     COUNT(cp.SubscriberID) AS Complaints
 FROM _Sent s
 JOIN _JourneyActivity ja ON ja.JourneyActivityObjectID = s.TriggererSendDefinitionObjectID

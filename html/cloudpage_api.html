@@ -214,9 +214,11 @@ try {
     var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","Messages","UniqueRecipients","Delivered","Bounced"], ["Sent","Messages","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");
     Write(Stringify({ part: "sms", sms: sms, warnings: warnings }));
   } else {
-    var kpi = fetchAll("DASH_Journey_KPI_Monthly",
-      ["JourneyName","Month","Category","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"]);
-    numFields(kpi, ["Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"]);
+    var kpiBase = ["JourneyName","Month","Category","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"], kpiNums = ["Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"];
+    var kpi = [], kpiHard = true;
+    try { kpi = fetchAll("DASH_Journey_KPI_Monthly", kpiBase.concat(["HardBounces"])); } catch (eKpi) { kpi = []; }
+    if (!kpi.length) { kpiHard = false; kpi = fetchAll("DASH_Journey_KPI_Monthly", kpiBase); }   /* DE created before the hard / soft bounce split: the HardBounces field does not exist yet */
+    numFields(kpi, kpiHard ? kpiNums.concat(["HardBounces"]) : kpiNums);
     var convBase = ["LeadId","JourneyName","Category","SendMonth","SendDate","LeadCreatedDate","LeadStatus","IsConverted","DaysToLead","Opened","Clicked","Product","LeadProduct","EmailName"];
     var conv = [];
     try { conv = numFields(fetchAll("DASH_Conversions", convBase.concat(["OriginKind","ConvJourney","ConvEmailName","ConvSendMonth"])), ["IsConverted","DaysToLead","Opened","Clicked"]); } catch (eConv) { conv = []; }
@@ -226,7 +228,10 @@ try {
     var email = optional("DASH_Email_KPI_Monthly",
       ["JourneyName","Month","EmailName","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"],
       ["Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"], "DASH_Email_KPI_Monthly");
-    var domain = optional("DASH_Domain_Monthly", ["Domain","Month","Sends","Bounces","Complaints"], ["Sends","Bounces","Complaints"], "DASH_Domain_Monthly");
+    var domBase = ["Domain","Month","Sends","Bounces","Complaints"], domain = [], domHard = true;
+    try { domain = fetchAll("DASH_Domain_Monthly", domBase.concat(["HardBounces"])); } catch (eDom) { domain = []; }
+    if (!domain.length) { domHard = false; domain = optional("DASH_Domain_Monthly", domBase, ["Sends","Bounces","Complaints"], "DASH_Domain_Monthly"); }
+    else { numFields(domain, ["Sends","Bounces","Complaints","HardBounces"]); }
     Write(Stringify({ generatedMs: new Date().getTime(), kpi: kpi, conv: conv, email: email, domain: domain, warnings: warnings }));
   }
 } catch (e) {

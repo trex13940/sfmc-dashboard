@@ -113,3 +113,9 @@ Source : Data Views `_List` (nom et type), `_ListSubscribers` (statut et dates p
 - **27** modèle de contrôle d'écart entre une DE source et les membres actifs d'une liste ; remplacer `SOURCE_DE_NAME`, `LIST_NAME` et le champ clé `SubscriberKey`.
 - Hypothèses à confirmer au premier essai : colonnes `_List.ListType`, `_ListSubscribers.Status`, `DateJoined`, `DateUnsubscribed`, et valeurs de `ListType`.
 - Test : la logique des requêtes 23 et 25 a été vérifiée sur une base de test (DuckDB) contre un calcul indépendant ; elles n'ont pas encore tourné dans Marketing Cloud.
+
+## Délivrabilité : références des fournisseurs
+- Complaints : `_Complaint` n'est alimentée que par les boucles de retour des fournisseurs qui en envoient (Microsoft, Yahoo). À notre connaissance Gmail n'en envoie pas : le taux de spam de Gmail se lit dans Google Postmaster Tools. Repères : Google, taux de spam sous 0,1 % et jamais 0,3 % ; Yahoo, sous 0,3 %.
+- Bounces : aucun fournisseur ne publie de seuil ; repère de l'industrie, moins de 2 % au total et nettement moins de 1 % de hard bounces. `HardBounces` = nombre de lignes `_Bounce` dont `BounceCategory` commence par « Hard » (requêtes 01, 03, 10, 11) ; la sonde P10 de `12_probes.sql` liste les valeurs réelles.
+- « Delivered » = accepté par le serveur destinataire (envois moins bounces), pas forcément en boîte de réception.
+
