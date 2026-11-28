@@ -1510,7 +1510,7 @@ function loadHash(){
   S.compact = p.get('compact')!=='0';
 }
 function selectTab(t, focus){
-  S.tab = t; SORT.tbl = null;
+  S.tab = t; SORT.tbl = null; if (t!=='ana') S.j2 = '';   /* the comparison exists only in Journey analysis */
   document.querySelectorAll('.tab').forEach(x=>{ const on = x.dataset.tab===t; x.setAttribute('aria-selected',on); x.tabIndex = on?0:-1; if (on && focus) x.focus(); });
   render();
 }
