@@ -176,7 +176,7 @@ Contrastes, séries de graphiques distinguées par la forme, texte alternatif su
 
 ## 4. Page d'administration (`html/cloudpage_admin.html`)
 Une CloudPage séparée, en **cinq onglets** (l'onglet ouvert est conservé dans l'adresse) :
-- *IP allowlist* : ajouter ou supprimer une adresse IPv4, une plage IPv4 (CIDR) ou une IPv6 ;
+- *IP allowlist* : ajouter ou supprimer une adresse IPv4, une plage IPv4 (CIDR) ou une IPv6 ; les adresses sont affichées anonymisées (`xxx.xxx.113.7`, `xxx.xxx.2.0/24`) dans la page, les messages et la page « Access denied » ; la liste complète reste dans la DE `DASH_IP_Allowlist` ;
 - *Settings* : réglages de `DASH_Config` en sections repliables, avec valeur par défaut, repère « custom » et bouton *Reset* ;
 - *Friendly labels* : libellés des types de campagne et des produits ;
 - *Link names* : règles « motif d'adresse = nom » (`*` = joker, le motif le plus long l'emporte), appliquées immédiatement dans Journey analysis ;

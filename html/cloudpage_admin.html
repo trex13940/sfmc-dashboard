@@ -147,7 +147,8 @@ function readPmap() {
   return out;
 }
 function snapshot() {
-  var s = { ok: true, yourIp: cleanIp(clientIp), ips: readIps(), cfg: cfgView(), pmap: [], pmapErr: "" };
+  var s = { ok: true, yourIp: maskIp(cleanIp(clientIp)), ips: readIps(), cfg: cfgView(), pmap: [], pmapErr: "" };
+  for (var iy = 0; iy < s.ips.length; iy++) { s.ips[iy].you = !!matchList([s.ips[iy].ip], clientIp); }   /* l IP du visiteur n est jamais envoyee en clair : le navigateur recoit seulement la version masquee et ce drapeau */
   try { s.pmap = readPmap(); } catch (ePm) { s.pmapErr = "the data extension " + PM_DE_KEY + " cannot be read (create it first, see the README): " + errText(ePm); }
   return s;
 }
@@ -155,6 +156,13 @@ function snapshot() {
 /* --- ecritures : plusieurs methodes essayees dans l'ordre, chacune verifiee par relecture de la DE.
    1. API Core (DataExtension.Init par Customer Key)  2. WSProxy  3. UpsertData / DeleteData (par NOM de DE)
    Si tout echoue, le message de chaque methode est renvoye (diagnostic). --- */
+/* affichage anonymise : IPv4 -> xxx.xxx.n.n (plage CIDR conservee), IPv6 -> seul le dernier groupe */
+function maskIp(v) {
+  var s = String(v || ""), m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(\/\d+)?$/);
+  if (m) { return "xxx.xxx." + m[3] + "." + m[4] + (m[5] || ""); }
+  if (s.indexOf(":") >= 0) { var g = s.split(":"); if (g.length > 2) { return "xxxx:xxxx:...:" + g[g.length - 1]; } }
+  return s;
+}
 function errText(e) { return String((e && e.message) ? e.message : e).substring(0, 150); }
 function tryChain(label, steps, verify) {
   var errs = [];
@@ -360,7 +368,7 @@ function checkIpDe(deKey) {
   try { rows = rowsOf(deKey, ["IPAddress"]); } catch (eDe) { return "that data extension cannot be read: check its Customer Key"; }
   var ips = [];
   for (var i = 0; i < rows.length; i++) { ips.push(trim(rows[i].IPAddress)); }
-  if (ipOk && !matchList(ips, clientIp)) return "refused: that data extension has no entry for your IP (" + cleanIp(clientIp) + "); you would lock yourself out";
+  if (ipOk && !matchList(ips, clientIp)) return "refused: that data extension has no entry for your IP (" + maskIp(cleanIp(clientIp)) + "); you would lock yourself out";
   return "";
 }
 
@@ -379,15 +387,15 @@ function handlePost() {
       if (!ip) return { error: "invalid IP: use an IPv4 address (1.2.3.4), an IPv4 range (1.2.3.0/24) or an IPv6 address" };
       if (desc.length > 200 || /[\x00-\x1f]/.test(desc)) return { error: "description: at most 200 characters" };
       upsertIp(ip, desc); logAdmin("ip_add", ip, desc);
-      var r1 = snapshot(); r1.message = "IP saved: " + ip; return r1;
+      var r1 = snapshot(); r1.message = "IP saved: " + maskIp(ip); return r1;
     }
     if (a === "ip_remove") {
       var rip = trim(req.ip).toLowerCase(), cur = readIps(), rest = [], found = false;
       for (var i = 0; i < cur.length; i++) { if (cur[i].ip.toLowerCase() === rip) { found = true; } else { rest.push(cur[i].ip); } }
       if (!found) return { error: "this IP is not in the list" };
-      if (ipOk && !matchList(rest, clientIp)) return { error: "refused: removing this entry would block your own IP (" + cleanIp(clientIp) + "). Add another entry that covers it first." };
+      if (ipOk && !matchList(rest, clientIp)) return { error: "refused: removing this entry would block your own IP (" + maskIp(cleanIp(clientIp)) + "). Add another entry that covers it first." };
       deleteIp(rip); logAdmin("ip_remove", rip, "");
-      var r2 = snapshot(); r2.message = "IP removed: " + rip; return r2;
+      var r2 = snapshot(); r2.message = "IP removed: " + maskIp(rip); return r2;
     }
     if (a === "cfg_set") {
       var v = validateCfg(req.key, req.value);
@@ -457,7 +465,7 @@ if (isPost) {
   Write(Stringify(ipOk ? handlePost() : { error: "forbidden" }));
 } else if (ipOk) { mode = "page"; }
 Variable.SetValue("@mode", mode);
-Variable.SetValue("@clientIp", String(clientIp || ""));
+Variable.SetValue("@clientIp", maskIp(String(clientIp || "")));
 Variable.SetValue("@ipDiag", String(ipDiag || "") + (cfgDiag ? " | DASH_Config: " + cfgDiag : ""));
 </script>
 %%[ IF @mode == "page" THEN ]%%
@@ -640,6 +648,7 @@ const GROUPS = [
   {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','publist_snapshot_de','publist_monthly_de','product_map_de','product_map_name','admin_log_de']}
 ];
 const TABS = ['ip','cfg','lab','link','prod'];
+const maskIp = v => { const s = String(v||''), m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(\/\d+)?$/); if (m) return 'xxx.xxx.'+m[3]+'.'+m[4]+(m[5]||''); const g = s.split(':'); return g.length>2 ? 'xxxx:xxxx:...:'+g[g.length-1] : s; };
 let ST = {ips:[], cfg:[], yourIp:'', pmap:[], pmapErr:''}, TAB = 'ip', FILTER = '', FOCUS = null;
 const OPEN = {keys:true, dash:true, de:false};
 /* native modal <dialog>: focus lands on Cancel (the safe action), Esc cancels, focus returns to the button that opened it */
@@ -662,12 +671,6 @@ async function act(action, payload, okMsg){
   try{ const j = await call(action, payload); ST = {ips:j.ips||ST.ips, cfg:j.cfg||ST.cfg, yourIp:j.yourIp||ST.yourIp, pmap:j.pmap||ST.pmap, pmapErr:j.pmapErr||''}; render(); say(j.message||okMsg||'Done.'); return true; }
   catch(e){ say(e.message, true); return false; }
 }
-function covers(entry, ip){   /* does this allowlist entry cover the visitor IP ? (display only) */
-  entry = String(entry).toLowerCase().trim(); ip = String(ip).toLowerCase();
-  if (entry===ip) return true;
-  const m = entry.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)\/(\d+)$/), q = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/); if (!m||!q) return false;
-  const n = a => ((+a[1]*256+ +a[2])*256+ +a[3])*256+ +a[4], bits=+m[5], size=Math.pow(2,32-bits), start=Math.floor(n(m)/size)*size; return n(q)>=start && n(q)<start+size;
-}
 const isLabel = r => /^label_(type|product)_/i.test(r.key), isLink = r => /^linkmap_\d+$/i.test(r.key);
 function showTab(t, focus){
   TAB = t;
@@ -677,12 +680,12 @@ function showTab(t, focus){
 }
 function renderIp(){
   $('yourIp').textContent = ST.yourIp||'?';
-  const allowed = ST.ips.some(x=>covers(x.ip,ST.yourIp));
+  const allowed = ST.ips.some(x=>x.you);
   $('yourState').textContent = allowed ? 'allowed' : 'not in the list'; $('yourState').className = 'pill'+(allowed?' ok':'');
   $('cntIp').textContent = ST.ips.length;
   $('tIp').innerHTML = '<thead><tr><th>IP address / range</th><th>Description</th><th></th></tr></thead><tbody>'+
-    (ST.ips.length ? ST.ips.map(x=>`<tr><td class="k mono" style="white-space:nowrap">${esc(x.ip)}${covers(x.ip,ST.yourIp)?' <span class="pill ok">you</span>':''}</td><td class="d">${esc(x.desc)}</td><td class="actions"><button type="button" class="danger" data-rm="${esc(x.ip)}" aria-label="Remove ${esc(x.ip)}">Remove</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">The list is empty: nobody can open the dashboard.</td></tr>')+'</tbody>';
-  $('tIp').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ ask('Remove '+b.dataset.rm+' from the allowlist ?','Remove').then(ok=>{ if (ok) act('ip_remove',{ip:b.dataset.rm}); }); });
+    (ST.ips.length ? ST.ips.map(x=>`<tr><td class="k mono" style="white-space:nowrap">${esc(maskIp(x.ip))}${x.you?' <span class="pill ok">you</span>':''}</td><td class="d">${esc(x.desc)}</td><td class="actions"><button type="button" class="danger" data-rm="${esc(x.ip)}" aria-label="Remove ${esc(x.ip)}">Remove</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">The list is empty: nobody can open the dashboard.</td></tr>')+'</tbody>';
+  $('tIp').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ ask('Remove '+maskIp(b.dataset.rm)+' from the allowlist ?','Remove').then(ok=>{ if (ok) act('ip_remove',{ip:b.dataset.rm}); }); });
 }
 function settingRow(s, r){
   const id = 'c_'+s.k;
