@@ -5,23 +5,23 @@ SELECT
     g.Contract AS Contract,
     COUNT(*) AS Subscribers
 FROM (
-    SELECT 'Information' AS ListName, ISNULL(s.Status, 'Not in All Subscribers') AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
-    FROM (SELECT DISTINCT [Subscriber Key] AS SubscriberKey FROM List_Info WHERE [Subscriber Key] IS NOT NULL AND [Subscriber Key] NOT LIKE '00QP%') d
+    SELECT 'Information' AS ListName, CASE WHEN s.SubscriberKey IS NULL AND d.Status = 'Active' THEN 'Not in All Subscribers' ELSE ISNULL(d.Status, 'Unknown') END AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
+    FROM (SELECT [Subscriber Key] AS SubscriberKey, MAX([Status]) AS Status FROM List_Info WHERE [Subscriber Key] IS NOT NULL AND [Subscriber Key] NOT LIKE '00QP%' GROUP BY [Subscriber Key]) d
     LEFT JOIN _Subscribers s ON s.SubscriberKey = d.SubscriberKey
     LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = d.SubscriberKey
     UNION ALL
-    SELECT 'Newsletter' AS ListName, ISNULL(s.Status, 'Not in All Subscribers') AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
-    FROM (SELECT DISTINCT [Subscriber Key] AS SubscriberKey FROM List_Newsletter WHERE [Subscriber Key] IS NOT NULL AND [Subscriber Key] NOT LIKE '00QP%') d
+    SELECT 'Newsletter' AS ListName, CASE WHEN s.SubscriberKey IS NULL AND d.Status = 'Active' THEN 'Not in All Subscribers' ELSE ISNULL(d.Status, 'Unknown') END AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
+    FROM (SELECT [Subscriber Key] AS SubscriberKey, MAX([Status]) AS Status FROM List_Newsletter WHERE [Subscriber Key] IS NOT NULL AND [Subscriber Key] NOT LIKE '00QP%' GROUP BY [Subscriber Key]) d
     LEFT JOIN _Subscribers s ON s.SubscriberKey = d.SubscriberKey
     LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = d.SubscriberKey
     UNION ALL
-    SELECT 'Promo' AS ListName, ISNULL(s.Status, 'Not in All Subscribers') AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
-    FROM (SELECT DISTINCT [Subscriber Key] AS SubscriberKey FROM List_Promo WHERE [Subscriber Key] IS NOT NULL AND [Subscriber Key] NOT LIKE '00QP%') d
+    SELECT 'Promo' AS ListName, CASE WHEN s.SubscriberKey IS NULL AND d.Status = 'Active' THEN 'Not in All Subscribers' ELSE ISNULL(d.Status, 'Unknown') END AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
+    FROM (SELECT [Subscriber Key] AS SubscriberKey, MAX([Status]) AS Status FROM List_Promo WHERE [Subscriber Key] IS NOT NULL AND [Subscriber Key] NOT LIKE '00QP%' GROUP BY [Subscriber Key]) d
     LEFT JOIN _Subscribers s ON s.SubscriberKey = d.SubscriberKey
     LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = d.SubscriberKey
     UNION ALL
-    SELECT 'Survey' AS ListName, ISNULL(s.Status, 'Not in All Subscribers') AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
-    FROM (SELECT DISTINCT [Subscriber Key] AS SubscriberKey FROM List_Survey WHERE [Subscriber Key] IS NOT NULL AND [Subscriber Key] NOT LIKE '00QP%') d
+    SELECT 'Survey' AS ListName, CASE WHEN s.SubscriberKey IS NULL AND d.Status = 'Active' THEN 'Not in All Subscribers' ELSE ISNULL(d.Status, 'Unknown') END AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
+    FROM (SELECT [Subscriber Key] AS SubscriberKey, MAX([Status]) AS Status FROM List_Survey WHERE [Subscriber Key] IS NOT NULL AND [Subscriber Key] NOT LIKE '00QP%' GROUP BY [Subscriber Key]) d
     LEFT JOIN _Subscribers s ON s.SubscriberKey = d.SubscriberKey
     LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = d.SubscriberKey
     UNION ALL
