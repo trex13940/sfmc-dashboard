@@ -726,7 +726,7 @@ function drawCharts(defs, ids){
     cv.setAttribute('aria-label', d.title+'. '+(last>=0 ? d.sets.map(s=>s.l+': '+d.labels.map((l,x)=>l+' '+fmt(s.d[x])).join(', ')).join('; ') : 'No data.'));
     const two = d.sets.some(s=>s.right), bar = d.type==='bar', tick = v => d.pct ? (v*100).toFixed(0)+' %' : NF.format(v);
     let scales;
-    if (d.horizontal) scales = {x:{beginAtZero:true,stacked:!!d.stacked,max:d.max,ticks:{callback:tick}}, y:{stacked:!!d.stacked}};
+    if (d.horizontal) scales = {x:{beginAtZero:true,stacked:!!d.stacked,max:d.max,ticks:{callback:tick}}, y:{stacked:!!d.stacked,ticks:{autoSkip:false}}};
     else {
       scales = {y:{beginAtZero:true,position:'left',stacked:!!d.stacked,title:{display:two,text:d.axisL||''},ticks:{callback:tick}}};
       if (d.stacked) scales.x = {stacked:true};
@@ -1241,7 +1241,7 @@ function loadAudience(){
       const prevResp = async()=> r2 || (r2 = await api('audience',{asof:prev}));   /* snapshot of the previous month until the new one is computed */
       if (!dist.length){ const x = await prevResp(); if ((x.dist||[]).length){ dist = x.dist; asof = x.asof; } }
       if (!(lists.snap||[]).length){ const x = await prevResp(); if (((x.publists||{}).snap||[]).length) lists = x.publists; }
-      D.aud = {asof, dist, geo:r.geo||[], lists:{snap:lists.snap||[], monthly:lists.monthly||[]}}; D.audErr = ''; showWarn(r.warnings);
+      D.aud = {asof, dist, geo:r.geo||[], lists:{snap:(lists.snap||[]).map(x=>Object.assign({},x,{Status:plStatus(x.Status)})), monthly:lists.monthly||[]}}; D.audErr = ''; showWarn(r.warnings);
     }catch(e){ D.aud = null; D.audErr = e.message; }
     finally{ delete LOADING.audience; }
   })();
@@ -1318,6 +1318,8 @@ function viewAud(){
 
 /* ---------- Insights : listes de publication ---------- */
 const PL_STATUS_ORDER = ['Active','Unsubscribed','Bounced','Held','Deleted'];
+/* status values come in any case (_Subscribers: active / held, the list data extensions: Active / Unsubscribed): compare them case-insensitively */
+const plStatus = v => { const t = String(v||'').trim(), l = t.toLowerCase(); return l==='not a subscriber' ? 'Not a subscriber' : l ? l.charAt(0).toUpperCase()+l.slice(1) : 'Unknown'; };
 function viewLists(){
   const L = D.aud.lists || {snap:[],monthly:[]}, msg = $('plMsg');
   charts.forEach(c=>c.destroy()); charts = [];
@@ -1543,8 +1545,12 @@ async function api(part, extra){
   if (extra && extra.m) url += '&m='+encodeURIComponent(extra.m);
   if (extra && extra.asof) url += '&asof='+encodeURIComponent(extra.asof);
   if (extra && extra.j) url += '&j='+encodeURIComponent(extra.j)+'&from='+encodeURIComponent(extra.from||'')+'&to='+encodeURIComponent(extra.to||'');
-  const res = await fetch(url,{cache:'no-store'});
-  const txt = await res.text();
+  let res, txt;
+  for (let att=0; att<4; att++){   /* too many requests (429) or a gateway error: wait and try again */
+    res = await fetch(url,{cache:'no-store'}); txt = await res.text();
+    if (res.status!==429 && res.status<502) break;
+    await new Promise(r=>setTimeout(r, 800*(att+1)+Math.random()*400));
+  }
   let j;
   try{ j = JSON.parse(txt); }
   catch(e){ throw new Error('Unexpected server response (HTTP '+res.status+'): '+txt.replace(/\s+/g,' ').slice(0,220)); }   /* e.g. a plain-text timeout / size message from the CloudPage */
@@ -1578,7 +1584,7 @@ function loadConv(){
     const [yy,mm] = mo.split('-').map(Number), nd = new Date(yy,mm,0).getDate(), days = [];
     for (let d=1; d<=nd; d++) days.push(mo+'-'+String(d).padStart(2,'0'));
     let nx = 0; const dw = async () => { while (nx<days.length){ const dy = days[nx++]; try{ const j = await api('conv',{m:mo,d:dy}); out.push(...(j.conv||[])); }catch(e){ errs.push('conv '+dy+': '+e.message); } } };
-    await Promise.all([dw(),dw(),dw(),dw()]);
+    await Promise.all([dw(),dw()]);
   };
   const worker = async () => { while (next<months.length) await fetchMonth(months[next++]); };
   return Promise.all([worker(),worker(),worker(),worker()]).then(()=>{ D.conv = out; showWarn(errs.length>2 ? [errs[0]+' (+'+(errs.length-1)+' other requests)'] : errs); });
