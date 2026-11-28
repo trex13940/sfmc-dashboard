@@ -50,9 +50,42 @@ for pc, a in acc.items():
     pid = a['prov'].most_common(1)[0][0]
     x, y = proj(sum(a['lon']) / len(a['lon']), sum(a['lat']) / len(a['lat']))
     postal[pc] = [x, y, pid, a['name']]
+# ---- zones des codes postaux : diagramme de Voronoi des positions (approximation : pas de vraies limites postales),
+#      decoupe par le contour de la Belgique (union des provinces)
+from shapely.geometry import MultiPoint, Point
+from shapely.ops import voronoi_diagram, unary_union, transform
+from shapely.strtree import STRtree
+pr = lambda x, y, z=None: (  # projection d une geometrie shapely lon/lat -> unites SVG
+    [(a - LON0) * COS * K for a in x] if hasattr(x, '__iter__') else (x - LON0) * COS * K,
+    [(LAT1 - b) * K for b in y] if hasattr(y, '__iter__') else (LAT1 - y) * K)
+be_parts = []
+for pid, (nename, nl, fr, en) in PROV.items():
+    be_parts.append(transform(pr, shape(feats[nename]['geometry'])).buffer(0.6))
+belgium = unary_union(be_parts).simplify(0.8)
+pts, keys, seen = [], [], {}
+for pc, v in postal.items():
+    x, y = float(v[0]), float(v[1]); n = seen.get((v[0], v[1]), 0); seen[(v[0], v[1])] = n + 1
+    pts.append(Point(x + 0.35 * n, y + 0.21 * n)); keys.append(pc)      # codes postaux au meme point : legerement decales
+vd = voronoi_diagram(MultiPoint(pts), envelope=belgium.buffer(80).envelope)
+tree = STRtree(pts); cells = {}
+for cell in vd.geoms:
+    idx = [i for i in tree.query(cell) if cell.contains(pts[i])]
+    if not idx: continue
+    g = cell.intersection(belgium)
+    if g.is_empty: continue
+    g = g.simplify(0.7, preserve_topology=True)
+    polys = [g] if g.geom_type == 'Polygon' else [p for p in getattr(g, 'geoms', []) if p.geom_type == 'Polygon']
+    d = ''
+    for p in polys:
+        if p.area < 1.5: continue
+        c = [(round(a), round(b)) for a, b in p.exterior.coords]
+        c = [c[0]] + [q for a, q in zip(c, c[1:]) if q != a]
+        if len(c) >= 4: d += 'M' + 'L'.join(f'{a} {b}' for a, b in c) + 'Z'
+    if d: cells[keys[idx[0]]] = d
+print('zones de codes postaux', len(cells), 'sur', len(postal))
 unk = [k for k, v in postal.items() if v[2] == '?']
-out = {'viewBox': [0, 0, round((6.45 - LON0) * COS * K), round((LAT1 - 49.45) * K)], 'provinces': provinces, 'postal': postal,
-       'attribution': 'Postal code positions: GeoNames (CC BY 4.0). Province outlines: Natural Earth (public domain).'}
+out = {'viewBox': [0, 0, round((6.45 - LON0) * COS * K), round((LAT1 - 49.45) * K)], 'provinces': provinces, 'postal': postal, 'cells': cells,
+       'attribution': 'Postal code positions: GeoNames (CC BY 4.0). Province outlines: Natural Earth (public domain). Postal code areas are approximated (nearest-postal-code zones), not official boundaries.'}
 os.makedirs(os.path.join(ROOT, 'geo'), exist_ok=True)
 with open(os.path.join(ROOT, 'geo', 'belgium_geo.json'), 'w', encoding='utf-8') as f: json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
 print('provinces', len(provinces), '| codes postaux', len(postal), '| sans province', unk[:5], '| taille', os.path.getsize(os.path.join(ROOT, 'geo', 'belgium_geo.json')), 'octets | viewBox', out['viewBox'])

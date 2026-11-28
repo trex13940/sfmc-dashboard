@@ -167,7 +167,7 @@ Un lead **Signed** est crédité au **dernier email reçu avant `LastModifiedDat
 
 ### Base abonnés et carte
 - Les Data Views ne gardent qu'environ 6 mois : `DASH_Sub_Monthly` accumule, par abonné et par mois, les emails reçus et l'engagement ; la fenêtre de 12 mois se complète avec le temps.
-- **Carte** : contours des provinces et position de chaque code postal belge, inclus dans `html/cloudpage_dashboard.html` (51 Ko ; sources GeoNames CC BY 4.0 et Natural Earth, domaine public). Pour les régénérer : `python3 tools/build_geo.py && python3 tools/inject_geo.py`.
+- **Carte** : contours des provinces et zones des codes postaux belges, inclus dans `html/cloudpage_dashboard.html` (126 Ko ; sources GeoNames CC BY 4.0 et Natural Earth, domaine public). Les zones des codes postaux sont **approximées** : chaque zone est le territoire le plus proche de la position du code postal (diagramme de Voronoi), découpé par le contour de la Belgique ; ce ne sont pas les limites postales officielles et elles peuvent traverser une limite de province. En vue *Postal codes*, la couleur suit une échelle logarithmique (quelques zones concentrent beaucoup de contacts) et une liste « Zoom on » permet de se rapprocher d'une province. Pour de vraies limites, il faudrait un fichier de polygones des codes postaux ou des communes (par exemple des données ouvertes de Statbel ou de bpost) à brancher dans `tools/build_geo.py`. Pour régénérer : `python3 tools/build_geo.py && python3 tools/inject_geo.py`.
 - **Géographie** : nombre de contacts par code postal belge à 4 chiffres (les autres sont comptés « sans code postal utilisable »), sans lien avec les envois ni l'engagement.
 
 ### Accessibilité et confort
