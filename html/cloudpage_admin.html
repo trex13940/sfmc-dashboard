@@ -105,6 +105,7 @@ try { clientIp = Platform.Request.ClientIP; ipOk = isIpAllowed(clientIp); } catc
    Acces : IP autorisee ET cle d'administration (ligne admin_token de DASH_Config). Sans admin_token : lecture/ecriture desactivees. */
 var LOG_DE = cfgv("admin_log_de", "DASH_Admin_Log");
 var PM_DE_KEY = cfgv("product_map_de", "DASH_Product_Map"), PM_DE_NAME = cfgv("product_map_name", PM_DE_KEY);
+var JM_DE_KEY = cfgv("journey_map_de", "DASH_Journey_Map"), JM_DE_NAME = cfgv("journey_map_name", JM_DE_KEY);
 var PM_SOURCES = { EMAIL: 1, LEAD: 1, CONTRACT: 1 };
 var SECRET_KEYS = { token: 1, admin_token: 1 };
 var PROTECTED_KEYS = { token: 1, admin_token: 1, api_url: 1 };   /* ne peuvent pas etre supprimees depuis la page */
@@ -146,9 +147,23 @@ function readPmap() {
   for (var i = 0; i < rows.length; i++) { var s = trim(rows[i].Source), v = trim(rows[i].Value), g = trim(rows[i].ProductGroup); if (s && v && g) out.push({ source: s, value: v, group: g }); }
   return out;
 }
+function readJmap() {
+  var rows = rowsOf(JM_DE_KEY, ["JourneyName", "Alias"]), out = [];
+  for (var i = 0; i < rows.length; i++) { var n = trim(rows[i].JourneyName); if (n) { out.push({ name: n, alias: trim(rows[i].Alias) }); } }
+  return out;
+}
+function findJm(name) { var l = readJmap(); for (var i = 0; i < l.length; i++) { if (l[i].name === name) { return l[i]; } } return null; }
+function setJm(name, alias) {
+  tryChain("saving the friendly name", [
+    { name: "Core", fn: function () { DataExtension.Init(JM_DE_KEY).Rows.Update({ Alias: alias }, ["JourneyName"], [name]); } },
+    { name: "WSProxy", fn: function () { wsStatus(new Script.Util.WSProxy().updateItem("DataExtensionObject", { CustomerKey: JM_DE_KEY, Keys: [{ Name: "JourneyName", Value: name }], Properties: [{ Name: "Alias", Value: alias }] })); } },
+    { name: "UpsertData", fn: function () { Platform.Function.UpsertData(JM_DE_NAME, 1, "JourneyName", name, "Alias", alias); } }
+  ], function () { var j = findJm(name); return !!j && j.alias === alias; });
+}
 function snapshot() {
-  var s = { ok: true, yourIp: maskIp(cleanIp(clientIp)), ips: readIps(), cfg: cfgView(), pmap: [], pmapErr: "" };
+  var s = { ok: true, yourIp: maskIp(cleanIp(clientIp)), ips: readIps(), cfg: cfgView(), pmap: [], pmapErr: "", jmap: [], jmapErr: "" };
   for (var iy = 0; iy < s.ips.length; iy++) { s.ips[iy].you = !!matchList([s.ips[iy].ip], clientIp); }   /* l IP du visiteur n est jamais envoyee en clair : le navigateur recoit seulement la version masquee et ce drapeau */
+  try { s.jmap = readJmap(); } catch (eJm) { s.jmapErr = "the data extension " + JM_DE_KEY + " cannot be read (create it first and run query 27, see the README): " + errText(eJm); }
   try { s.pmap = readPmap(); } catch (ePm) { s.pmapErr = "the data extension " + PM_DE_KEY + " cannot be read (create it first, see the README): " + errText(ePm); }
   return s;
 }
@@ -279,7 +294,7 @@ function matchList(list, ipRaw) {
   return false;
 }
 var CFG_RULES = {
-  product_map_de: { t: "name" }, product_map_name: { t: "name" },
+  product_map_de: { t: "name" }, product_map_name: { t: "name" }, journey_map_de: { t: "name" }, journey_map_name: { t: "name" },
   api_url: { t: "url" }, ip_de_key: { t: "name" }, ip_de_name: { t: "name" }, link_de_name: { t: "name" }, link_de_key: { t: "name" },
   audience_dist_de: { t: "name" }, contact_geo_de: { t: "name" }, publist_snapshot_de: { t: "name" }, publist_monthly_de: { t: "name" }, admin_log_de: { t: "name" },
   link_budget_ms: { t: "int", min: 1000, max: 25000 }, alert_drop_pct: { t: "int", min: 1, max: 100 },
@@ -432,6 +447,14 @@ function handlePost() {
       deleteCfg(ldk); logAdmin("link_delete", ldk, "");
       var r6 = snapshot(); r6.message = "Link rule deleted"; return r6;
     }
+    if (a === "jm_save") {
+      var jmn = trim(req.name), jma = trim(req.alias);
+      if (!jmn || jmn.length > 200) { return { error: "unknown journey" }; }
+      if (jma && !/^[A-Za-z0-9 .\-]{1,60}$/.test(jma)) { return { error: "friendly name: 1 to 60 letters, digits, spaces, dots or hyphens (no underscore)" }; }
+      if (!findJm(jmn)) { return { error: "this journey is not in the journey mapping data extension (run query 27)" }; }
+      setJm(jmn, jma); logAdmin("jm_save", jmn, jma);
+      var r10 = snapshot(); r10.message = jma ? "Friendly name saved: " + jmn + " -> " + jma : "Friendly name removed: " + jmn; return r10;
+    }
     if (a === "pm_add" || a === "pm_remove") {
       var psrc = ucase(trim(req.source)), pval = ucase(trim(req.value)), pgrp = ucase(trim(req.group));
       if (PM_SOURCES[psrc] !== 1) return { error: "source must be EMAIL, LEAD or CONTRACT" };
@@ -498,6 +521,7 @@ input,select{font:inherit;color:var(--fg);padding:8px 12px;border:2px solid var(
 input.w{width:100%}
 button{font:inherit;font-weight:600;font-size:.82rem;padding:8px 16px;border-radius:20px;cursor:pointer;border:2px solid var(--red);background:var(--red);color:#fff}
 button.sec{background:var(--card);color:var(--tx-red);border-color:var(--pink-mid)}button.sec:hover{border-color:var(--red)}
+.inl{display:inline-flex;gap:6px;align-items:center}
 button.ghostx{background:none;border:0;color:var(--mute);font-size:1.15rem;line-height:1;padding:6px 11px;border-radius:50%}button.ghostx:hover{color:var(--err);background:var(--pink-bg)}
 #ipTools{margin:6px 0 4px}#ipTools .grow{flex:1;min-width:200px}#tIp input[type=checkbox]{width:18px;height:18px;accent-color:var(--red)}
 button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
@@ -540,6 +564,7 @@ dialog::backdrop{overflow:hidden;overscroll-behavior:contain;background:rgb(0 0 
       <button type="button" class="tabbtn" role="tab" id="tab-cfg" data-tab="cfg" aria-controls="p-cfg" aria-selected="false" tabindex="-1">Settings</button>
       <button type="button" class="tabbtn" role="tab" id="tab-lab" data-tab="lab" aria-controls="p-lab" aria-selected="false" tabindex="-1">Friendly labels<span class="cnt" id="cntLab">0</span></button>
       <button type="button" class="tabbtn" role="tab" id="tab-link" data-tab="link" aria-controls="p-link" aria-selected="false" tabindex="-1">Link names<span class="cnt" id="cntLink">0</span></button>
+      <button type="button" class="tabbtn" role="tab" id="tab-jn" data-tab="jn" aria-controls="p-jn" aria-selected="false" tabindex="-1">Journey names<span class="cnt" id="cntJn">0</span></button>
       <button type="button" class="tabbtn" role="tab" id="tab-prod" data-tab="prod" aria-controls="p-prod" aria-selected="false" tabindex="-1">Product mapping<span class="cnt" id="cntProd">0</span></button>
     </div>
 
@@ -587,6 +612,22 @@ dialog::backdrop{overflow:hidden;overscroll-behavior:contain;background:rgb(0 0 
       </form>
       <table id="tLink"></table>
       <p class="note">Examples: <span class="mono">view.belfiusdirect.be</span> = ReadOnline; <span class="mono">belfiusdirect.be/*/contactus</span> = ContactUs (matches /fr/contactus and /nl/contactus). A pattern without * must appear as is in the address; the protocol (https://) and the ?parameters are ignored.</p>
+    </section>
+
+    <section class="panel" id="p-jn" role="tabpanel" aria-labelledby="tab-jn" hidden>
+      <h2>Journey names</h2>
+      <p class="sub">Operational journeys (Oxx_…) listed in the data extension <span class="mono">DASH_Journey_Map</span> (filled by query 27). Give the <b>same friendly name</b> to the journeys that have the same purpose (old and new version): the dashboard then reports them as one journey. The friendly name replaces the campaign part of the journey name; family, type, product and period stay as they are, so only journeys that otherwise share them are merged.</p>
+      <div id="jnErr" class="warnbox" role="alert" hidden></div>
+      <div class="row" id="jnTools">
+        <label class="grow">Search<input id="jnFilter" type="search" placeholder="journey or friendly name..." autocomplete="off"></label>
+        <label>Show<select id="jnShow"><option value="all">All journeys</option><option value="named">With a friendly name</option><option value="unnamed">Without a friendly name</option></select></label>
+      </div>
+      <form class="row" id="jnBulkBar" autocomplete="off" hidden>
+        <label>Friendly name for the selected journeys<input id="jnBulkVal" maxlength="60" size="26" placeholder="MileageRenewal"></label>
+        <button type="submit" id="jnBulk">Apply to the selection</button>
+      </form>
+      <div id="jnBox"></div>
+      <p class="note">Leave the field empty and save to remove a friendly name. The dashboard picks the change up at its next page load. Old reporting rows are not rewritten: the grouping is applied when the dashboard reads the data.</p>
     </section>
 
     <section class="panel" id="p-prod" role="tabpanel" aria-labelledby="tab-prod" hidden>
@@ -641,6 +682,8 @@ const SCHEMA = [
   {k:'contact_geo_de', l:'Contact geography DE',   d:'Customer Key of the contact geography data extension.', def:'DASH_Contact_Geo'},
   {k:'publist_snapshot_de',l:'Publication lists - snapshot DE', d:'Customer Key of the publication lists snapshot data extension.', def:'DASH_PubList_Snapshot'},
   {k:'publist_monthly_de', l:'Publication lists - monthly DE',  d:'Customer Key of the monthly joins / unsubscribes data extension.', def:'DASH_PubList_Monthly'},
+  {k:'journey_map_de', l:'Journey mapping DE - key', d:'Customer Key of the journey mapping data extension (journey name and friendly name).', def:'DASH_Journey_Map'},
+  {k:'journey_map_name',l:'Journey mapping DE - name', d:'Name of that data extension.', def:'= key'},
   {k:'product_map_de', l:'Product mapping DE - key', d:'Customer Key of the product mapping data extension.', def:'DASH_Product_Map'},
   {k:'product_map_name',l:'Product mapping DE - name', d:'Name of that data extension.', def:'= key'},
   {k:'admin_log_de',   l:'Admin log DE',           d:'Customer Key of the change log data extension.', def:'DASH_Admin_Log'}
@@ -648,11 +691,11 @@ const SCHEMA = [
 const GROUPS = [
   {id:'keys', t:'Access keys', items:['token','admin_token']},
   {id:'dash', t:'Dashboard settings', items:['api_url','alert_drop_pct','alert_min_sends','alert_min_days','reco_min_sends','reco_min_leads','reco_gap_pt','asset_strip_extra']},
-  {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','publist_snapshot_de','publist_monthly_de','product_map_de','product_map_name','admin_log_de']}
+  {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','publist_snapshot_de','publist_monthly_de','product_map_de','product_map_name','journey_map_de','journey_map_name','admin_log_de']}
 ];
-const TABS = ['ip','cfg','lab','link','prod'];
+const TABS = ['ip','cfg','lab','link','jn','prod'];
 const maskIp = v => { const s = String(v||''), m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(\/\d+)?$/); if (m) return 'xxx.xxx.'+m[3]+'.'+m[4]+(m[5]||''); const g = s.split(':'); return g.length>2 ? 'xxxx:xxxx:...:'+g[g.length-1] : s; };
-let ST = {ips:[], cfg:[], yourIp:'', pmap:[], pmapErr:''}, TAB = 'ip', FILTER = '', FOCUS = null, IPFILTER = '', IPSEL = new Set();
+let ST = {ips:[], cfg:[], yourIp:'', pmap:[], pmapErr:'', jmap:[], jmapErr:''}, JNFILTER = '', JNSHOW = 'all', JNSEL = new Set(), TAB = 'ip', FILTER = '', FOCUS = null, IPFILTER = '', IPSEL = new Set();
 const OPEN = {keys:true, dash:true, de:false};
 /* native modal <dialog>: focus lands on Cancel (the safe action), Esc cancels, focus returns to the button that opened it */
 function ask(text, okLabel){
@@ -671,7 +714,7 @@ async function call(action, payload){
   return j;
 }
 async function act(action, payload, okMsg){
-  try{ const j = await call(action, payload); ST = {ips:j.ips||ST.ips, cfg:j.cfg||ST.cfg, yourIp:j.yourIp||ST.yourIp, pmap:j.pmap||ST.pmap, pmapErr:j.pmapErr||''}; render(); say(j.message||okMsg||'Done.'); return true; }
+  try{ const j = await call(action, payload); ST = {ips:j.ips||ST.ips, cfg:j.cfg||ST.cfg, yourIp:j.yourIp||ST.yourIp, pmap:j.pmap||ST.pmap, pmapErr:j.pmapErr||'', jmap:j.jmap||ST.jmap, jmapErr:j.jmapErr||''}; render(); say(j.message||okMsg||'Done.'); return true; }
   catch(e){ say(e.message, true); return false; }
 }
 const isLabel = r => /^label_(type|product)_/i.test(r.key), isLink = r => /^linkmap_\d+$/i.test(r.key);
@@ -739,6 +782,28 @@ function renderLink(){
   $('tLink').innerHTML = '<thead><tr><th>Pattern</th><th>Link name</th><th></th></tr></thead><tbody>'+(rules.length ? rules.map(r=>`<tr><td class="k mono">${esc(r.pat)}</td><td>${esc(r.name)}</td><td class="actions"><button type="button" class="danger" data-ld="${esc(r.key)}" aria-label="Delete the rule ${esc(r.pat)}">Delete</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">No rule yet: links keep the name they have in the email.</td></tr>')+'</tbody>';
   $('tLink').querySelectorAll('[data-ld]').forEach(b=>b.onclick=()=>{ ask('Delete this link rule ?','Delete').then(ok=>{ if (ok) act('link_delete',{key:b.dataset.ld}); }); });
 }
+const jmCanon = (nm, a) => { if (!a) return nm; const p = nm.split('_'); if (p.length>=5 && /^(\d{6}|ongoing)$/i.test(p[p.length-1])) p.splice(3,p.length-4,a); else if (p.length>=4) p.splice(3,p.length-3,a); else return nm; return p.join('_'); };
+function renderJn(){
+  const all = ST.jmap||[]; $('cntJn').textContent = all.filter(x=>x.alias).length;
+  $('jnErr').hidden = !ST.jmapErr; $('jnErr').textContent = ST.jmapErr||'';
+  const canon = new Map(); all.forEach(x=>{ const c = jmCanon(x.name, x.alias); canon.set(c,(canon.get(c)||0)+1); });
+  const fl = JNFILTER.trim().toLowerCase();
+  const shown = all.filter(x=>(JNSHOW==='all' || (JNSHOW==='named' ? x.alias : !x.alias)) && (!fl || (x.name+' '+x.alias).toLowerCase().includes(fl))).sort((a,b)=>a.name.localeCompare(b.name));
+  JNSEL.forEach(k=>{ if (!all.some(x=>x.name===k)) JNSEL.delete(k); });
+  $('jnBox').innerHTML = all.length ? '<table><thead><tr><th style="width:32px"><input type="checkbox" id="jnAll" aria-label="Select all shown"></th><th>Journey</th><th>Friendly name</th><th>Reported as</th></tr></thead><tbody>'+
+    (shown.length ? shown.map(x=>{ const c = jmCanon(x.name,x.alias), n = canon.get(c);
+      return `<tr><td><input type="checkbox" data-jsel="${esc(x.name)}" aria-label="Select ${esc(x.name)}"${JNSEL.has(x.name)?' checked':''}></td><td class="k mono" style="word-break:break-all">${esc(x.name)}</td>`+
+        `<td><span class="inl"><input data-jn="${esc(x.name)}" value="${esc(x.alias)}" maxlength="60" size="22" placeholder="(none)" aria-label="Friendly name of ${esc(x.name)}"><button type="button" class="sec" data-jns="${esc(x.name)}">Save</button></span></td>`+
+        `<td class="d mono" style="word-break:break-all">${x.alias ? esc(c) : '–'}${n>1 ? ' <span class="pill ok" title="Journeys reported under this name">'+n+' journeys</span>' : ''}</td></tr>`; }).join('') : '<tr><td colspan="4" class="d">No journey matches the search.</td></tr>')+'</tbody></table>'
+    : '<p class="d">'+(ST.jmapErr ? '' : 'The data extension is empty: run query 27 (sql/27_journey_map.sql) to list the Oxx journeys.')+'</p>';
+  const bulk = () => { $('jnBulkBar').hidden = !JNSEL.size; $('jnBulk').textContent = 'Apply to the selection ('+JNSEL.size+')'; const a = $('jnAll'); if (a) a.checked = shown.length>0 && shown.every(x=>JNSEL.has(x.name)); };
+  $('jnBox').querySelectorAll('[data-jsel]').forEach(c=>c.onchange=()=>{ if (c.checked) JNSEL.add(c.dataset.jsel); else JNSEL.delete(c.dataset.jsel); bulk(); });
+  const a = $('jnAll'); if (a) a.onchange = e=>{ shown.forEach(x=>{ if (e.target.checked) JNSEL.add(x.name); else JNSEL.delete(x.name); }); $('jnBox').querySelectorAll('[data-jsel]').forEach(c=>c.checked = e.target.checked); bulk(); };
+  const save = b => { const nm = b.dataset.jns, inp = [...$('jnBox').querySelectorAll('[data-jn]')].find(i=>i.dataset.jn===nm); return act('jm_save',{name:nm,alias:inp.value.trim()}); };
+  $('jnBox').querySelectorAll('[data-jns]').forEach(b=>b.onclick=()=>save(b));
+  $('jnBox').querySelectorAll('[data-jn]').forEach(i=>i.onkeydown=e=>{ if (e.key==='Enter'){ e.preventDefault(); const b = [...$('jnBox').querySelectorAll('[data-jns]')].find(x=>x.dataset.jns===i.dataset.jn); if (b) save(b); } });
+  bulk();
+}
 function renderProd(){
   const rows = ST.pmap||[]; $('cntProd').textContent = new Set(rows.map(r=>r.group)).size;
   $('pmErr').hidden = !ST.pmapErr; $('pmErr').textContent = ST.pmapErr||'';
@@ -748,7 +813,7 @@ function renderProd(){
   $('pmBox').querySelectorAll('[data-pr]').forEach(b=>b.onclick=()=>{ const [s,v,g] = JSON.parse(b.dataset.pr); ask('Remove '+v+' ('+s+') from the group '+g+' ?','Remove').then(ok=>{ if (ok) act('pm_remove',{source:s,value:v,group:g}); }); });
 }
 function render(){
-  renderIp(); renderCfg(); renderLab(); renderLink(); renderProd();
+  renderIp(); renderCfg(); renderLab(); renderLink(); renderJn(); renderProd();
   if (FOCUS){ const [kind,k]=FOCUS.split(':'); FOCUS=null; const el = document.querySelector(kind==='save'?`[data-save="${k}"]`:`[data-row="${k}"] input`); if (el) el.focus(); }
 }
 document.querySelectorAll('.tabbtn').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
@@ -759,6 +824,9 @@ document.querySelector('.tabbar').addEventListener('keydown', e=>{
 });
 $('cfgFilter').oninput = e=>{ FILTER = e.target.value; renderCfg(); };
 $('ipFilter').oninput = e=>{ IPFILTER = e.target.value; renderIp(); };
+$('jnFilter').oninput = e=>{ JNFILTER = e.target.value; renderJn(); };
+$('jnShow').onchange = e=>{ JNSHOW = e.target.value; renderJn(); };
+$('jnBulkBar').onsubmit = async e=>{ e.preventDefault(); const v = $('jnBulkVal').value.trim(), list = [...JNSEL]; if (!list.length) return; if (!await ask((v ? 'Give the friendly name "'+v+'" to ' : 'Remove the friendly name of ')+list.length+' journey'+(list.length>1?'s':'')+' ?', 'Apply')) return; for (const nm of list){ if (!await act('jm_save',{name:nm,alias:v})) break; JNSEL.delete(nm); } };
 $('ipBulk').onclick = async () => { const list = [...IPSEL]; if (!list.length || !await ask('Remove '+list.length+' address'+(list.length>1?'es':'')+' from the allowlist ?','Remove')) return; for (const ip of list){ if (!await act('ip_remove',{ip})) break; IPSEL.delete(ip); } };
 $('fIp').onsubmit = async e=>{ e.preventDefault(); if (await act('ip_add',{ip:$('ipVal').value,desc:$('ipDesc').value})){ $('ipVal').value=''; $('ipDesc').value=''; $('ipVal').focus(); } };
 $('fLink').onsubmit = async e=>{ e.preventDefault(); if (await act('link_set',{pattern:$('lkPat').value,name:$('lkName').value})){ $('lkPat').value=''; $('lkName').value=''; $('lkPat').focus(); } };
@@ -769,7 +837,7 @@ $('fLab').onsubmit = async e=>{ e.preventDefault(); if (await act('cfg_set',{key
 (async()=>{
   const gate=(t,x)=>{ $('gate').hidden=false; $('gateTitle').textContent=t; $('gateText').textContent=x; };
   try{
-    const j = await call('list'); ST = {ips:j.ips||[], cfg:j.cfg||[], yourIp:j.yourIp||'', pmap:j.pmap||[], pmapErr:j.pmapErr||''}; $('app').hidden=false; render();
+    const j = await call('list'); ST = {ips:j.ips||[], cfg:j.cfg||[], yourIp:j.yourIp||'', pmap:j.pmap||[], pmapErr:j.pmapErr||'', jmap:j.jmap||[], jmapErr:j.jmapErr||''}; $('app').hidden=false; render();
     const h = location.hash.replace('#',''); if (TABS.includes(h)) showTab(h);
   }catch(e){
     if (e.code==='admin_disabled') gate('Administration is disabled','Add a row to the DASH_Config data extension: ConfigKey = admin_token, Value = a secret key of at least 24 characters (letters and digits). Then open this page with ?k=<that key>.');

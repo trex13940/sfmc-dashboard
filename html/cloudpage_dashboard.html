@@ -115,7 +115,20 @@ var linkMap = [], lsep = " " + String.fromCharCode(61, 62) + " ";   /* regles "m
 for (var lk in CFG) {
   if (lk.indexOf("linkmap_") === 0) { var lpp = CFG[lk].split(lsep); if (lpp.length === 2 && trim(lpp[0]) && trim(lpp[1])) { linkMap.push([trim(lpp[0]), trim(lpp[1])]); } }
 }
-var clientCfg = { linkMap: linkMap, apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), reco: { minSends: cfgn("reco_min_sends", 1000), minLeads: cfgn("reco_min_leads", 30), gapPt: cfgn("reco_gap_pt", 5) }, labels: labels, assetStrip: assetStrip };
+/* journey mapping : DE DASH_Journey_Map (JourneyName, Alias) ecrite par la page d'administration ; seules les lignes avec un alias sont transmises */
+var jmap = {};
+try {
+  var jmObj = "DataExtensionObject[" + cfgv("journey_map_de", "DASH_Journey_Map") + "]", jmProx = new Script.Util.WSProxy(), jmR = jmProx.retrieve(jmObj, ["JourneyName", "Alias"]);
+  while (jmR && jmR.Results) {
+    for (var jmI = 0; jmI < jmR.Results.length; jmI++) {
+      var jmO = {}, jmP = jmR.Results[jmI].Properties;
+      for (var jmJ = 0; jmJ < jmP.length; jmJ++) { jmO[jmP[jmJ].Name] = jmP[jmJ].Value; }
+      if (trim(jmO.JourneyName) && trim(jmO.Alias)) { jmap[trim(jmO.JourneyName)] = trim(jmO.Alias); }
+    }
+    if (jmR.HasMoreRows) { jmR = jmProx.getNextBatch(jmObj, jmR.RequestID); } else { break; }
+  }
+} catch (eJm) { jmap = {}; }
+var clientCfg = { jmap: jmap, linkMap: linkMap, apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), reco: { minSends: cfgn("reco_min_sends", 1000), minLeads: cfgn("reco_min_leads", 30), gapPt: cfgn("reco_gap_pt", 5) }, labels: labels, assetStrip: assetStrip };
 Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").replace(/%/g, "\\u0025"));
 </script>
 %%[ IF @ipOk == "1" THEN ]%%
@@ -473,6 +486,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
 <script>
 /* ====== CONFIG : lue dans la DE DASH_Config par le serveur (voir README) - rien a modifier ici ====== */
 const CFG = %%=v(@cfgJson)=%%;
+const JM = CFG.jmap || {}, JORIG = new Map(), JM_ON = Object.keys(JM).length>0;
 const API_URL = CFG.apiUrl || '';
 const ALERT_DROP = CFG.alertDrop ?? 0.15;        /* alert when volume is more than this share below the expected pace */
 const ALERT_MIN = CFG.alertMin ?? 500;           /* only for journeys with more sends than this last month */
@@ -509,6 +523,18 @@ const labTip = (kind, code) => `<span title="${esc(code)}">${esc(lab(kind,code))
 const normProd = p => { p = String(p||'n/a').toUpperCase(); return p==='BIKE' ? 'BIK' : p; };
 
 const _pc = new Map();
+/* journey mapping: journeys given the same friendly name in the admin page are reported as one (the campaign part of the name is replaced) */
+function jmCanon(nm){
+  const a = JM[nm]; if (!a) return nm; const p = String(nm).split('_');
+  if (p.length>=5 && /^(\d{6}|ongoing)$/i.test(p[p.length-1])) p.splice(3,p.length-4,a); else if (p.length>=4) p.splice(3,p.length-3,a); else return nm;
+  return p.join('_');
+}
+function remapRows(rows, fields){
+  if (!JM_ON) return rows;
+  for (const r of rows) for (const f of fields){ const v = r[f]; if (v && JM[v]){ const c = jmCanon(v); if (c!==v){ let st = JORIG.get(c); if (!st){ st = new Set(); JORIG.set(c,st); } st.add(v); r[f] = c; } } }
+  return rows;
+}
+const jmFields = {conv:['JourneyName','ConvJourney'], email:['JourneyName'], kpi:['JourneyName'], sms:['JourneyName'], domain:[]};
 function parse(name){
   if (_pc.has(name)) return _pc.get(name);
   if (name==='(no email)'){ const o = {fam:'–',type:'–',product:'–',campaign:name,period:'',covered:''}; _pc.set(name,o); return o; }
@@ -1594,14 +1620,15 @@ function showWarn(w){ if (w && w.length){ $('warn').hidden=false; $('warnSum').t
 function loadLinks(j, from, to){
   const lk = j+'|'+from+'|'+to, key = 'links|'+lk;
   if (LOADING[key]) return LOADING[key];
-  LOADING[key] = api('links',{j,from,to}).then(r=>{ D.linksByJ[lk] = r.links||[]; showWarn(r.warnings); })
+  const origs = [...new Set([j, ...(JORIG.get(j)||[])])];   /* a grouped journey: the links of every original journey */
+  LOADING[key] = Promise.all(origs.map(o=>api('links',{j:o,from,to}))).then(rs=>{ D.linksByJ[lk] = remapRows([].concat(...rs.map(x=>x.links||[])), ['JourneyName']); rs.forEach(x=>showWarn(x.warnings)); })
     .catch(e=>{ D.linksErr[lk] = e.message; })
     .finally(()=>{ delete LOADING[key]; });
   return LOADING[key];
 }
 async function loadPart(part){
   if (LOADING[part]) return LOADING[part];
-  LOADING[part] = api(part).then(j=>{ D[part] = j[part]||[]; showWarn(j.warnings); }).catch(e=>{ D[part]=[]; showWarn([part+': '+e.message]); });
+  LOADING[part] = api(part).then(j=>{ D[part] = remapRows(j[part]||[], jmFields[part]||[]); showWarn(j.warnings); }).catch(e=>{ D[part]=[]; showWarn([part+': '+e.message]); });
   return LOADING[part];
 }
 
@@ -1621,7 +1648,7 @@ function loadConv(){
     await Promise.all([dw(),dw()]);
   };
   const worker = async () => { while (next<months.length) await fetchMonth(months[next++]); };
-  return Promise.all([worker(),worker(),worker(),worker()]).then(()=>{ D.conv = out; showWarn(errs.length>2 ? [errs[0]+' (+'+(errs.length-1)+' other requests)'] : errs); });
+  return Promise.all([worker(),worker(),worker(),worker()]).then(()=>{ D.conv = remapRows(out, jmFields.conv); showWarn(errs.length>2 ? [errs[0]+' (+'+(errs.length-1)+' other requests)'] : errs); });
 }
 
 /* ---------- init ---------- */
@@ -1721,6 +1748,7 @@ async function load(){
   $('errBox').hidden = true; document.body.classList.remove('failed'); document.body.classList.add('loading'); $('gen').textContent = 'Loading…';
   try{
     const j = await api('');
+    JORIG.clear(); for (const k of ['kpi','conv','email']) if (Array.isArray(j[k])) remapRows(j[k], jmFields[k]);
     D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], loading:new Set(['conv','email','domain'].filter(x=>!Array.isArray(j[x]))), linksByJ:{}, linksErr:{}, sms:null, aud:null, audErr:'', generatedMs:j.generatedMs||0};
     LOADING = {}; $('warn').hidden = true;
     $('gen').textContent = 'Data as of '+(j.generatedMs ? new Intl.DateTimeFormat('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels',timeZoneName:'short'}).format(new Date(j.generatedMs)) : '–')+' · months in CET/CEST';

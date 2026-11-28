@@ -118,3 +118,7 @@ Source : les DE `List_Info` (« Information »), `List_Newsletter`, `List_Promo`
 - Bounces : aucun fournisseur ne publie de seuil ; repère de l'industrie, moins de 2 % au total et nettement moins de 1 % de hard bounces. `HardBounces` = nombre de lignes `_Bounce` dont `BounceCategory` commence par « Hard » (requêtes 01, 03, 10, 11) ; la sonde P10 de `12_probes.sql` liste les valeurs réelles.
 - « Delivered » = accepté par le serveur destinataire (envois moins bounces), pas forcément en boîte de réception.
 
+
+## Journey mapping (27)
+- **27** `DASH_Journey_Map` (clé : JourneyName ; champ Alias Text(100) non alimenté par la requête), mode **Update** : liste les journeys dont le nom ne commence pas par `MKT` (les journeys Oxx) à partir de `DASH_Journey_KPI_Monthly` (à lancer après la requête 01). Update ajoute les nouvelles journeys sans toucher à l'Alias déjà saisi dans la page admin (onglet *Journey names*).
+- Les journeys qui reçoivent le même alias sont regroupées dans le dashboard : l'alias remplace la partie « campagne » du nom (`OKM_SCE2_VEH_MileageScenario2_ongoing` + alias `MileageRenewal` donne `OKM_SCE2_VEH_MileageRenewal_ongoing`). Le regroupement est appliqué à la lecture (page dashboard), les DE ne sont pas réécrites.
