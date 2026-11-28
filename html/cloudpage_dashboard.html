@@ -962,14 +962,17 @@ function recoRules(){
     if (last!==best && best.e/best.s-last.e/last.s>=gap) F('medium','Audience','Engagement falls after '+best.k+' marketing emails in 3 months',fx1(last.e/last.s*100)+' % of subscribers receiving '+last.k+' emails open or click, against '+fx1(best.e/best.s*100)+' % for '+best.k+' emails ('+n(last.s)+' and '+n(best.s)+' subscribers).','Consider a frequency cap around '+best.k+' emails per quarter for subscribers who stop engaging.',{tab:'ins',sub:'aud'},last.s);
     else F('info','Audience','Engagement holds up to '+last.k+' marketing emails in 3 months',fx1(last.e/last.s*100)+' % of the subscribers receiving '+last.k+' emails open or click, against '+fx1(best.e/best.s*100)+' % at the best level ('+best.k+').','There is no sign of fatigue in the data: frequency is not the main lever for now.',{tab:'ins',sub:'aud'},last.s);
   });
-  run('Publication lists losing subscribers','Audience',()=>{
+  run('Publication lists','Audience',()=>{
     if (A===null) return D.audErr ? 'subscriber data could not be loaded' : 'subscriber data is still loading';
     const L = A.lists; if (!L || !L.snap.length) return 'no publication list data yet (DASH_PubList_Snapshot)';
-    const lists = new Map(); for (const r of L.snap){ let a = lists.get(r.ListName); if(!a){ a={name:r.ListName,act:0,uns:0,j:0,u:0}; lists.set(r.ListName,a); } if (r.Status==='Active') a.act+=r.Subscribers; if (r.Status==='Unsubscribed') a.uns+=r.Subscribers; }
-    for (const r of L.monthly){ if (!inMonths(r.Month)) continue; const a = lists.get(r.ListName); if (a){ a.j+=r.Joined; a.u+=r.Unsubscribed; } }
-    for (const a of lists.values()){ if (a.name==='All Subscribers' || a.act<minS/2) continue;
-      if (a.u>a.j && a.u/a.act>=0.01) F('medium','Audience',a.name+': '+n(a.u-a.j)+' more unsubscriptions than new subscribers',n(a.u)+' unsubscribed and '+n(a.j)+' joined in the period, for '+n(a.act)+' active members.','Review the content and frequency of this list; offer a preference centre instead of a full unsubscribe.',{tab:'ins',sub:'lists'},a.act);
-      else if (a.uns/(a.act+a.uns)>=0.25) F('info','Audience',a.name+': '+pct(a.uns,a.act+a.uns)+' of the people who joined have unsubscribed',n(a.uns)+' unsubscribed members against '+n(a.act)+' active ones.','Check how people join this list (expectations set at sign-up) and how often it is used.',{tab:'ins',sub:'lists'},a.act); }
+    const asofs = [...new Set(L.snap.map(r=>r.AsOf))].sort(), cur = asofs[asofs.length-1], prv = asofs.length>1 ? asofs[asofs.length-2] : null;
+    const by = new Map(); for (const r of L.snap){ if (r.AsOf!==cur && r.AsOf!==prv) continue; let a = by.get(r.ListName); if(!a){ a={name:r.ListName,act:0,uns:0,out:0,prev:null}; by.set(r.ListName,a); }
+      if (r.AsOf===cur){ if (r.Status==='Active') a.act+=r.Subscribers; else if (r.Status==='Unsubscribed') a.uns+=r.Subscribers; else if (r.Status==='Not in All Subscribers') a.out+=r.Subscribers; }
+      else if (r.Status==='Active') a.prev = (a.prev||0)+r.Subscribers; }
+    for (const a of by.values()){ if (a.name==='All Subscribers') continue; const members = a.act+a.uns+a.out;
+      if (a.prev && a.act>=minS/2 && a.prev-a.act>=0.02*a.prev) F('medium','Audience',a.name+': '+n(a.prev-a.act)+' fewer active members than in '+prv,n(a.act)+' active members now against '+n(a.prev)+' in the '+prv+' snapshot ('+fx1((1-a.act/a.prev)*100)+' % down).','Check what removed people from this list (unsubscribes, held or bounced addresses, a change in the automation that fills it).',{tab:'ins',sub:'lists'},a.act);
+      else if (a.uns+a.act>0 && a.uns/(a.act+a.uns)>=0.25) F('info','Audience',a.name+': '+pct(a.uns,a.act+a.uns)+' of its members have unsubscribed',n(a.uns)+' unsubscribed members against '+n(a.act)+' active ones.','Check how people join this list (expectations set at sign-up) and how often it is used.',{tab:'ins',sub:'lists'},a.act);
+      if (members>=minS/2 && a.out/members>=0.05) F('info','Audience',a.name+': '+pct(a.out,members)+' of its members are not in All Subscribers',n(a.out)+' of '+n(members)+' members of the list cannot receive emails because their key is unknown in All Subscribers.','Check the automation that fills this list: the members should exist as subscribers (same SubscriberKey) before they are added.',{tab:'ins',sub:'lists'},members); }
   });
   run('Contract coverage by province','Audience',()=>{
     if (A===null) return D.audErr ? 'subscriber data could not be loaded' : 'subscriber data is still loading';
@@ -1320,16 +1323,19 @@ function viewLists(){
     cards('plCards',[]); $('tPl').innerHTML = ''; $('plNote').textContent = ''; return;
   }
   msg.hidden = true;
-  const lists = new Map(), get = name => { let a = lists.get(name); if (!a){ a = {name,St:{},Act:{Yes:0,No:0},Joined:0,Unsub:0}; lists.set(name,a); } return a; };
-  for (const r of L.snap){ const a = get(r.ListName); a.St[r.Status] = (a.St[r.Status]||0)+r.Subscribers; if (r.Status==='Active') a.Act[r.Contract==='Yes'?'Yes':'No'] += r.Subscribers; }
-  const months = [...new Set(L.monthly.filter(r=>inMonths(r.Month)).map(r=>r.Month))].sort();
-  for (const r of L.monthly){ if (!inMonths(r.Month)) continue; const a = get(r.ListName); a.Joined += r.Joined; a.Unsub += r.Unsubscribed; }
+  const asofs = [...new Set(L.snap.map(r=>r.AsOf))].sort(), cur = asofs[asofs.length-1], prevA = asofs.length>1 ? asofs[asofs.length-2] : null;
+  const lists = new Map(), get = name => { let a = lists.get(name); if (!a){ a = {name,St:{},Act:{Yes:0,No:0},Joined:0,Unsub:0,hasMon:false,Prev:null}; lists.set(name,a); } return a; };
+  const actAt = (name, asof) => L.snap.filter(r=>r.ListName===name && r.AsOf===asof && r.Status==='Active').reduce((s,r)=>s+r.Subscribers,0);
+  for (const r of L.snap){ if (r.AsOf!==cur) continue; const a = get(r.ListName); a.St[r.Status] = (a.St[r.Status]||0)+r.Subscribers; if (r.Status==='Active') a.Act[r.Contract==='Yes'?'Yes':'No'] += r.Subscribers; }
+  for (const r of L.monthly){ if (!inMonths(r.Month)) continue; const a = get(r.ListName); a.hasMon = true; a.Joined += r.Joined; a.Unsub += r.Unsubscribed; }
   const list = [...lists.values()].filter(a=>Object.keys(a.St).length);
+  list.forEach(a=>{ a.Prev = prevA ? actAt(a.name, prevA) : null; });
   const act = a => a.St.Active||0, base = list.find(a=>a.name==='All Subscribers'), baseAct = base ? act(base) : Math.max(0,...list.map(act));
   list.sort((a,b)=>act(b)-act(a));
+  const sgn = v => (v>0?'+':v<0?'−':'')+n(Math.abs(v));
   cards('plCards', [[n(baseAct),'Active subscribers'+(base?'':' (largest list)')],[n(list.filter(a=>a.name!=='All Subscribers').length),'Publication lists'],
-    [n(base?base.Joined:list.reduce((s,a)=>s+a.Joined,0)),'Joined in the period'],[n(base?base.Unsub:list.reduce((s,a)=>s+a.Unsub,0)),'Unsubscribed in the period'],
-    [(()=>{ const j = base?base.Joined:0, u = base?base.Unsub:0; return (j-u>0?'+':j-u<0?'−':'')+n(Math.abs(j-u)); })(),'Net growth in the period']]);
+    [base&&base.hasMon?n(base.Joined):'–','Joined in the period (All Subscribers)'],[base&&base.hasMon?n(base.Unsub):'–','Unsubscribed in the period (All Subscribers)'],
+    [base&&base.Prev!=null?sgn(act(base)-base.Prev):'–','Change in active subscribers since '+(prevA||'the previous snapshot')]]);
   const other = a => Object.keys(a.St).filter(s=>!PL_STATUS_ORDER.includes(s)).reduce((s,k)=>s+a.St[k],0);
   const keyCols = [{k:'name',l:'List',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)}];
   const cols = [
@@ -1339,19 +1345,18 @@ function viewLists(){
     {k:'YesP',l:'% with contract',v:a=>act(a)?a.Act.Yes/act(a):-1,f:a=>act(a)?pct(a.Act.Yes,act(a)):'–'},
     {k:'Uns',l:'Unsubscribed',v:a=>a.St.Unsubscribed||0,f:a=>n(a.St.Unsubscribed||0)},
     {k:'Bnc',l:'Bounced / held',v:a=>(a.St.Bounced||0)+(a.St.Held||0),f:a=>n((a.St.Bounced||0)+(a.St.Held||0))},
-    {k:'Oth',l:'Other statuses',v:a=>other(a),f:a=>n(other(a))},
-    {k:'J',l:'Joined (period)',v:a=>a.Joined,f:a=>n(a.Joined)},
-    {k:'U',l:'Unsubscribed (period)',v:a=>a.Unsub,f:a=>n(a.Unsub)},
-    {k:'Net',l:'Net (period)',v:a=>a.Joined-a.Unsub,f:a=>(a.Joined-a.Unsub>0?'+':a.Joined-a.Unsub<0?'−':'')+n(Math.abs(a.Joined-a.Unsub))}
+    {k:'Oth',l:'Other (e.g. not in All Subscribers)',v:a=>other(a),f:a=>n(other(a))},
+    {k:'Chg',l:'Active vs '+(prevA||'previous snapshot'),v:a=>a.Prev==null?-Infinity:act(a)-a.Prev,f:a=>a.Prev==null?'–':sgn(act(a)-a.Prev)+(a.Prev?' ('+(act(a)>=a.Prev?'+':'−')+fx1(Math.abs(act(a)/a.Prev-1)*100)+' %)':'')},
+    {k:'J',l:'Joined (period)',v:a=>a.hasMon?a.Joined:-1,f:a=>a.hasMon?n(a.Joined):'–'},
+    {k:'U',l:'Unsubscribed (period)',v:a=>a.hasMon?a.Unsub:-1,f:a=>a.hasMon?n(a.Unsub):'–'}
   ];
   renderTable('tPl', keyCols, cols, list, null, {defK:'Act'});
-  const net = (name,m)=>L.monthly.filter(r=>r.ListName===name && r.Month===m).reduce((s,r)=>s+r.Joined-r.Unsubscribed,0);
   drawCharts([
     {title:'Active subscribers by list, with / without a contract',type:'bar',horizontal:true,stacked:true,labels:list.map(a=>a.name),
      sets:[{l:'With an active or future contract',color:'#c30045',colorD:'#ff7da3',d:list.map(a=>a.Act.Yes)},{l:'No active contract',color:'#8a97a2',colorD:'#6b7885',d:list.map(a=>a.Act.No)}]},
-    {title:'Net growth per month (joined − unsubscribed)',labels:months,sets:list.map(a=>({l:a.name,d:months.map(m=>net(a.name,m))}))}
+    {title:'Active members at each monthly snapshot',labels:asofs,sets:list.map(a=>({l:a.name,d:asofs.map(m=>actAt(a.name,m))}))}
   ], ['c8','c9']);
-  $('plNote').textContent = 'Snapshot of '+(D.aud.asof||'–')+' (status of each member of the public and private lists, leads excluded: SubscriberKey starting with 00QP). "All Subscribers" comes from the All Subscribers list (_Subscribers); the other lists from _ListSubscribers. Joined / unsubscribed come from DateJoined / DateUnsubscribed, per month in CET, for the selected period. With contract = at least one Active or Future contract in Contract_Salesforce_1 (Contact__c = SubscriberKey).';
+  $('plNote').textContent = 'Snapshot of '+cur+(prevA?' (compared with '+prevA+')':' (the history builds up with one snapshot per month)')+'. The lists are the data extensions List_Info (Information), List_Newsletter, List_Promo and List_Survey, each member counted once, leads excluded (SubscriberKey starting with 00QP). The status of a member is read from All Subscribers; "Not in All Subscribers" = key unknown there, so that person cannot receive emails. Joined / unsubscribed per month are only available for All Subscribers (the list data extensions have no dates). With contract = at least one Active or Future contract in Contract_Salesforce_1 (Contact__c = SubscriberKey).';
 }
 
 /* ---------- Insights : géographie ---------- */

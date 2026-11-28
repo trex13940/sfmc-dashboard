@@ -5,11 +5,25 @@ SELECT
     g.Contract AS Contract,
     COUNT(*) AS Subscribers
 FROM (
-    SELECT l.ListName AS ListName, ls.Status AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
-    FROM _ListSubscribers ls
-    JOIN _List l ON l.ListID = ls.ListID
-    LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = ls.SubscriberKey
-    WHERE l.ListType IN ('Public', 'Private') AND l.ListName <> 'All Subscribers' AND ls.SubscriberKey NOT LIKE '00QP%'
+    SELECT 'Information' AS ListName, ISNULL(s.Status, 'Not in All Subscribers') AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
+    FROM (SELECT DISTINCT SubscriberKey AS SubscriberKey FROM List_Info WHERE SubscriberKey IS NOT NULL AND SubscriberKey NOT LIKE '00QP%') d
+    LEFT JOIN _Subscribers s ON s.SubscriberKey = d.SubscriberKey
+    LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = d.SubscriberKey
+    UNION ALL
+    SELECT 'Newsletter' AS ListName, ISNULL(s.Status, 'Not in All Subscribers') AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
+    FROM (SELECT DISTINCT SubscriberKey AS SubscriberKey FROM List_Newsletter WHERE SubscriberKey IS NOT NULL AND SubscriberKey NOT LIKE '00QP%') d
+    LEFT JOIN _Subscribers s ON s.SubscriberKey = d.SubscriberKey
+    LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = d.SubscriberKey
+    UNION ALL
+    SELECT 'Promo' AS ListName, ISNULL(s.Status, 'Not in All Subscribers') AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
+    FROM (SELECT DISTINCT SubscriberKey AS SubscriberKey FROM List_Promo WHERE SubscriberKey IS NOT NULL AND SubscriberKey NOT LIKE '00QP%') d
+    LEFT JOIN _Subscribers s ON s.SubscriberKey = d.SubscriberKey
+    LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = d.SubscriberKey
+    UNION ALL
+    SELECT 'Survey' AS ListName, ISNULL(s.Status, 'Not in All Subscribers') AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
+    FROM (SELECT DISTINCT SubscriberKey AS SubscriberKey FROM List_Survey WHERE SubscriberKey IS NOT NULL AND SubscriberKey NOT LIKE '00QP%') d
+    LEFT JOIN _Subscribers s ON s.SubscriberKey = d.SubscriberKey
+    LEFT JOIN (SELECT DISTINCT Contact__c AS ContactId FROM Contract_Salesforce_1 WHERE Status__c IN ('Active', 'Future')) k ON k.ContactId = d.SubscriberKey
     UNION ALL
     SELECT 'All Subscribers' AS ListName, s.Status AS Status, CASE WHEN k.ContactId IS NULL THEN 'No' ELSE 'Yes' END AS Contract
     FROM _Subscribers s

@@ -4,16 +4,6 @@ SELECT
     SUM(u.Joined) AS Joined,
     SUM(u.Unsub) AS Unsubscribed
 FROM (
-    SELECT l.ListName AS ListName, CONVERT(char(7), CAST(TODATETIMEOFFSET(ls.DateJoined, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS Month, 1 AS Joined, 0 AS Unsub
-    FROM _ListSubscribers ls
-    JOIN _List l ON l.ListID = ls.ListID
-    WHERE l.ListType IN ('Public', 'Private') AND l.ListName <> 'All Subscribers' AND ls.SubscriberKey NOT LIKE '00QP%' AND ls.DateJoined >= '20250101 00:00:00'
-    UNION ALL
-    SELECT l.ListName AS ListName, CONVERT(char(7), CAST(TODATETIMEOFFSET(ls.DateUnsubscribed, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS Month, 0 AS Joined, 1 AS Unsub
-    FROM _ListSubscribers ls
-    JOIN _List l ON l.ListID = ls.ListID
-    WHERE l.ListType IN ('Public', 'Private') AND l.ListName <> 'All Subscribers' AND ls.SubscriberKey NOT LIKE '00QP%' AND ls.DateUnsubscribed IS NOT NULL AND ls.DateUnsubscribed >= '20250101 00:00:00'
-    UNION ALL
     SELECT 'All Subscribers' AS ListName, CONVERT(char(7), CAST(TODATETIMEOFFSET(s.DateJoined, '-06:00') AT TIME ZONE 'Central European Standard Time' AS datetime2), 120) AS Month, 1 AS Joined, 0 AS Unsub
     FROM _Subscribers s
     WHERE s.SubscriberKey NOT LIKE '00QP%' AND s.DateJoined >= '20250101 00:00:00'
