@@ -17,6 +17,44 @@ screenshots/  captures de chaque page, dans l'ordre d'affichage (données fictiv
 
 Les demandes ci-dessous (faites à partir de 16 h le 27/11/2026) sont **implémentées et poussées, mais jamais exécutées dans Marketing Cloud** : elles ont été validées uniquement sur des données fictives (navigateurs Chromium et WebKit), des tests de logique SQL sur une base de test (DuckDB) et un contrôle de syntaxe T-SQL / JavaScript ES3. Les premiers essais réels peuvent donc révéler des écarts (noms de champs, performance, délais d'exécution).
 
+### À faire maintenant (depuis la dernière revue du 28/11/2026)
+Les cases ci-dessous regroupent **tout ce qu'il faut créer, modifier et vérifier** pour les changements faits depuis la revue des pages réelles (lignes 16 à 20 du tableau de l'étape C). Les étapes A, B et C plus bas restent la référence détaillée des changements plus anciens.
+
+**1. Créer ou modifier des data extensions**
+- [ ] **Créer `DASH_Journey_KPI_Daily`** (Highlights) : **JourneyName** Text(200) et **SendDay** Text(10) en clé primaire ; Category Text(3) ; Sends, Bounces, HardBounces, Opens, UniqueClicks, Unsubscribes, Complaints (Number).
+- [ ] **Créer `DASH_Journey_Map`** (regroupement des journeys) : **JourneyName** Text(200) en clé primaire ; Alias Text(100).
+- [ ] **`DASH_PubList_Snapshot`** : le champ `Status` doit être de longueur **20 ou plus** (la valeur « Not a subscriber » fait 16 caractères). Clé primaire sur AsOf, ListName, Status et Contract. `DASH_PubList_Monthly` ne contient que All Subscribers.
+
+**2. Automation Studio**
+- [ ] **Ajouter `sql/28_journey_kpi_daily.sql`** → DASH_Journey_KPI_Daily, mode **Overwrite**, une exécution par jour (indépendante des autres requêtes). La lancer une fois.
+- [ ] **Ajouter `sql/27_journey_map.sql`** → DASH_Journey_Map, mode **Update**, après la requête 01. La lancer une fois.
+- [ ] **Recoller `sql/23_publist_snapshot.sql`** (nouvelle version : champs `[Subscriber Key]` et `[Status]` des DE de listes, libellé « Not a subscriber ») puis relancer 23 ; lancer **une fois** `25_backfill_publist_monthly.sql` ; garder 23 et 24 en quotidien (Update).
+
+**3. Republier les 3 CloudPages ensemble** (les trois fichiers vont ensemble : le dashboard lit des parties de l'API qui n'existent pas dans l'ancienne version)
+- [ ] `html/cloudpage_api.html` : parties `daily` et `conv` par mois (`&m=aaaa-mm`) ou par jour (`&d=aaaa-mm-jj`).
+- [ ] `html/cloudpage_dashboard.html` : onglet Highlights, regroupement des journeys, vue Provinces seule, comparaisons en %, mise en page mobile, 191 Ko.
+- [ ] `html/cloudpage_admin.html` : bandeau et composants alignés sur le dashboard, onglet **Journey names**, recherche et suppression groupée des IP.
+
+**4. Réglages dans la page admin**
+- [ ] Onglet **Journey names** : donner le même nom convivial aux journeys équivalentes (ancienne et nouvelle version), par exemple `MileageRenewal` pour `OKM_SCE2_VEH_MileageScenario2_ongoing` et `OKM_SCE2_VEH_MileageRenewal_ongoing`.
+- [ ] Onglet **Settings** : `reco_gap_pt` est maintenant un **écart relatif en %** (défaut 10 ; l'ancien défaut était 5 points). Le revoir s'il avait été personnalisé.
+- [ ] Facultatif : `journey_map_de` et `journey_map_name` si la DE ne s'appelle pas `DASH_Journey_Map`.
+
+**5. Sécurité (à faire en premier)**
+- [ ] Le fichier `help` du dépôt contenait les liens avec les clés d'accès et le dépôt GitHub est **public** : **régénérer les deux clés** (onglet *Settings* > *Access keys*, bouton Generate), puis supprimer le fichier `help` ou rendre le dépôt privé. Les anciennes clés restent dans l'historique git : les considérer comme compromises.
+- [ ] Nettoyer `DASH_IP_Allowlist` (25 entrées au moment de la revue) : retirer la plage temporaire `160.79.106.0/24` et les adresses isolées sans description dont vous n'avez plus besoin.
+
+**6. Vérifications dans Marketing Cloud** (ouvrir les URL de l'API avec `?k=<clé>`)
+- [ ] `&part=daily` : répond en moins de 30 s avec les ~45 derniers jours.
+- [ ] `&part=conv&m=2026-11` (puis `&d=2026-11-15` si le mois dépasse le délai) : le mois répond sans « maximum time allowed ».
+- [ ] Onglet Highlights : cartes, campagnes MKT envoyées et « Needs attention » s'affichent ; les noms de campagnes ouvrent Journey analysis.
+- [ ] Insights › Publication lists : All Subscribers affiche ses membres actifs (les statuts sont normalisés en minuscules / majuscules) et la ligne « Not a subscriber » apparaît si des membres de listes ne sont pas dans All Subscribers.
+- [ ] Après avoir nommé des journeys : Journeys, Journey analysis (liens) et Recommendations les regroupent bien.
+
+**7. Informations que j'attends de vous**
+- Résultat de `SELECT TOP 5 *` sur `List_Info`, `List_Newsletter`, `List_Promo` et `List_Survey` (partie A de `sql/26_probe_lists.sql`) et la répartition des valeurs de `Status` (partie B) : pour confirmer « Active » et ajouter les inscrits / désinscrits par liste s'il existe des colonnes de date.
+- Les couples de journeys qui ne fusionnent pas comme prévu (le nom convivial ne remplace que la partie « campagne » ; famille, type, produit et période doivent être identiques).
+
 ### Étape A : fichiers à recoller (les 3 CloudPages, nouveaux chemins `html/`)
 | Fichier | Contenu |
 |---|---|
