@@ -1580,7 +1580,8 @@ function periodRange(k){
   return [DATA_MONTHS[0]||'', DATA_MONTHS[DATA_MONTHS.length-1]||''];   /* all periods: first to last month with data */
 }
 const periodText = k => { const [a,b] = periodRange(k); return k==='all' ? 'All periods ('+(a||'…')+' → '+(b||'…')+')' : (PERIODS.find(p=>p[0]===k)||[0,k])[1]+' ('+(a===b ? a : a+' → '+b)+')'; };
-function buildPeriods(){ $('fPer').innerHTML = PERIODS.map(([k])=>`<option value="${k}">${esc(periodText(k))}</option>`).join(''); $('fPer').value = S.per; }
+const PERIOD_GROUPS = [['All',['all']],['This',['m0','q0','s0','y0']],['Previous',['m1','q1','s1','y1']],['Last',['m01','m3','m6','m12']]];
+function buildPeriods(){ $('fPer').innerHTML = PERIOD_GROUPS.map(([g,ks])=>`<optgroup label="${g}">`+ks.map(k=>`<option value="${k}">${esc(periodText(k))}</option>`).join('')+'</optgroup>').join(''); $('fPer').value = S.per; }
 function applyPeriod(){ const [a,b] = periodRange(S.per); S.from = a; S.to = b; if ($('fPer').value!==S.per) $('fPer').value = S.per; }
 function setup(){
   wireScroll();
