@@ -212,12 +212,12 @@ try {
     }
   } else if (part === "conv") {
     var convBase = ["LeadId","JourneyName","Category","SendMonth","SendDate","LeadCreatedDate","LeadStatus","IsConverted","DaysToLead","Opened","Clicked","Product","LeadProduct","EmailName"];
-    var conv = [], cm = trim(Platform.Request.GetQueryStringParameter("m")), cflt = cm ? { Property: "SendMonth", SimpleOperator: "equals", Value: cm } : null;   /* &m=yyyy-mm : un mois par requete (la DE entiere depasse la limite de temps) */
+    var conv = [], cm = trim(Platform.Request.GetQueryStringParameter("m")), cd = trim(Platform.Request.GetQueryStringParameter("d")), cflt = cd ? { Property: "SendDate", SimpleOperator: "equals", Value: cd } : (cm ? { Property: "SendMonth", SimpleOperator: "equals", Value: cm } : null);   /* &m=yyyy-mm : un mois par requete ; &d=yyyy-mm-dd : un jour (mois trop volumineux) - la DE entiere depasse la limite de temps */
     try { conv = numFields(fetchAll("DASH_Conversions", convBase.concat(["OriginKind","ConvJourney","ConvEmailName","ConvSendMonth"]), cflt), ["IsConverted","DaysToLead","Opened","Clicked"]); } catch (eConv) { conv = []; }
     if (!conv.length) {   /* empty, or a DE created before the lead-first attribution (the new fields do not exist yet): read the original fields */
       conv = optional("DASH_Conversions", convBase, ["IsConverted","DaysToLead","Opened","Clicked"], "DASH_Conversions", cflt);
     }
-    Write(Stringify({ part: "conv", m: cm, conv: conv, warnings: warnings }));
+    Write(Stringify({ part: "conv", m: cm, d: cd, conv: conv, warnings: warnings }));
   } else if (part === "email") {
     var email = optional("DASH_Email_KPI_Monthly",
       ["JourneyName","Month","EmailName","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"],

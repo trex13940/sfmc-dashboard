@@ -1539,6 +1539,7 @@ async function api(part, extra){
   if (!API_URL) throw new Error('api_url is not set in DASH_Config');
   const k = new URLSearchParams(location.search).get('k')||'';
   let url = API_URL+'?k='+encodeURIComponent(k)+(part?'&part='+part:'');
+  if (extra && extra.d) url += '&d='+encodeURIComponent(extra.d);
   if (extra && extra.m) url += '&m='+encodeURIComponent(extra.m);
   if (extra && extra.asof) url += '&asof='+encodeURIComponent(extra.asof);
   if (extra && extra.j) url += '&j='+encodeURIComponent(extra.j)+'&from='+encodeURIComponent(extra.from||'')+'&to='+encodeURIComponent(extra.to||'');
@@ -1572,8 +1573,15 @@ function loadConv(){
   let [y,m] = ms[0].split('-').map(Number); m -= 12; while (m<1){ m += 12; y--; }   /* leads created before the first send month */
   for (;;){ const k = y+'-'+String(m).padStart(2,'0'); months.push(k); if (k>=last && k>=ms[ms.length-1]) break; if (++m>12){ m = 1; y++; } if (months.length>60) break; }
   const out = [], errs = []; let next = 0;
-  const worker = async () => { while (next<months.length){ const mo = months[next++]; try{ const j = await api('conv',{m:mo}); out.push(...(j.conv||[])); if (j.warnings && j.warnings.length) errs.push(...j.warnings); }catch(e){ errs.push('conv '+mo+': '+e.message); } } };
-  return Promise.all([worker(),worker(),worker(),worker()]).then(()=>{ D.conv = out; showWarn(errs.length>2 ? [errs[0]+' (+'+(errs.length-1)+' other months)'] : errs); });
+  const fetchMonth = async mo => {   /* a month too large for one request is read day by day */
+    try{ const j = await api('conv',{m:mo}); out.push(...(j.conv||[])); if (j.warnings && j.warnings.length) errs.push(...j.warnings); return; }catch(e){ if (!/maximum time|HTTP 4|HTTP 5/i.test(e.message)){ errs.push('conv '+mo+': '+e.message); return; } }
+    const [yy,mm] = mo.split('-').map(Number), nd = new Date(yy,mm,0).getDate(), days = [];
+    for (let d=1; d<=nd; d++) days.push(mo+'-'+String(d).padStart(2,'0'));
+    let nx = 0; const dw = async () => { while (nx<days.length){ const dy = days[nx++]; try{ const j = await api('conv',{m:mo,d:dy}); out.push(...(j.conv||[])); }catch(e){ errs.push('conv '+dy+': '+e.message); } } };
+    await Promise.all([dw(),dw(),dw(),dw()]);
+  };
+  const worker = async () => { while (next<months.length) await fetchMonth(months[next++]); };
+  return Promise.all([worker(),worker(),worker(),worker()]).then(()=>{ D.conv = out; showWarn(errs.length>2 ? [errs[0]+' (+'+(errs.length-1)+' other requests)'] : errs); });
 }
 
 /* ---------- init ---------- */
