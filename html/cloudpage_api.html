@@ -210,29 +210,36 @@ try {
       var plMonthly = optional(cfgv("publist_monthly_de", "DASH_PubList_Monthly"), ["ListName","Month","Joined","Unsubscribed"], ["Joined","Unsubscribed"], "DASH_PubList_Monthly");
       Write(Stringify({ part: "audience", asof: asof, dist: dist, geo: geo, publists: { snap: plSnap, monthly: plMonthly }, warnings: warnings }));
     }
-  } else if (part === "sms") {
-    var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","Messages","UniqueRecipients","Delivered","Bounced"], ["Sent","Messages","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");
-    Write(Stringify({ part: "sms", sms: sms, warnings: warnings }));
-  } else {
-    var kpiBase = ["JourneyName","Month","Category","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"], kpiNums = ["Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"];
-    var kpi = [], kpiHard = true;
-    try { kpi = fetchAll("DASH_Journey_KPI_Monthly", kpiBase.concat(["HardBounces"])); } catch (eKpi) { kpi = []; }
-    if (!kpi.length) { kpiHard = false; kpi = fetchAll("DASH_Journey_KPI_Monthly", kpiBase); }   /* DE created before the hard / soft bounce split: the HardBounces field does not exist yet */
-    numFields(kpi, kpiHard ? kpiNums.concat(["HardBounces"]) : kpiNums);
+  } else if (part === "conv") {
     var convBase = ["LeadId","JourneyName","Category","SendMonth","SendDate","LeadCreatedDate","LeadStatus","IsConverted","DaysToLead","Opened","Clicked","Product","LeadProduct","EmailName"];
     var conv = [];
     try { conv = numFields(fetchAll("DASH_Conversions", convBase.concat(["OriginKind","ConvJourney","ConvEmailName","ConvSendMonth"])), ["IsConverted","DaysToLead","Opened","Clicked"]); } catch (eConv) { conv = []; }
     if (!conv.length) {   /* empty, or a DE created before the lead-first attribution (the new fields do not exist yet): read the original fields */
       conv = optional("DASH_Conversions", convBase, ["IsConverted","DaysToLead","Opened","Clicked"], "DASH_Conversions");
     }
+    Write(Stringify({ part: "conv", conv: conv, warnings: warnings }));
+  } else if (part === "email") {
     var email = optional("DASH_Email_KPI_Monthly",
       ["JourneyName","Month","EmailName","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"],
       ["Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"], "DASH_Email_KPI_Monthly");
+    Write(Stringify({ part: "email", email: email, warnings: warnings }));
+  } else if (part === "domain") {
     var domBase = ["Domain","Month","Sends","Bounces","Complaints"], domain = [], domHard = true;
     try { domain = fetchAll("DASH_Domain_Monthly", domBase.concat(["HardBounces"])); } catch (eDom) { domain = []; }
     if (!domain.length) { domHard = false; domain = optional("DASH_Domain_Monthly", domBase, ["Sends","Bounces","Complaints"], "DASH_Domain_Monthly"); }
     else { numFields(domain, ["Sends","Bounces","Complaints","HardBounces"]); }
-    Write(Stringify({ generatedMs: new Date().getTime(), kpi: kpi, conv: conv, email: email, domain: domain, warnings: warnings }));
+    Write(Stringify({ part: "domain", domain: domain, warnings: warnings }));
+  } else if (part === "sms") {
+    var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","Messages","UniqueRecipients","Delivered","Bounced"], ["Sent","Messages","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");
+    Write(Stringify({ part: "sms", sms: sms, warnings: warnings }));
+  } else {
+    /* core = KPI par journey seulement : leads, emails et domaines sont lus par des requetes separees (&part=conv|email|domain), chacune avec sa propre limite de temps */
+    var kpiBase = ["JourneyName","Month","Category","Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"], kpiNums = ["Sends","Bounces","Opens","UniqueClicks","Unsubscribes","Complaints"];
+    var kpi = [], kpiHard = true;
+    try { kpi = fetchAll("DASH_Journey_KPI_Monthly", kpiBase.concat(["HardBounces"])); } catch (eKpi) { kpi = []; }
+    if (!kpi.length) { kpiHard = false; kpi = fetchAll("DASH_Journey_KPI_Monthly", kpiBase); }   /* DE created before the hard / soft bounce split: the HardBounces field does not exist yet */
+    numFields(kpi, kpiHard ? kpiNums.concat(["HardBounces"]) : kpiNums);
+    Write(Stringify({ generatedMs: new Date().getTime(), kpi: kpi, warnings: warnings }));
   }
 } catch (e) {
   if (e !== "STOP") { Write(Stringify({ error: String(e.message || e) })); }

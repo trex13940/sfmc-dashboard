@@ -549,7 +549,7 @@ const DIMLAB = {journey:'Journey', activity:'Journey + email activity', cat:'Cat
 const catOf = r => r.Category || String(r.JourneyName||'').slice(0,3);
 const dimVal = (r,dim) => dim==='cat' ? catOf(r) : dim==='type' ? parse(r.JourneyName).type : dim==='product' ? parse(r.JourneyName).product : r.JourneyName;
 const dimShow = (dim,v) => dim==='type' ? lab('type',v) : dim==='product' ? lab('product',v) : v;
-let D = {kpi:[], conv:[], email:[], domain:[], linksByJ:{}, linksErr:{}, sms:null, aud:null, audErr:'', generatedMs:0}, charts = [], LOADING = {};
+let D = {kpi:[], conv:[], email:[], domain:[], loading:new Set(), linksByJ:{}, linksErr:{}, sms:null, aud:null, audErr:'', generatedMs:0}, charts = [], LOADING = {};
 const $ = id => document.getElementById(id);
 const NF = new Intl.NumberFormat('fr-BE');
 const PF = new Intl.NumberFormat('fr-BE',{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1});
@@ -773,7 +773,7 @@ function viewKpi(dim){
   drawCharts(byMonthCharts(rows));
   $('note').textContent = (S.tab==='journeys' ? "Most recent first (latest send month, then covered month). Click the arrow in front of a journey to show its email activities with their own type and product (FR/NL versions merged; for an ongoing journey the Month column shows the send month taken into account; anything after a \"-\" in the campaign name is ignored). " : "") +
     "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens. Delivered means accepted by the receiving server, not necessarily in the inbox. Open rates are overstated by mail privacy protection (Apple Mail, Gmail image proxy): compare journeys with each other and give more weight to clicks. The arrows on the cards compare with the previous period of the same length (percentage points for rates; green = better, red = worse). In the rates chart, Open % uses the left axis and CTR / Bounce % the right axis." +
-    (S.tab==='journeys' && !D.email.length ? " Email-level data not available yet (DASH_Email_KPI_Monthly)." : "");
+    (S.tab==='journeys' && !D.email.length ? (D.loading.has('email') ? " Loading email-level data…" : " Email-level data not available yet (DASH_Email_KPI_Monthly).") : "");
 }
 
 /* ---------- Conversions ---------- */
@@ -837,7 +837,7 @@ function viewConv(){
     const acts = D.email.length ? convAgg(rows, cred, 'journey', monthly, true).out.filter(a=>a.act) : [];   /* no activity row for leads without an email */
     opts = {cmp:recentCmp, children:childMap(acts, monthly), childCell:actChildCell};
   }
-  opts.empty = D.conv.length ? 'No data for the current selection. Try "Reset filters".' : 'No leads loaded yet (DASH_Conversions).';
+  opts.empty = D.conv.length ? 'No data for the current selection. Try "Reset filters".' : D.loading.has('conv') ? 'Loading leads…' : 'No leads loaded yet (DASH_Conversions).';
   setSummary(out.length, dim);
   renderTable('tbl', keyCols, cols, out, tot, opts);
   const byM = {}; rows.forEach(r=>{ const x = byM[r.SendMonth] = byM[r.SendMonth] || {M:0,T:0,N:0}; x[kindOf(r)]++; });
@@ -920,26 +920,28 @@ function recoRules(){
       if (Math.abs(d)>=2*gap) F('info','Performance',parse(j).campaign+': '+hi.lang+' opens '+fx1(Math.abs(d)*100)+' points better than '+lo.lang,hi.lang+' '+fx1(orate(hi)*100)+' % against '+lo.lang+' '+fx1(orate(lo)*100)+' % ('+n(deliv(lo))+' and '+n(deliv(hi))+' delivered).','Compare the subject lines and the preview text of the two versions; the weaker one may be a poor translation or a different audience.',{tab:'ana', j}, deliv(lo)+deliv(hi)); }
   });
   run('Weak emails inside a journey','Performance',()=>{
-    const em = group(D.email.filter(r=>inMonths(r.Month)), r=>[r.JourneyName,'',r.EmailName ? parseEmail(r.EmailName).clean : '']); if (!em.length) return 'no email-level data (DASH_Email_KPI_Monthly)';
+    const em = group(D.email.filter(r=>inMonths(r.Month)), r=>[r.JourneyName,'',r.EmailName ? parseEmail(r.EmailName).clean : '']); if (!em.length) return D.loading.has('email') ? 'email-level data is still loading' : 'no email-level data (DASH_Email_KPI_Monthly)';
     const jm = new Map(J.map(a=>[a.name,a]));
     for (const e of em){ const a = jm.get(e.name); if (!a || deliv(e)<minS || deliv(a)<3*deliv(e) || crate(a)<0.01) continue;
       if (crate(e)<=0.5*crate(a)) F('info','Performance',e.act+': half the click rate of its journey',fx1(crate(e)*100)+' % click rate on '+n(deliv(e))+' delivered emails, against '+fx1(crate(a)*100)+' % for the whole journey ('+nm(a)+').','Look at the links and the layout of this email: it may be an older or weaker version.',goJ(a),deliv(e)); }
   });
   /* ---- Leads ---- */
   run('Leads that do not sign','Leads',()=>{
-    const lr = D.conv.filter(r=>inMonths(r.SendMonth)); if (!lr.length) return 'no leads loaded (DASH_Conversions)';
+    const lr = D.conv.filter(r=>inMonths(r.SendMonth)); if (!lr.length) return D.loading.has('conv') ? 'leads are still loading' : 'no leads loaded (DASH_Conversions)';
     const tot = lr.length, sig = lr.reduce((s,r)=>s+r.IsConverted,0), overall = sig/tot; if (tot<minL) return 'fewer than '+n(minL)+' leads in the period';
     const g = group2(lr.filter(r=>r.JourneyName!=='(no email)'), r=>r.JourneyName);
     for (const a of g){ if (a.n<minL) continue; const rt = a.c/a.n;
       if (overall>0 && rt<=0.5*overall) F(rt===0?'high':'medium','Leads',parse(a.name).campaign+': '+(rt===0?'no lead has signed':'only '+pct(a.c,a.n)+' of leads sign'),n(a.c)+' signed out of '+n(a.n)+' leads generated, against '+fx1(overall*100)+' % for all leads.','Check the funnel after the email (landing page, offer, follow-up journeys): the email attracts leads that do not convert.',{tab:'conv', q:a.name},a.n); }
   });
   run('Leads without any email','Leads',()=>{
+    if (D.loading.has('conv')) return 'leads are still loading';
     if (!D.conv.some(r=>r.OriginKind!==undefined)) return 'DASH_Conversions still has the old structure (rerun query 04)';
     const lr = D.conv.filter(r=>inMonths(r.SendMonth)); if (lr.length<minL) return 'fewer than '+n(minL)+' leads in the period';
     const nn = lr.filter(r=>kindOf(r)==='N').length;
     if (nn/lr.length>=0.3) F('info','Leads',pct(nn,lr.length)+' of leads received none of the tracked emails',n(nn)+' of '+n(lr.length)+' leads have no email address, are not in the subscriber list, or got no matching email within the attribution window.','Check that new leads are added to the subscriber list and that the lead journeys (OCL, ODO, ODD_OFF) catch them.',{tab:'conv'},lr.length);
   });
   run('Where leads sign','Leads',()=>{
+    if (D.loading.has('conv')) return 'leads are still loading';
     if (!D.conv.some(r=>r.OriginKind!==undefined)) return 'DASH_Conversions still has the old structure (rerun query 04)';
     const lr = D.conv.filter(r=>inMonths(r.SendMonth)), k = {M:{n:0,c:0},T:{n:0,c:0},N:{n:0,c:0}}; lr.forEach(r=>{ const x = k[kindOf(r)]; x.n++; x.c+=r.IsConverted; });
     if (k.M.n<minL || k.T.n<minL) return 'fewer than '+n(minL)+' leads of each origin (marketing / triggered)';
@@ -1584,6 +1586,15 @@ const periodText = k => { const [a,b] = periodRange(k); return k==='all' ? 'All 
 const PERIOD_GROUPS = [['All',['all']],['This',['m0','q0','s0','y0']],['Previous',['m1','q1','s1','y1']],['Last',['m01','m3','m6','m12']]];
 function buildPeriods(){ $('fPer').innerHTML = PERIOD_GROUPS.map(([g,ks])=>`<optgroup label="${g}">`+ks.map(k=>`<option value="${k}">${esc(periodText(k))}</option>`).join('')+'</optgroup>').join(''); $('fPer').value = S.per; }
 function applyPeriod(){ const [a,b] = periodRange(S.per); S.from = a; S.to = b; if ($('fPer').value!==S.per) $('fPer').value = S.per; }
+const loadingMsg = x => D.loading.has(x) ? ' Loading…' : '';
+function refreshExtra(){   /* months and filter lists also come from the late data (leads, emails, domains) */
+  const months = [...new Set([...D.kpi.map(r=>r.Month),...D.conv.map(r=>r.SendMonth),...D.email.map(r=>r.Month),...D.domain.map(r=>r.Month)])].filter(Boolean).sort();
+  DATA_MONTHS = months; buildPeriods(); applyPeriod();
+  const names = [...new Set([...D.kpi,...D.conv].map(r=>r.JourneyName))].filter(x=>x!=='(no email)');
+  for (const [id,kind,key] of [['fType','type','type'],['fProd','product','prod']]){ const vals = [...new Set(names.map(nm=>parse(nm)[kind]))].sort(), cur = S[key];
+    $(id).innerHTML = '<option value="">All</option>'+vals.map(v=>`<option value="${esc(v)}">${esc(lab(kind,v,true))}</option>`).join(''); $(id).value = cur; }
+  render();
+}
 function setup(){
   wireScroll();
   const months = [...new Set([...D.kpi.map(r=>r.Month),...D.conv.map(r=>r.SendMonth),...D.email.map(r=>r.Month),...D.domain.map(r=>r.Month)])].filter(Boolean).sort();
@@ -1648,11 +1659,13 @@ async function load(){
   $('errBox').hidden = true; document.body.classList.remove('failed'); document.body.classList.add('loading'); $('gen').textContent = 'Loading…';
   try{
     const j = await api('');
-    D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], linksByJ:{}, linksErr:{}, sms:null, aud:null, audErr:'', generatedMs:j.generatedMs||0};
+    D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], loading:new Set(['conv','email','domain'].filter(x=>!Array.isArray(j[x]))), linksByJ:{}, linksErr:{}, sms:null, aud:null, audErr:'', generatedMs:j.generatedMs||0};
     LOADING = {}; $('warn').hidden = true;
     $('gen').textContent = 'Data as of '+(j.generatedMs ? new Intl.DateTimeFormat('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels',timeZoneName:'short'}).format(new Date(j.generatedMs)) : '–')+' · months in CET/CEST';
     showWarn(j.warnings);
     document.body.classList.remove('loading'); setup(); selectTab(S.tab);
+    /* leads, email-level and domain data come in separate requests (each has its own time limit): the journeys appear first */
+    [...D.loading].forEach(x=>loadPart(x).then(()=>{ D.loading.delete(x); refreshExtra(); }));
   }catch(e){
     document.body.classList.remove('loading'); document.body.classList.add('failed');
     $('errMsg').textContent = friendly(String(e.message||e)); $('errDetail').textContent = 'Technical detail: '+String(e.message||e);
