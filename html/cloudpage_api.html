@@ -229,6 +229,11 @@ try {
     if (!domain.length) { domHard = false; domain = optional("DASH_Domain_Monthly", domBase, ["Sends","Bounces","Complaints"], "DASH_Domain_Monthly"); }
     else { numFields(domain, ["Sends","Bounces","Complaints","HardBounces"]); }
     Write(Stringify({ part: "domain", domain: domain, warnings: warnings }));
+  } else if (part === "daily") {
+    /* last ~45 complete days per journey (DASH_Journey_KPI_Daily, query 28) : Highlights */
+    var dly = optional("DASH_Journey_KPI_Daily", ["JourneyName","SendDay","Category","Sends","Bounces","HardBounces","Opens","UniqueClicks","Unsubscribes","Complaints"],
+                       ["Sends","Bounces","HardBounces","Opens","UniqueClicks","Unsubscribes","Complaints"], "DASH_Journey_KPI_Daily");
+    Write(Stringify({ part: "daily", daily: dly, warnings: warnings }));
   } else if (part === "sms") {
     var sms = optional("DASH_SMS_Monthly", ["JourneyName","Month","AssetName","Sent","Messages","UniqueRecipients","Delivered","Bounced"], ["Sent","Messages","UniqueRecipients","Delivered","Bounced"], "DASH_SMS_Monthly");
     Write(Stringify({ part: "sms", sms: sms, warnings: warnings }));

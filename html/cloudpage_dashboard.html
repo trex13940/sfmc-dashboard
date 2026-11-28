@@ -279,6 +279,12 @@ tr.child:hover td{background:var(--pink-light)}
 .top .bar2 i{display:block;height:100%;background:var(--red);border-radius:3px}
 .top .bar2{position:relative;overflow:visible}.top .bar2 i.mid{background:#d98a00}.top .bar2 i.hi{background:var(--red)}.top .bar2 .mk{position:absolute;top:-4px;width:2px;height:14px;background:var(--fg);opacity:.55}
 .cls{display:inline-flex;align-items:center;gap:4px;margin-right:8px;white-space:nowrap}.cls i{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid rgba(16,24,32,.2)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px;margin-bottom:16px}.two .card:hover{transform:none;border-color:transparent}.two h3{margin:0 0 8px;font-size:1rem}.two .n{font-size:.75rem;font-weight:600;padding:1px 9px;border-radius:12px;background:var(--pink-bg);color:var(--tx-red);margin-left:6px}
+.attn{list-style:none;margin:0 0 10px;padding:0}.attn li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.attn li:first-child{border-top:0}.attn small{display:block;color:var(--mute);font-size:.75rem;font-weight:400}.attn .sev{font-size:.72rem;font-weight:700;padding:1px 9px;border-radius:12px;border:1px solid currentColor;white-space:nowrap}
+.attn .sev.high{color:var(--err-text,#c40026)}.attn .sev.medium{color:#a86600}.attn .sev.info{color:#1f6a9c}.two p.ok{color:var(--ok-text);font-weight:600;margin:4px 0 10px}
+@media (prefers-color-scheme:dark){.attn .sev.medium{color:#f0b24a}.attn .sev.info{color:#6cb8ee}}
+.stt{font-weight:700;padding:1px 10px;border-radius:12px;border:1px solid var(--line);white-space:nowrap}.stt.fix{color:var(--err-text,#c40026);border-color:currentColor}.stt.watch{color:#a86600;border-color:currentColor}.stt.ok{color:var(--ok-text);border-color:currentColor}@media (prefers-color-scheme:dark){.stt.watch{color:#f0b24a}}
+.hlbtns{margin:12px 0 18px}
 .top .rl{margin:-4px 0 6px;font-size:.72rem;color:var(--mute)}
 td.bad{color:var(--err-text);font-weight:700}
 @media (max-width:768px){header{padding:12px 16px 0}main{padding:16px}.bar{padding:12px}.tab{padding:8px 12px}}
@@ -338,7 +344,8 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
   <h1>Marketing journeys dashboard</h1>
   <div class="sub" id="gen" role="status" aria-live="polite">Loading…</div>
   <div class="tabs" role="tablist" aria-label="Dashboard sections">
-    <button class="tab" role="tab" id="tab-journeys" data-tab="journeys" aria-selected="true" aria-controls="v-main" tabindex="0">Journeys</button>
+    <button class="tab" role="tab" id="tab-hl" data-tab="hl" aria-selected="true" aria-controls="v-hl" tabindex="0">Highlights</button>
+    <button class="tab" role="tab" id="tab-journeys" data-tab="journeys" aria-selected="false" aria-controls="v-main" tabindex="-1">Journeys</button>
     <button class="tab" role="tab" id="tab-cats" data-tab="cats" aria-selected="false" aria-controls="v-main" tabindex="-1">Categories</button>
     <button class="tab" role="tab" id="tab-conv" data-tab="conv" aria-selected="false" aria-controls="v-main" tabindex="-1">Conversions (leads)</button>
     <button class="tab" role="tab" id="tab-ana" data-tab="ana" aria-selected="false" aria-controls="v-ana" tabindex="-1">Journey analysis</button>
@@ -389,6 +396,17 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
   </div>
   <div id="ctx" class="ctx" role="status" aria-live="polite" hidden></div>
   <details id="warn" class="warn" hidden><summary><span aria-hidden="true">⚠</span> <span id="warnSum"></span></summary><p id="warnTxt"></p></details>
+
+  <section id="v-hl" hidden>
+    <div id="hlMsg" class="warn" role="status" hidden></div>
+    <div id="hlCards" class="cards"></div>
+    <h2 class="h2" id="hlCampTitle">Marketing campaigns sent in the last 30 days</h2>
+    <div class="wrap"><table id="tHl"></table></div>
+    <div class="hlbtns"><button type="button" class="btn2" data-go='{"tab":"journeys"}'>All journeys</button></div>
+    <h2 class="h2">Needs attention</h2>
+    <div class="two" id="hlAttn"></div>
+    <div class="note" id="hlNote"></div>
+  </section>
 
   <section id="v-main">
     <div id="cards" class="cards"></div>
@@ -497,7 +515,7 @@ const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this man
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
 const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', per:'all', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', j2:'', gz:'', rc:'all', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
+const S = {tab:'hl', fam:'ALL', type:'', prod:'', per:'all', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', j2:'', gz:'', rc:'all', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
@@ -505,6 +523,7 @@ const LKINIT = new Set();
 const EXPKEYS = {};      /* keys of the rows that can be expanded, per table */
 
 const TABS = {
+  hl:      {view:'hl',   ctl:[], csv:null},
   journeys:{view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lCompact','lExp','lQ'], csv:'tbl'},
   cats:    {view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lCompact','lView','lQ'], csv:'tbl'},
   conv:    {view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lGrp','lExp','lQ'], csv:'tbl'},
@@ -534,7 +553,7 @@ function remapRows(rows, fields){
   for (const r of rows) for (const f of fields){ const v = r[f]; if (v && JM[v]){ const c = jmCanon(v); if (c!==v){ let st = JORIG.get(c); if (!st){ st = new Set(); JORIG.set(c,st); } st.add(v); r[f] = c; } } }
   return rows;
 }
-const jmFields = {conv:['JourneyName','ConvJourney'], email:['JourneyName'], kpi:['JourneyName'], sms:['JourneyName'], domain:[]};
+const jmFields = {conv:['JourneyName','ConvJourney'], email:['JourneyName'], kpi:['JourneyName'], sms:['JourneyName'], domain:[], daily:['JourneyName']};
 function parse(name){
   if (_pc.has(name)) return _pc.get(name);
   if (name==='(no email)'){ const o = {fam:'–',type:'–',product:'–',campaign:name,period:'',covered:''}; _pc.set(name,o); return o; }
@@ -896,6 +915,61 @@ function viewConv(){
     (legacy ? " DASH_Conversions still has the old structure: rerun query 04 (backfill) after adding the new fields (see the README)." : "");
 }
 
+/* ---------- Highlights : last 30 days, MKT campaigns sent, what needs attention ---------- */
+let HLCTX = [];
+const addDays = (d, k) => { const t = new Date(d+'T00:00:00Z'); t.setUTCDate(t.getUTCDate()+k); return t.toISOString().slice(0,10); };
+const median = a => { const v = a.filter(x=>x!=null).sort((x,y)=>x-y), m = v.length>>1; return v.length ? (v.length%2 ? v[m] : (v[m-1]+v[m])/2) : null; };
+function viewHl(){
+  charts.forEach(c=>c.destroy()); charts = [];
+  if (D.aud===null && !D.audErr) loadAudience().then(()=>{ if (S.tab==='hl') render(); });
+  const msg = $('hlMsg'), dl = D.daily;
+  HLCTX = [];
+  if (!dl.length){
+    msg.hidden = false; msg.textContent = D.loading.has('daily') ? 'Loading the last 30 days…' : 'No daily data yet (DASH_Journey_KPI_Daily): create the data extension and run query 28 (see the README).';
+    cards('hlCards', []); $('tHl').innerHTML = ''; $('hlCampTitle').textContent = 'Marketing campaigns sent in the last 30 days';
+  } else {
+    msg.hidden = true;
+    const end = dl.reduce((m,r)=>r.SendDay>m?r.SendDay:m,''), start = addDays(end,-29), pS = addDays(end,-59), pE = addDays(end,-30);
+    const cur = dl.filter(r=>r.SendDay>=start && r.SendDay<=end), prv = dl.filter(r=>r.SendDay>=pS && r.SendDay<=pE);
+    HLCTX = ['Last 30 days <b>'+start+' → '+end+'</b>', prv.length ? 'compared with <b>'+pS+' → '+pE+'</b>' : 'no previous 30 days to compare with'];
+    const tot = group(cur, r=>['','']) [0] || ZERO(), ptot = prv.length ? group(prv, r=>['','']) [0] : null;
+    const series = group(cur, r=>['',r.SendDay]).sort((a,b)=>a.month<b.month?-1:1);
+    const all = kpiCards(tot, ptot, {from:pS,to:pE}, series.length>=3 ? series : null), pick = l => all.find(x=>x[1]===l);
+    cards('hlCards', ['Sends','Delivery rate','Open rate','CTR (unique)','Bounce rate','Unsub rate','Complaint rate'].map(pick).filter(Boolean), 4);
+    /* marketing campaigns that sent something in the window, with a simple status against similar campaigns */
+    const mk = group(cur.filter(r=>/^MKT_/.test(r.JourneyName)), r=>[r.JourneyName,'']).filter(a=>a.Sends>0);
+    const minS = RECO.minSends||1000, gap = (RECO.gapPt||5)/100, orate = a => deliv(a) ? a.Opens/deliv(a) : null;
+    mk.forEach(a=>{
+      const p = parse(a.name), peers = mk.filter(x=>x!==a && parse(x.name).type===p.type && deliv(x)>=minS), pool = peers.length>=2 ? peers : mk.filter(x=>x!==a && deliv(x)>=minS), mo = median(pool.map(orate)), o = orate(a);
+      const b = a.Sends ? a.Bounces/a.Sends : 0, c = deliv(a) ? a.Compl/deliv(a) : 0;
+      a.st = deliv(a)<minS ? 'Few sends' : (b>=0.05 || c>=0.003) ? 'Fix' : (b>=0.02 || c>=0.001 || (mo!=null && o!=null && o < mo-gap)) ? 'Watch' : 'OK';
+      a.why = a.st==='Fix' || a.st==='Watch' ? (b>=0.02 ? 'bounce '+pct(a.Bounces,a.Sends) : c>=0.001 ? 'complaints '+fx2(c*100)+' %' : 'open rate '+fx1((mo-o)*100)+' pts below similar campaigns') : '';
+    });
+    mk.sort((a,b)=>a.last<b.last?1:a.last>b.last?-1:b.Sends-a.Sends);
+    const top = mk.slice(0,8);
+    $('hlCampTitle').textContent = 'Marketing campaigns sent in the last 30 days ('+mk.length+')';
+    const keyCols = [{k:'name',l:'Campaign',v:a=>parse(a.name).campaign.toLowerCase(),f:a=>JSET.has(a.name) ? `<a href="#" class="jl" data-j="${esc(a.name)}" title="${esc(a.name)} – open the journey analysis">${esc(parse(a.name).campaign)}</a>` : esc(parse(a.name).campaign)}];
+    const cols = [
+      {k:'type',l:'Type',v:a=>parse(a.name).type,f:a=>esc(lab('type',parse(a.name).type)),left:true},
+      {k:'last',l:'Last send',v:a=>a.last,f:a=>esc(a.last),left:true},
+      {k:'Sends',l:'Sends',v:a=>a.Sends,f:a=>n(a.Sends)},
+      {k:'rOpen',l:'Open %',v:a=>orate(a)??-1,f:a=>deliv(a)?pct(a.Opens,deliv(a)):'–'},
+      {k:'rCtr',l:'CTR %',v:a=>deliv(a)?a.Clicks/deliv(a):-1,f:a=>deliv(a)?pct(a.Clicks,deliv(a)):'–'},
+      {k:'rBnc',l:'Bounce %',v:a=>a.Sends?a.Bounces/a.Sends:-1,f:a=>pct(a.Bounces,a.Sends)},
+      {k:'st',l:'Status',v:a=>({Fix:3,Watch:2,OK:1})[a.st]||0,f:a=>`<span class="stt ${a.st==='Fix'?'fix':a.st==='Watch'?'watch':a.st==='OK'?'ok':''}" title="${esc(a.why||'')}">${a.st}</span>${a.why?' <span class="d">'+esc(a.why)+'</span>':''}`,left:true}
+    ];
+    renderTable('tHl', keyCols, cols, top, null, {defK:'last', empty:'No marketing campaign sent in the last 30 days.'});
+  }
+  /* what needs attention: the strongest volume alerts and the most important recommendations */
+  const AL = computeAlerts().rows.filter(a=>a.alert).sort((a,b)=>a.change-b.change), RC = recoRules().findings.filter(f=>f.sev==='high'||f.sev==='medium').sort((a,b)=>SEV_ORDER[a.sev]-SEV_ORDER[b.sev]);
+  const li = (cls, tag, title, sub, go) => `<li><span class="sev ${cls}">${tag}</span><div><b>${esc(title)}</b>${sub?'<small>'+esc(sub)+'</small>':''}</div><button type="button" class="btn2" data-go="${esc(JSON.stringify(go))}">See</button></li>`;
+  $('hlAttn').innerHTML =
+    `<div class="card"><h3>Volume alerts <span class="n">${AL.length}</span></h3>${AL.length ? '<ul class="attn">'+AL.slice(0,3).map(a=>li('high','Alert',parse(a.name).campaign,fx1(Math.abs(a.change)*100)+' % below expected ('+n(a.cur)+' sends so far, '+n(Math.round(a.expected))+' expected)',{tab:'alerts'})).join('')+'</ul>' : '<p class="ok">✓ No journey below its expected volume.</p>'}<button type="button" class="btn2" data-go='{"tab":"alerts"}'>All alerts</button></div>`+
+    `<div class="card"><h3>Recommendations <span class="n">${RC.length}</span></h3>${RC.length ? '<ul class="attn">'+RC.slice(0,3).map(f=>li(f.sev,SEVS[f.sev],f.title,f.cat,f.go||{tab:'reco'})).join('')+'</ul>' : (D.aud===null && !D.audErr ? '<p class="d">Subscriber and list checks are still loading…</p>' : '<p class="ok">✓ Nothing to fix or watch.</p>')}<button type="button" class="btn2" data-go='{"tab":"reco"}'>All recommendations</button></div>`;
+  $('v-hl').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>recoGo(JSON.parse(b.dataset.go)));
+  $('hlNote').textContent = 'Last 30 days = the 30 most recent complete days in DASH_Journey_KPI_Daily, compared with the 30 days before. Opens and clicks are attributed to the send day. Campaign status: Fix = bounce rate 5 % or more, or complaints 0,3 % or more; Watch = bounce 2 % or more, complaints 0,1 % or more, or an open rate '+(RECO.gapPt||5)+' points below similar campaigns of the period; fewer than '+n(RECO.minSends||1000)+' delivered emails are not judged. Recommendations cover the period chosen on that tab.'+(D.aud===null && !D.audErr ? ' Subscriber and list checks are still loading.' : '');
+}
+
 /* ---------- Recommendations : rule-based findings computed from the data already loaded ---------- */
 const RECO = CFG.reco || {};
 const SEVS = {high:'Fix', medium:'Watch', info:'Insight'}, SEV_ORDER = {high:0, medium:1, info:2};
@@ -1034,6 +1108,7 @@ function recoRules(){
   return out;
 }
 const group2 = (rows, keyFn) => { const m = new Map(); for (const r of rows){ const k = keyFn(r); let a = m.get(k); if(!a){ a={name:k,n:0,c:0}; m.set(k,a); } a.n++; a.c+=r.IsConverted; } return [...m.values()]; };
+function recoGo(g){ if (g.j!==undefined) S.j = g.j; if (g.sub) S.sub = g.sub; if (g.seg) S.seg = g.seg; if (g.gc) S.gc = g.gc; if (g.q!==undefined){ S.q = g.q; $('fQ').value = g.q; } selectTab(g.tab); window.scrollTo(0,0); }
 function viewReco(){
   if (D.aud===null && !D.audErr) loadAudience().then(()=>{ if (S.tab==='reco') render(); });
   charts.forEach(c=>c.destroy()); charts = [];
@@ -1048,7 +1123,7 @@ function viewReco(){
   const artOf = f=>`<article class="reco ${f.sev}"><div class="rh"><span class="sev">${SEVS[f.sev]}</span><span>${esc(f.cat)}</span></div><h3>${esc(f.title)}</h3><p class="ev">${esc(f.ev)}</p><p class="ac"><b>Suggested action:</b> ${esc(f.action)}</p>${f.go?`<button type="button" class="btn2 go" data-go="${esc(JSON.stringify(f.go))}">See the data</button>`:''}</article>`;
   $('recoList').innerHTML = list.length ? [['high','Fix'],['medium','Watch'],['info','Insights']].map(([k,l])=>{ const g = list.filter(f=>f.sev===k); return g.length ? `<details class="rgrp ${k}"${k==='info'?'':' open'}><summary>${l} <span class="n">${g.length}</span></summary><div class="rlist">${g.map(artOf).join('')}</div></details>` : ''; }).join('')
     : `<div class="card"><b>Nothing to report</b><span>${res.checked ? 'No rule is triggered for this period and category.' : 'Not enough data for the checks yet.'}</span></div>`;
-  $('recoList').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ const g = JSON.parse(b.dataset.go); if (g.j!==undefined) S.j = g.j; if (g.sub) S.sub = g.sub; if (g.seg) S.seg = g.seg; if (g.gc) S.gc = g.gc; if (g.q!==undefined){ S.q = g.q; $('fQ').value = g.q; } selectTab(g.tab); window.scrollTo(0,0); });
+  $('recoList').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>recoGo(JSON.parse(b.dataset.go)));
   $('recoSkipped').hidden = !res.skipped.length; $('recoSkipList').innerHTML = res.skipped.map(s=>'<li>'+esc(s)+'</li>').join('');
   $('recoMethod').innerHTML = 'Rules run on the data already in the dashboard, for the selected period. A rule only fires when the volume is high enough (at least '+n(RECO.minSends||1000)+' delivered emails, '+n(RECO.minLeads||30)+' leads) and compares a journey with the median of similar journeys (same family and type, at least 3 of them) or with the previous period of the same length. Gaps are measured in points (default '+(RECO.gapPt||5)+'). Deliverability references: complaint rate under 0,1 % and never 0,3 % (Google, Yahoo); bounces under 2 % in total and hard bounces well under 1 % (industry benchmark, no provider threshold). Open rates are overstated by mail privacy protection, so an open-rate gap is only urgent when the click rate confirms it. Thresholds: <code>reco_min_sends</code>, <code>reco_min_leads</code> and <code>reco_gap_pt</code> in the admin page (Settings). These are leads to investigate, not proofs: the attribution of leads is an approximation and six months of history do not show seasonality.';
 }
@@ -1533,6 +1608,7 @@ function updateCtx(){
   if (tab==='ins' && S.sub!=='deliv' && S.sub!=='lists'){ el.hidden = true; return; }
   const period = 'Period <b>'+esc(periodText(S.per))+'</b>', parts = [];
   if (tab==='ana'){ if (!S.j){ el.hidden = true; return; } parts.push('Journey <b>'+esc(parse(S.j).campaign)+'</b>'+(S.j2 && S.j2!==S.j ? ' vs <b>'+esc(parse(S.j2).campaign)+'</b>' : ''), period); }
+  else if (tab==='hl'){ if (!HLCTX.length){ el.hidden = true; return; } parts.push(...HLCTX); }
   else if (tab==='alerts'){ el.hidden = false; el.innerHTML = '<span>Scope <b>'+(S.alert==='all'?'All journeys':'Ongoing journeys only')+'</b></span>'; return; }
   else if (tab==='ins' && S.sub==='lists'){ parts.push(period); }
   else if (tab==='reco'){ parts.push(period, 'All journeys, domains, leads and lists'); }
@@ -1590,9 +1666,9 @@ function render(){
   document.querySelector('.bar').hidden = [...document.querySelectorAll('.ctl')].every(e=>e.hidden) && $('bCsv').hidden && $('bReset').hidden;
   $('bFilt').hidden = document.querySelector('.bar').hidden; filtLabel();
   $('bCompact').setAttribute('aria-pressed', S.compact); $('bCompact').textContent = S.compact ? 'All columns' : 'Rates only';
-  ['main','ana','ins','reco','alerts','sms'].forEach(v=>$('v-'+v).hidden = v!==cfg.view);
+  ['hl','main','ana','ins','reco','alerts','sms'].forEach(v=>$('v-'+v).hidden = v!==cfg.view);
   $('v-'+cfg.view).setAttribute('aria-labelledby','tab-'+S.tab);
-  if (S.tab==='journeys') viewKpi('journey'); else if (S.tab==='cats') viewKpi(S.view); else if (S.tab==='conv') viewConv();
+  if (S.tab==='hl') viewHl(); else if (S.tab==='journeys') viewKpi('journey'); else if (S.tab==='cats') viewKpi(S.view); else if (S.tab==='conv') viewConv();
   else if (S.tab==='ana') viewAna(); else if (S.tab==='ins') viewIns(); else if (S.tab==='reco') viewReco(); else if (S.tab==='alerts') viewAlerts(); else viewSms();
   updateCtx(); updateBadge(); saveHash();
 }
@@ -1628,7 +1704,7 @@ function loadLinks(j, from, to){
 }
 async function loadPart(part){
   if (LOADING[part]) return LOADING[part];
-  LOADING[part] = api(part).then(j=>{ D[part] = remapRows(j[part]||[], jmFields[part]||[]); showWarn(j.warnings); }).catch(e=>{ D[part]=[]; showWarn([part+': '+e.message]); });
+  LOADING[part] = api(part).then(j=>{ D[part] = remapRows(j[part]||[], jmFields[part]||[]); if (part==='daily') D.daily.forEach(r=>{ r.Month = r.SendDay; }); showWarn(j.warnings); }).catch(e=>{ D[part]=[]; showWarn([part+': '+e.message]); });
   return LOADING[part];
 }
 
@@ -1698,7 +1774,7 @@ function setup(){
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
   S.j = ''; JSET = new Set(js);   /* no journey is preselected: the analysis page stays empty until one is chosen */
   $('fJ').innerHTML = '<option value=""></option>' + $('fJ').innerHTML; $('fJ2').innerHTML = $('fJ').innerHTML; buildJourneyList(js, last);
-  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',per:'all',gran:'total',grp:'journey',view:'cat',q:'',j:S.j,j2:'',gz:'',rc:'all',alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
+  DEF = {tab:'hl',fam:'ALL',type:'',prod:'',per:'all',gran:'total',grp:'journey',view:'cat',q:'',j:S.j,j2:'',gz:'',rc:'all',alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fPer',v=>{ S.per=v; applyPeriod(); }); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);
@@ -1749,7 +1825,7 @@ async function load(){
   try{
     const j = await api('');
     JORIG.clear(); for (const k of ['kpi','conv','email']) if (Array.isArray(j[k])) remapRows(j[k], jmFields[k]);
-    D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], loading:new Set(['conv','email','domain'].filter(x=>!Array.isArray(j[x]))), linksByJ:{}, linksErr:{}, sms:null, aud:null, audErr:'', generatedMs:j.generatedMs||0};
+    D = {kpi:j.kpi||[], conv:j.conv||[], email:j.email||[], domain:j.domain||[], loading:new Set(['conv','email','domain','daily'].filter(x=>!Array.isArray(j[x]))), daily:[], linksByJ:{}, linksErr:{}, sms:null, aud:null, audErr:'', generatedMs:j.generatedMs||0};
     LOADING = {}; $('warn').hidden = true;
     $('gen').textContent = 'Data as of '+(j.generatedMs ? new Intl.DateTimeFormat('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Brussels',timeZoneName:'short'}).format(new Date(j.generatedMs)) : '–')+' · months in CET/CEST';
     showWarn(j.warnings);
