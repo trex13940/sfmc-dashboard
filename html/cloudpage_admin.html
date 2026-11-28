@@ -275,7 +275,7 @@ var CFG_RULES = {
   api_url: { t: "url" }, ip_de_key: { t: "name" }, ip_de_name: { t: "name" }, link_de_name: { t: "name" }, link_de_key: { t: "name" },
   audience_dist_de: { t: "name" }, contact_geo_de: { t: "name" }, publist_snapshot_de: { t: "name" }, publist_monthly_de: { t: "name" }, admin_log_de: { t: "name" },
   link_budget_ms: { t: "int", min: 1000, max: 25000 }, alert_drop_pct: { t: "int", min: 1, max: 100 },
-  alert_min_sends: { t: "int", min: 0, max: 10000000 }, alert_min_days: { t: "int", min: 1, max: 28 },
+  alert_min_sends: { t: "int", min: 0, max: 10000000 }, reco_min_sends: { t: "int", min: 1, max: 10000000 }, reco_min_leads: { t: "int", min: 1, max: 100000 }, reco_gap_pt: { t: "int", min: 1, max: 50 }, alert_min_days: { t: "int", min: 1, max: 28 },
   asset_strip_extra: { t: "text", max: 200 }, token: { t: "secret" }, admin_token: { t: "secret" }
 };
 /* regle de nom de lien : motif, separateur, nom. Motif en minuscules, sans protocole ; le motif le plus long gagne (cote navigateur) */
@@ -617,6 +617,9 @@ const SCHEMA = [
   {k:'alert_drop_pct', l:'Alert threshold (%)',    d:'Volume drop (in %) that triggers an alert (1 - 100).', def:'15', type:'number'},
   {k:'alert_min_sends',l:'Alert minimum sends',    d:'Journeys with more sends than this last month are monitored.', def:'500', type:'number'},
   {k:'alert_min_days', l:'Alert minimum days',     d:'Full days of data needed in the month before comparing volumes (1 - 28).', def:'3', type:'number'},
+  {k:'reco_min_sends', l:'Recommendations - minimum delivered emails', d:'A journey or domain needs at least this many delivered emails to be judged (1 - 10 000 000).', def:'1000', type:'number'},
+  {k:'reco_min_leads', l:'Recommendations - minimum leads', d:'Minimum number of leads before a lead-based recommendation appears (1 - 100 000).', def:'30', type:'number'},
+  {k:'reco_gap_pt', l:'Recommendations - gap (points)', d:'Gap in percentage points against similar journeys that triggers a recommendation (1 - 50).', def:'5', type:'number'},
   {k:'asset_strip_extra',l:'Extra text removed from asset names', d:'Texts separated by ; removed from email / asset names (on top of -vxx-xx, -xx-xx, -PDF, Website).', def:'(none)'},
   {k:'ip_de_key',      l:'IP allowlist - key',     d:'Customer Key of the IP allowlist data extension.', def:'DASH_IP_Allowlist'},
   {k:'ip_de_name',     l:'IP allowlist - name',    d:'Name of that data extension.', def:'= key'},
@@ -633,7 +636,7 @@ const SCHEMA = [
 ];
 const GROUPS = [
   {id:'keys', t:'Access keys', items:['token','admin_token']},
-  {id:'dash', t:'Dashboard settings', items:['api_url','alert_drop_pct','alert_min_sends','alert_min_days','asset_strip_extra']},
+  {id:'dash', t:'Dashboard settings', items:['api_url','alert_drop_pct','alert_min_sends','alert_min_days','reco_min_sends','reco_min_leads','reco_gap_pt','asset_strip_extra']},
   {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','publist_snapshot_de','publist_monthly_de','product_map_de','product_map_name','admin_log_de']}
 ];
 const TABS = ['ip','cfg','lab','link','prod'];

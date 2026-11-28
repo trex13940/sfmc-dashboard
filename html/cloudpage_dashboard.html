@@ -115,7 +115,7 @@ var linkMap = [], lsep = " " + String.fromCharCode(61, 62) + " ";   /* regles "m
 for (var lk in CFG) {
   if (lk.indexOf("linkmap_") === 0) { var lpp = CFG[lk].split(lsep); if (lpp.length === 2 && trim(lpp[0]) && trim(lpp[1])) { linkMap.push([trim(lpp[0]), trim(lpp[1])]); } }
 }
-var clientCfg = { linkMap: linkMap, apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), labels: labels, assetStrip: assetStrip };
+var clientCfg = { linkMap: linkMap, apiUrl: cfgv("api_url", ""), alertDrop: cfgn("alert_drop_pct", 15) / 100, alertMin: cfgn("alert_min_sends", 500), alertMinDays: cfgn("alert_min_days", 3), reco: { minSends: cfgn("reco_min_sends", 1000), minLeads: cfgn("reco_min_leads", 30), gapPt: cfgn("reco_gap_pt", 5) }, labels: labels, assetStrip: assetStrip };
 Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").replace(/%/g, "\\u0025"));
 </script>
 %%[ IF @ipOk == "1" THEN ]%%
@@ -201,6 +201,16 @@ button.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
              radial-gradient(farthest-side at 100% 50%,var(--edge),transparent) right / .9rem 100% no-repeat scroll,
              var(--surface)}
 @media (prefers-color-scheme:dark){.wrap{--edge:rgb(0 0 0 / .6)}}
+.recolist{display:grid;gap:12px}
+.reco{background:var(--card);border-radius:16px;box-shadow:var(--shadow-tile);padding:14px 18px 14px 20px;border-left:6px solid var(--mute)}
+.reco.high{border-left-color:var(--err-text,#c40026)}.reco.medium{border-left-color:#d98a00}.reco.info{border-left-color:#2a7fb8}
+.reco .rh{display:flex;gap:10px;align-items:center;margin-bottom:4px;font-size:.75rem;color:var(--mute)}
+.reco .sev{font-weight:700;padding:1px 10px;border-radius:12px;border:1px solid currentColor}
+.reco.high .sev{color:var(--err-text,#c40026)}.reco.medium .sev{color:#a86600}.reco.info .sev{color:#1f6a9c}
+@media (prefers-color-scheme:dark){.reco.medium .sev{color:#f0b24a}.reco.info .sev{color:#6cb8ee}}
+.reco h3{margin:0 0 4px;font-size:1rem}.reco p{margin:2px 0;font-size:.88rem}.reco .ac{color:var(--fg)}.reco .ev{color:var(--mute)}
+.reco .go{margin-top:8px}
+.recomore{margin:12px 4px;font-size:.82rem;color:var(--mute)}.recomore summary{cursor:pointer;font-weight:600}
 .wrap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .sr{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
@@ -306,6 +316,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     <button class="tab" role="tab" id="tab-conv" data-tab="conv" aria-selected="false" aria-controls="v-main" tabindex="-1">Conversions (leads)</button>
     <button class="tab" role="tab" id="tab-ana" data-tab="ana" aria-selected="false" aria-controls="v-ana" tabindex="-1">Journey analysis</button>
     <button class="tab" role="tab" id="tab-ins" data-tab="ins" aria-selected="false" aria-controls="v-ins" tabindex="-1">Insights</button>
+    <button class="tab" role="tab" id="tab-reco" data-tab="reco" aria-selected="false" aria-controls="v-reco" tabindex="-1">Recommendations<span id="badgeReco" class="badge" hidden></span></button>
     <button class="tab" role="tab" id="tab-alerts" data-tab="alerts" aria-selected="false" aria-controls="v-alerts" tabindex="-1">Alerts<span id="badge" class="badge" hidden></span></button>
     <button class="tab" role="tab" id="tab-sms" data-tab="sms" aria-selected="false" aria-controls="v-sms" tabindex="-1">SMS</button>
   </div>
@@ -418,6 +429,15 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     </div>
   </section>
 
+  <section id="v-reco" hidden>
+    <div id="recoMsg" class="warn" role="status" hidden></div>
+    <div id="recoCards" class="cards"></div>
+    <div class="subnav" role="group" aria-label="Recommendation categories" id="recoNav"></div>
+    <div id="recoList" class="recolist"></div>
+    <details class="recomore" id="recoSkipped" hidden><summary>Checks not run</summary><ul id="recoSkipList"></ul></details>
+    <details class="recomore"><summary>How these recommendations are built</summary><div id="recoMethod" class="note"></div></details>
+  </section>
+
   <section id="v-alerts" hidden>
     <div id="alCards" class="cards"></div>
     <div class="wrap"><table id="tAlerts"></table></div>
@@ -444,7 +464,7 @@ const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this man
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
 const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', per:'all', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', j2:'', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', per:'all', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', j2:'', rc:'all', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
@@ -457,6 +477,7 @@ const TABS = {
   conv:    {view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lGrp','lExp','lQ'], csv:'tbl'},
   ana:     {view:'ana',  ctl:['lJ','lJ2','lPer','lCompact','lExp'], csv:'tEmail'},
   ins:     {view:'ins',  ctl:['lFam','lType','lProd','lPer'], csv:null},
+  reco:    {view:'reco',  ctl:['lPer'], csv:null},
   alerts:  {view:'alerts', ctl:['lAlert'], csv:'tAlerts'},
   sms:     {view:'sms',  ctl:['lPer','lQ'], csv:'tSms'}
 };
@@ -821,6 +842,148 @@ function viewConv(){
   $('note').textContent = "All leads of Lead_Salesforce_1 are listed, then compared with the emails received (journeys MKT_XSELL_, MKT_PROMO_, MKT_NEWS_, OCX_XSELL_, OCL_, ODO_, ODD_OFF_) whose product matches the lead product (or is ALL; see Product mapping in the admin page). Generated after a marketing email: the last such email received in the 30 days before the lead was created. Triggered an email: the lead triggered an OCL / ODO / ODD_OFF journey (first email within 30 days after creation; used when no marketing email precedes it). No email found: leads without email, not in _Subscribers or without a matching email, shown as \"(no email)\". Signed leads are credited to the LAST email received before the lead's last modification date (an approximation of the signature date), within the validity of the lead: 70 days after creation, or 8 weeks after the first ODD_OFF offer email if later, shown in \"Conversions credited\"; \"Signed (these leads)\" counts the Signed leads among those generated by the journey. Delay = days between the email and the lead (either direction). Click the arrow in front of a journey to show the split by email activity." +
     (legacy ? " DASH_Conversions still has the old structure: rerun query 04 (backfill) after adding the new fields (see the README)." : "");
 }
+
+/* ---------- Recommendations : rule-based findings computed from the data already loaded ---------- */
+const RECO = CFG.reco || {};
+const SEVS = {high:'Fix', medium:'Watch', info:'Insight'}, SEV_ORDER = {high:0, medium:1, info:2};
+const medianOf = a => { if (!a.length) return null; const s = [...a].sort((x,y)=>x-y), m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+function recoRules(){
+  const minS = RECO.minSends||1000, minL = RECO.minLeads||30, gap = (RECO.gapPt||5)/100;
+  const out = {findings:[], skipped:[], checked:0};
+  const F = (sev,cat,title,ev,action,go,vol) => out.findings.push({sev,cat,title,ev,action,go,vol:vol||0});
+  const run = (id, cat, fn) => { try{ const why = fn(); if (why){ out.skipped.push(cat+' – '+id+': '+why); } else out.checked++; }catch(e){ out.skipped.push(cat+' – '+id+': '+e.message); } };
+  const rows = D.kpi.filter(r=>inMonths(r.Month)), pr = prevRange(), prev = pr ? D.kpi.filter(r=>r.Month>=pr.from && r.Month<=pr.to) : [];
+  const J = group(rows, r=>[r.JourneyName,'']), JP = new Map(group(prev, r=>[r.JourneyName,'']).map(a=>[a.name,a]));
+  const br = a => a.Sends ? a.Bounces/a.Sends : 0, orate = a => deliv(a) ? a.Opens/deliv(a) : 0, crate = a => deliv(a) ? a.Clicks/deliv(a) : 0;
+  const elig = J.filter(a=>deliv(a)>=minS), keyOf = a => { const p = parse(a.name); return p.fam+'_'+p.type; };
+  const bench = (a, fn) => { let peers = elig.filter(x=>x.name!==a.name && keyOf(x)===keyOf(a)); if (peers.length<3) peers = elig.filter(x=>x.name!==a.name && parse(x.name).fam===parse(a.name).fam); return peers.length<3 ? null : {v:medianOf(peers.map(fn)), n:peers.length, key:keyOf(a)}; };
+  const goJ = a => ({tab:'ana', j:a.name}), nm = a => parse(a.name).campaign;
+  /* ---- Deliverability ---- */
+  run('Journey bounce rate','Deliverability',()=>{
+    if (!elig.length) return 'no journey with at least '+n(minS)+' delivered emails in the period';
+    for (const a of elig){ const b = bench(a,br), r = br(a);
+      if (r>=0.05) F('high','Deliverability',nm(a)+': '+pct(a.Bounces,a.Sends)+' of emails bounce',n(a.Bounces)+' of '+n(a.Sends)+' sends bounced.','Clean the list before the next send: remove hard bounces and old addresses, and check where these addresses come from.',goJ(a),a.Sends);
+      else if (b && r>=Math.max(2*b.v, b.v+0.01) && r>=0.02) F('medium','Deliverability',nm(a)+': bounce rate '+pct(a.Bounces,a.Sends),n(a.Bounces)+' bounces on '+n(a.Sends)+' sends, against a median of '+fx1(b.v*100)+' % for '+b.n+' similar journeys ('+b.key+').','Check the quality of the addresses this journey sends to (source, age, hard bounces).',goJ(a),a.Sends); }
+  });
+  run('Domains','Deliverability',()=>{
+    const dm = new Map(); for (const r of D.domain){ if (!inMonths(r.Month)) continue; let a = dm.get(r.Domain); if(!a){ a={name:r.Domain,Sends:0,Bounces:0,Compl:0}; dm.set(r.Domain,a); } a.Sends+=r.Sends; a.Bounces+=r.Bounces; a.Compl+=r.Complaints; }
+    const ds = [...dm.values()], tS = ds.reduce((s,a)=>s+a.Sends,0), tB = ds.reduce((s,a)=>s+a.Bounces,0); if (!ds.length || !tS) return 'no domain data (DASH_Domain_Monthly)';
+    const avg = tB/tS;
+    for (const a of ds){ if (a.Sends<minS) continue; const r = a.Bounces/a.Sends, c = a.Compl/a.Sends;
+      if (c>=0.001) F('high','Deliverability',a.name+': complaint rate '+fx1(c*100)+' %',n(a.Compl)+' complaints on '+n(a.Sends)+' sends (a rate above 0,1 % puts the sender reputation at risk).','Review who receives these emails (consent, frequency) and add a visible unsubscribe link.',{tab:'ins',sub:'deliv'},a.Sends);
+      if (r>=Math.max(2*avg,0.02)) F(r>=0.05?'high':'medium','Deliverability',a.name+': bounce rate '+fx1(r*100)+' %',n(a.Bounces)+' bounces on '+n(a.Sends)+' sends; all domains together: '+fx1(avg*100)+' %.','Check the addresses of this domain (typos, abandoned mailboxes) and the reputation of the sending domain with this provider.',{tab:'ins',sub:'deliv'},a.Sends); }
+  });
+  run('Delivery trend','Deliverability',()=>{
+    if (!prev.length) return 'no previous period of the same length to compare with';
+    const c = group(rows, r=>['','']) [0], p = group(prev, r=>['','']) [0]; if (!c || !p || c.Sends<minS || p.Sends<minS) return 'not enough sends in one of the two periods';
+    const dc = deliv(c)/c.Sends, dp = deliv(p)/p.Sends;
+    if (dp-dc>=0.01) F('medium','Deliverability','Delivery rate down '+fx1((dp-dc)*100)+' points',fx1(dc*100)+' % in the period against '+fx1(dp*100)+' % in the previous period ('+pr.from+' → '+pr.to+').','Look at the bounce rates by domain and by journey to find where the drop comes from.',{tab:'ins',sub:'deliv'},c.Sends);
+  });
+  /* ---- Performance ---- */
+  run('Open and click rates against similar journeys','Performance',()=>{
+    if (elig.length<4) return 'fewer than 4 journeys with at least '+n(minS)+' delivered emails: no reliable benchmark';
+    for (const a of elig){ const bo = bench(a,orate), bc = bench(a,crate); if (!bo) continue;
+      const g = bo.v-orate(a);
+      if (g>=gap) F(g>=2*gap?'high':'medium','Performance',nm(a)+': open rate '+fx1(g*100)+' points below similar journeys',pct(a.Opens,deliv(a))+' open rate on '+n(deliv(a))+' delivered emails, against a median of '+fx1(bo.v*100)+' % for '+bo.n+' similar journeys ('+bo.key+').','Test another subject line, sender name or send time; look at the best journey of the same type for inspiration.',goJ(a),deliv(a));
+      if (bc && bc.v>=0.01 && crate(a)<=0.6*bc.v) F('medium','Performance',nm(a)+': click rate '+fx1(crate(a)*100)+' % against '+fx1(bc.v*100)+' % for similar journeys',n(a.Clicks)+' unique clicks on '+n(deliv(a))+' delivered emails.','Review the call to action (position, wording, number of links) and the content of the email.',goJ(a),deliv(a)); }
+  });
+  run('Change since the previous period','Performance',()=>{
+    if (!prev.length) return 'no previous period of the same length to compare with';
+    let any = false; for (const a of elig){ const p = JP.get(a.name); if (!p || deliv(p)<minS) continue; any = true; const d = orate(p)-orate(a);
+      if (d>=gap) F('medium','Performance',nm(a)+': open rate down '+fx1(d*100)+' points',fx1(orate(a)*100)+' % in the period against '+fx1(orate(p)*100)+' % in the previous period.','Check what changed (audience, subject line, send time, content, deliverability to the main domains).',goJ(a),deliv(a)); }
+    if (!any) return 'no journey with enough volume in both periods';
+  });
+  run('FR / NL versions','Performance',()=>{
+    const by = new Map(); for (const r of D.email){ if (!inMonths(r.Month)) continue; const lang = parseEmail(r.EmailName).lang; if (!lang) continue; const k = r.JourneyName+'|'+lang; let a = by.get(k); if(!a){ a={name:r.JourneyName,lang,Sends:0,Bounces:0,Opens:0,Clicks:0}; by.set(k,a); } a.Sends+=r.Sends; a.Bounces+=r.Bounces; a.Opens+=r.Opens; a.Clicks+=r.UniqueClicks; }
+    if (!by.size) return 'no email-level data (DASH_Email_KPI_Monthly)';
+    const names = [...new Set([...by.values()].map(a=>a.name))];
+    for (const j of names){ const fr = by.get(j+'|FR'), nl = by.get(j+'|NL'); if (!fr || !nl || deliv(fr)<minS/2 || deliv(nl)<minS/2) continue;
+      const d = orate(nl)-orate(fr), lo = d>0 ? fr : nl, hi = d>0 ? nl : fr;
+      if (Math.abs(d)>=2*gap) F('info','Performance',parse(j).campaign+': '+hi.lang+' opens '+fx1(Math.abs(d)*100)+' points better than '+lo.lang,hi.lang+' '+fx1(orate(hi)*100)+' % against '+lo.lang+' '+fx1(orate(lo)*100)+' % ('+n(deliv(lo))+' and '+n(deliv(hi))+' delivered).','Compare the subject lines and the preview text of the two versions; the weaker one may be a poor translation or a different audience.',{tab:'ana', j}, deliv(lo)+deliv(hi)); }
+  });
+  run('Weak emails inside a journey','Performance',()=>{
+    const em = group(D.email.filter(r=>inMonths(r.Month)), r=>[r.JourneyName,'',r.EmailName ? parseEmail(r.EmailName).clean : '']); if (!em.length) return 'no email-level data (DASH_Email_KPI_Monthly)';
+    const jm = new Map(J.map(a=>[a.name,a]));
+    for (const e of em){ const a = jm.get(e.name); if (!a || deliv(e)<minS || deliv(a)<3*deliv(e) || crate(a)<0.01) continue;
+      if (crate(e)<=0.5*crate(a)) F('info','Performance',e.act+': half the click rate of its journey',fx1(crate(e)*100)+' % click rate on '+n(deliv(e))+' delivered emails, against '+fx1(crate(a)*100)+' % for the whole journey ('+nm(a)+').','Look at the links and the layout of this email: it may be an older or weaker version.',goJ(a),deliv(e)); }
+  });
+  /* ---- Leads ---- */
+  run('Leads that do not sign','Leads',()=>{
+    const lr = D.conv.filter(r=>inMonths(r.SendMonth)); if (!lr.length) return 'no leads loaded (DASH_Conversions)';
+    const tot = lr.length, sig = lr.reduce((s,r)=>s+r.IsConverted,0), overall = sig/tot; if (tot<minL) return 'fewer than '+n(minL)+' leads in the period';
+    const g = group2(lr.filter(r=>r.JourneyName!=='(no email)'), r=>r.JourneyName);
+    for (const a of g){ if (a.n<minL) continue; const rt = a.c/a.n;
+      if (overall>0 && rt<=0.5*overall) F(rt===0?'high':'medium','Leads',parse(a.name).campaign+': '+(rt===0?'no lead has signed':'only '+pct(a.c,a.n)+' of leads sign'),n(a.c)+' signed out of '+n(a.n)+' leads generated, against '+fx1(overall*100)+' % for all leads.','Check the funnel after the email (landing page, offer, follow-up journeys): the email attracts leads that do not convert.',{tab:'conv', q:a.name},a.n); }
+  });
+  run('Leads without any email','Leads',()=>{
+    if (!D.conv.some(r=>r.OriginKind!==undefined)) return 'DASH_Conversions still has the old structure (rerun query 04)';
+    const lr = D.conv.filter(r=>inMonths(r.SendMonth)); if (lr.length<minL) return 'fewer than '+n(minL)+' leads in the period';
+    const nn = lr.filter(r=>kindOf(r)==='N').length;
+    if (nn/lr.length>=0.3) F('info','Leads',pct(nn,lr.length)+' of leads received none of the tracked emails',n(nn)+' of '+n(lr.length)+' leads have no email address, are not in the subscriber list, or got no matching email within the attribution window.','Check that new leads are added to the subscriber list and that the lead journeys (OCL, ODO, ODD_OFF) catch them.',{tab:'conv'},lr.length);
+  });
+  run('Where leads sign','Leads',()=>{
+    if (!D.conv.some(r=>r.OriginKind!==undefined)) return 'DASH_Conversions still has the old structure (rerun query 04)';
+    const lr = D.conv.filter(r=>inMonths(r.SendMonth)), k = {M:{n:0,c:0},T:{n:0,c:0},N:{n:0,c:0}}; lr.forEach(r=>{ const x = k[kindOf(r)]; x.n++; x.c+=r.IsConverted; });
+    if (k.M.n<minL || k.T.n<minL) return 'fewer than '+n(minL)+' leads of each origin (marketing / triggered)';
+    const m = k.M.c/k.M.n, tr = k.T.c/k.T.n;
+    F('info','Leads','Signing rate: '+fx1(m*100)+' % after a marketing email, '+fx1(tr*100)+' % for leads that triggered an operational email',n(k.M.c)+' of '+n(k.M.n)+' against '+n(k.T.c)+' of '+n(k.T.n)+'.',tr>m*1.5 ? 'Leads reached through the operational journeys sign better: strengthen those journeys (reminders, offers) before buying more marketing volume.' : m>tr*1.5 ? 'Marketing emails bring leads that sign better: protect their frequency and targeting.' : 'Both origins sign at a similar rate.',{tab:'conv'},k.M.n+k.T.n);
+  });
+  /* ---- Audience (needs the subscriber data, loaded on demand) ---- */
+  const A = D.aud;
+  run('Reach of contract holders','Audience',()=>{
+    if (A===null) return D.audErr ? 'subscriber data could not be loaded' : 'subscriber data is still loading';
+    const d = A.dist.filter(r=>r.Win==='3'); if (!d.length) return 'no subscriber snapshot yet (DASH_Audience_Dist)'; if (!d.some(r=>r.Contract!==undefined)) return 'DASH_Audience_Dist has no Contract column yet';
+    const y = d.filter(r=>r.Contract==='Yes'), tot = y.reduce((s,r)=>s+r.Subscribers,0), nr = y.filter(r=>r.Seg==='NotReached').reduce((s,r)=>s+r.Subscribers,0);
+    if (tot>=minS && nr/tot>=0.3) F('medium','Audience',pct(nr,tot)+' of subscribers with a contract received no marketing email',n(nr)+' of '+n(tot)+' active subscribers with an active or future contract got no marketing email in the last 3 months.','Check the targeting of the marketing journeys and add these customers to a nurturing or cross-sell journey (mind the consent and frequency rules).',{tab:'ins',sub:'aud',seg:'yes'},tot);
+  });
+  run('Frequency and fatigue','Audience',()=>{
+    if (A===null) return D.audErr ? 'subscriber data could not be loaded' : 'subscriber data is still loading';
+    const d = A.dist.filter(r=>r.Win==='3'); if (!d.length) return 'no subscriber snapshot yet (DASH_Audience_Dist)';
+    const b = new Map(); for (const r of d){ if (r.RecBucket==='0') continue; let x = b.get(r.RecBucket); if(!x){ x={s:0,e:0}; b.set(r.RecBucket,x); } x.s+=r.Subscribers; if (r.Seg==='Clicker'||r.Seg==='Opener') x.e+=r.Subscribers; }
+    const list = BUCKETS.slice(1).map(k=>({k,...(b.get(k)||{s:0,e:0})})).filter(x=>x.s>=500); if (list.length<3) return 'fewer than 3 frequency groups with at least 500 subscribers';
+    const best = list.reduce((m,x)=>x.e/x.s>m.e/m.s ? x : m), last = list[list.length-1];
+    if (last!==best && best.e/best.s-last.e/last.s>=gap) F('medium','Audience','Engagement falls after '+best.k+' marketing emails in 3 months',fx1(last.e/last.s*100)+' % of subscribers receiving '+last.k+' emails open or click, against '+fx1(best.e/best.s*100)+' % for '+best.k+' emails ('+n(last.s)+' and '+n(best.s)+' subscribers).','Consider a frequency cap around '+best.k+' emails per quarter for subscribers who stop engaging.',{tab:'ins',sub:'aud'},last.s);
+    else F('info','Audience','Engagement holds up to '+last.k+' marketing emails in 3 months',fx1(last.e/last.s*100)+' % of the subscribers receiving '+last.k+' emails open or click, against '+fx1(best.e/best.s*100)+' % at the best level ('+best.k+').','There is no sign of fatigue in the data: frequency is not the main lever for now.',{tab:'ins',sub:'aud'},last.s);
+  });
+  run('Publication lists losing subscribers','Audience',()=>{
+    if (A===null) return D.audErr ? 'subscriber data could not be loaded' : 'subscriber data is still loading';
+    const L = A.lists; if (!L || !L.snap.length) return 'no publication list data yet (DASH_PubList_Snapshot)';
+    const lists = new Map(); for (const r of L.snap){ let a = lists.get(r.ListName); if(!a){ a={name:r.ListName,act:0,uns:0,j:0,u:0}; lists.set(r.ListName,a); } if (r.Status==='Active') a.act+=r.Subscribers; if (r.Status==='Unsubscribed') a.uns+=r.Subscribers; }
+    for (const r of L.monthly){ if (!inMonths(r.Month)) continue; const a = lists.get(r.ListName); if (a){ a.j+=r.Joined; a.u+=r.Unsubscribed; } }
+    for (const a of lists.values()){ if (a.name==='All Subscribers' || a.act<minS/2) continue;
+      if (a.u>a.j && a.u/a.act>=0.01) F('medium','Audience',a.name+': '+n(a.u-a.j)+' more unsubscriptions than new subscribers',n(a.u)+' unsubscribed and '+n(a.j)+' joined in the period, for '+n(a.act)+' active members.','Review the content and frequency of this list; offer a preference centre instead of a full unsubscribe.',{tab:'ins',sub:'lists'},a.act);
+      else if (a.uns/(a.act+a.uns)>=0.25) F('info','Audience',a.name+': '+pct(a.uns,a.act+a.uns)+' of the people who joined have unsubscribed',n(a.uns)+' unsubscribed members against '+n(a.act)+' active ones.','Check how people join this list (expectations set at sign-up) and how often it is used.',{tab:'ins',sub:'lists'},a.act); }
+  });
+  run('Contract coverage by province','Audience',()=>{
+    if (A===null) return D.audErr ? 'subscriber data could not be loaded' : 'subscriber data is still loading';
+    if (!GEO || !A.geo.length || !A.geo.every(r=>r.WithContract!==undefined && r.WithContract!==null)) return 'no contact geography with the contract split yet';
+    const pv = new Map(); let tA = 0, tW = 0; for (const r of A.geo){ const g = GEO.postal[r.PostalCode]; if (!g) continue; let a = pv.get(g[2]); if(!a){ a={id:g[2],all:0,wc:0}; pv.set(g[2],a); } a.all+=r.Contacts; a.wc+=r.WithContract; tA+=r.Contacts; tW+=r.WithContract; }
+    if (!tA) return 'no contacts with a Belgian postal code'; const avg = tW/tA;
+    const low = [...pv.values()].filter(a=>a.all>=5000 && a.wc/a.all<=avg-gap).sort((a,b)=>a.wc/a.all-b.wc/b.all);
+    if (low.length) F('info','Audience','Provinces where fewer contacts have a contract: '+low.slice(0,3).map(a=>(GEO.provinces.find(p=>p.id===a.id)||{en:a.id}).en).join(', '),low.slice(0,3).map(a=>(GEO.provinces.find(p=>p.id===a.id)||{en:a.id}).en+' '+fx1(a.wc/a.all*100)+' %').join(', ')+' against '+fx1(avg*100)+' % overall.','These areas hold many contacts without a contract: a good target for acquisition or cross-sell campaigns.',{tab:'ins',sub:'geo',gc:'pc'},low[0].all);
+  });
+  out.findings.sort((a,b)=>SEV_ORDER[a.sev]-SEV_ORDER[b.sev] || b.vol-a.vol);
+  return out;
+}
+const group2 = (rows, keyFn) => { const m = new Map(); for (const r of rows){ const k = keyFn(r); let a = m.get(k); if(!a){ a={name:k,n:0,c:0}; m.set(k,a); } a.n++; a.c+=r.IsConverted; } return [...m.values()]; };
+function viewReco(){
+  if (D.aud===null && !D.audErr) loadAudience().then(()=>{ if (S.tab==='reco') render(); });
+  charts.forEach(c=>c.destroy()); charts = [];
+  const res = recoRules(), msg = $('recoMsg'), cat = RECO_CATS_OK(S.rc) ? S.rc : 'all';
+  msg.hidden = !(D.aud===null && !D.audErr); msg.textContent = 'Subscriber and list checks are loading…';
+  const cnt = k => res.findings.filter(f=>f.sev===k).length;
+  cards('recoCards', [[n(cnt('high')),'To fix'],[n(cnt('medium')),'To watch'],[n(cnt('info')),'Insights'],[n(res.checked),'Checks run']]);
+  const cats = ['all','Deliverability','Performance','Leads','Audience'];
+  $('recoNav').innerHTML = cats.map(c=>`<button type="button" class="chip" data-rc="${c}" aria-pressed="${c===cat}">${c==='all'?'All':c}${c==='all'?'':' ('+res.findings.filter(f=>f.cat===c).length+')'}</button>`).join('');
+  $('recoNav').querySelectorAll('[data-rc]').forEach(b=>b.onclick=()=>{ S.rc = b.dataset.rc; render(); });
+  const list = res.findings.filter(f=>cat==='all' || f.cat===cat);
+  $('recoList').innerHTML = list.length ? list.map(f=>`<article class="reco ${f.sev}"><div class="rh"><span class="sev">${SEVS[f.sev]}</span><span>${esc(f.cat)}</span></div><h3>${esc(f.title)}</h3><p class="ev">${esc(f.ev)}</p><p class="ac"><b>Suggested action:</b> ${esc(f.action)}</p>${f.go?`<button type="button" class="btn2 go" data-go="${esc(JSON.stringify(f.go))}">See the data</button>`:''}</article>`).join('')
+    : `<div class="card"><b>Nothing to report</b><span>${res.checked ? 'No rule is triggered for this period and category.' : 'Not enough data for the checks yet.'}</span></div>`;
+  $('recoList').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ const g = JSON.parse(b.dataset.go); if (g.j!==undefined) S.j = g.j; if (g.sub) S.sub = g.sub; if (g.seg) S.seg = g.seg; if (g.gc) S.gc = g.gc; if (g.q!==undefined){ S.q = g.q; $('fQ').value = g.q; } selectTab(g.tab); window.scrollTo(0,0); });
+  $('recoSkipped').hidden = !res.skipped.length; $('recoSkipList').innerHTML = res.skipped.map(s=>'<li>'+esc(s)+'</li>').join('');
+  $('recoMethod').innerHTML = 'Rules run on the data already in the dashboard, for the selected period. A rule only fires when the volume is high enough (at least '+n(RECO.minSends||1000)+' delivered emails, '+n(RECO.minLeads||30)+' leads) and compares a journey with the median of similar journeys (same family and type, at least 3 of them) or with the previous period of the same length. Gaps are measured in points (default '+(RECO.gapPt||5)+'). Thresholds: <code>reco_min_sends</code>, <code>reco_min_leads</code> and <code>reco_gap_pt</code> in the admin page (Settings). These are leads to investigate, not proofs: the attribution of leads is an approximation and six months of history do not show seasonality.';
+}
+const RECO_CATS_OK = c => ['Deliverability','Performance','Leads','Audience'].includes(c);
 
 /* ---------- Alerts ---------- */
 function computeAlerts(){
@@ -1262,6 +1425,7 @@ function updateCtx(){
   if (tab==='ana'){ if (!S.j){ el.hidden = true; return; } parts.push('Journey <b>'+esc(parse(S.j).campaign)+'</b>'+(S.j2 && S.j2!==S.j ? ' vs <b>'+esc(parse(S.j2).campaign)+'</b>' : ''), period); }
   else if (tab==='alerts'){ el.hidden = false; el.innerHTML = '<span>Scope <b>'+(S.alert==='all'?'All journeys':'Ongoing journeys only')+'</b></span>'; return; }
   else if (tab==='ins' && S.sub==='lists'){ parts.push(period); }
+  else if (tab==='reco'){ parts.push(period, 'All journeys, domains, leads and lists'); }
   else if (tab==='sms'){ parts.push(period); if (S.q) parts.push('Search <b>"'+esc(S.q)+'"</b>'); }
   else {
     parts.push(period, S.fam==='ALL' ? 'All families' : 'Family <b>'+(S.fam==='MKT'?'Marketing (MKT_)':'Operational (Oxx_)')+'</b>',
@@ -1278,7 +1442,7 @@ const HSEL = {fam:'fFam',type:'fType',prod:'fProd',per:'fPer',gran:'fGran',grp:'
 function saveHash(){
   try{
     const p = new URLSearchParams();
-    for (const k of ['tab','fam','type','prod','per','gran','grp','view','q','j','j2','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
+    for (const k of ['tab','fam','type','prod','per','gran','grp','view','q','j','j2','rc','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
     if (!S.compact) p.set('compact','0');   /* rates only is the default view */
     const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
   }catch(e){}
@@ -1289,7 +1453,7 @@ function loadHash(){
   for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
   applyPeriod();
   if (p.get('q')){ S.q=p.get('q'); $('fQ').value=S.q; }
-  for (const [k,vals] of [['sub',['deliv','aud','lists','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']],['gc',['n','pc']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
+  for (const [k,vals] of [['sub',['deliv','aud','lists','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']],['gc',['n','pc']],['rc',['all','Deliverability','Performance','Leads','Audience']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
   S.compact = p.get('compact')!=='0';
 }
 function selectTab(t, focus){
@@ -1308,10 +1472,10 @@ function render(){
   $('bReset').hidden = !(FILTERS.some(k=>S[k]!==DEF[k]) && ['journeys','cats','conv','ins','sms'].includes(S.tab) && !(S.tab==='ins' && S.sub!=='deliv'));
   document.querySelector('.bar').hidden = [...document.querySelectorAll('.ctl')].every(e=>e.hidden) && $('bCsv').hidden && $('bReset').hidden;
   $('bCompact').setAttribute('aria-pressed', S.compact); $('bCompact').textContent = S.compact ? 'All columns' : 'Rates only';
-  ['main','ana','ins','alerts','sms'].forEach(v=>$('v-'+v).hidden = v!==cfg.view);
+  ['main','ana','ins','reco','alerts','sms'].forEach(v=>$('v-'+v).hidden = v!==cfg.view);
   $('v-'+cfg.view).setAttribute('aria-labelledby','tab-'+S.tab);
   if (S.tab==='journeys') viewKpi('journey'); else if (S.tab==='cats') viewKpi(S.view); else if (S.tab==='conv') viewConv();
-  else if (S.tab==='ana') viewAna(); else if (S.tab==='ins') viewIns(); else if (S.tab==='alerts') viewAlerts(); else viewSms();
+  else if (S.tab==='ana') viewAna(); else if (S.tab==='ins') viewIns(); else if (S.tab==='reco') viewReco(); else if (S.tab==='alerts') viewAlerts(); else viewSms();
   updateCtx(); updateBadge(); saveHash();
 }
 
@@ -1378,7 +1542,7 @@ function setup(){
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
   S.j = ''; JSET = new Set(js);   /* no journey is preselected: the analysis page stays empty until one is chosen */
   $('fJ').innerHTML = '<option value=""></option>' + $('fJ').innerHTML; $('fJ2').innerHTML = $('fJ').innerHTML; buildJourneyList(js, last);
-  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',per:'all',gran:'total',grp:'journey',view:'cat',q:'',j:S.j,j2:'',alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
+  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',per:'all',gran:'total',grp:'journey',view:'cat',q:'',j:S.j,j2:'',rc:'all',alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fPer',v=>{ S.per=v; applyPeriod(); }); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);

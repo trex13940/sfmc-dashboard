@@ -48,6 +48,7 @@ Les demandes ci-dessous (faites à partir de 16 h le 27/11/2026) sont **impléme
 | 11 | **Sélecteur de période** : une seule liste remplace *From / To* (voir la liste ci-dessous). La période choisie est dans l'adresse (`per=`). | Essayer chaque période ; elle est calculée sur la date de « Data as of » (heure belge). Les anciens liens avec `from=` / `to=` sont ignorés (retour à « All periods »). |
 | 12 | **Journey analysis : comparaison de deux journeys** (liste « Compare with »). Tableau de 9 indicateurs côte à côte avec la différence, graphique d'engagement, détail de la journey A en dessous ; la comparaison est dans l'adresse (`j2=`). | Comparer deux journeys (ex. Newsletter Q2 et Q3) sur une période ; vérifier les totaux avec l'onglet Journeys. |
 | 13 | **Insights › Publication lists** : abonnés par liste (actifs, désinscrits, bounced / held), avec ou sans contrat, inscriptions et désinscriptions de la période, croissance nette par mois. Nouvelles DE et requêtes 23 à 26 (étape B, point 5). | Voir la section « À fournir lundi » ci-dessous. |
+| 14 | **Recommandations** : nouvel onglet *Recommendations* (entre Insights et Alerts). 13 contrôles calculés sur les données déjà chargées : bounce par journey et par domaine, plaintes, baisse du taux de livraison, ouverture et clic sous la médiane des journeys semblables, baisse par rapport à la période précédente, écart FR / NL, emails faibles dans une journey, leads qui ne signent pas, leads sans email, comparaison des origines, abonnés avec contrat non joints, fatigue selon la fréquence, listes qui perdent des abonnés, provinces sous-couvertes. Seuils réglables dans la page admin (*Settings* : `reco_min_sends`, `reco_min_leads`, `reco_gap_pt`). | Vérifier que les constats sont cohérents avec ce que vous connaissez des journeys, ajuster les seuils, regarder la liste « Checks not run » (données manquantes) et le détail via « See the data ». |
 
 **Périodes proposées** : All periods, This month, Previous month, Last 2 months, Last 3 months, This quarter, Previous quarter, Last 6 months, This half-year, Previous half-year, Last 12 months, This year, Previous year. Chaque entrée affiche entre parenthèses les mois couverts.
 
@@ -104,6 +105,7 @@ Tous les réglages sont des lignes de la DE `DASH_Config` (colonnes `ConfigKey` 
 | `admin_log_de` | `DASH_Admin_Log` | idem | DE du journal des modifications (facultative) |
 | `asset_strip_extra` | `Preview;Test` | – | textes supplémentaires retirés des noms d'e-mails / assets, séparés par `;` |
 | `alert_drop_pct` / `alert_min_sends` / `alert_min_days` | `15` / `500` / `3` | idem | seuils des alertes de volume |
+| `reco_min_sends` / `reco_min_leads` / `reco_gap_pt` | `1000` / `30` / `5` | idem | onglet Recommendations : volume minimum d'emails délivrés, nombre minimum de leads, écart en points qui déclenche une recommandation |
 | `label_type_<CODE>` / `label_product_<CODE>` | `Promotional` / `Car` | – | libellés lisibles (ex. `label_type_PROMO`) |
 | `linkmap_<NNN>` | `view.belfiusdirect.be => ReadOnline` | – | règles de noms de liens (gérées par l'onglet *Link names*) |
 
@@ -147,6 +149,7 @@ Une liste **Period** remplace les anciens *From / To*. Elle propose : toutes les
 - **Conversions (leads)** : attribution « leads d'abord » (voir plus bas), même détail par activité email.
 - **Journey analysis** : une journey en détail (choisie avec la liste de recherche) : langues FR/NL, emails, KPI, liens groupés par email (chargés à la demande). Une seconde liste « Compare with » compare deux journeys (tableau côte à côte, différence, graphique d'engagement).
 - **Insights** : *Deliverability* (top 5 domaines et journeys), *Subscriber base* (3, 6 ou 12 mois précédents, avec ou sans contrat actif ou futur), *Publication lists* (abonnés, désinscrits, inscriptions et désinscriptions par liste), *Geography* (carte de Belgique par province ou code postal, contacts avec ou sans contrat).
+- **Recommendations** : constats classés « Fix » (à corriger), « Watch » (à surveiller) et « Insight », par catégorie (Deliverability, Performance, Leads, Audience), chacun avec le chiffre à l'appui, une action suggérée et un lien vers les données. Une règle ne se déclenche que si le volume est suffisant ; ce sont des pistes à vérifier, pas des preuves (l'attribution des leads est une approximation et 6 mois d'historique ne montrent pas la saisonnalité).
 - **Alerts** : volume du mois en cours comparé au mois précédent au prorata des jours écoulés (seuils dans `DASH_Config`).
 - **SMS** : par journey et asset.
 
