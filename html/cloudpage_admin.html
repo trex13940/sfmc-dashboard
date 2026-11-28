@@ -501,30 +501,40 @@ Variable.SetValue("@ipDiag", String(ipDiag || "") + (cfgDiag ? " | DASH_Config: 
 <meta name="robots" content="noindex,nofollow">
 <title>Dashboard administration</title>
 <style>
-:root{color-scheme:light dark;--red:#c30045;--red-dark:#8c193c;--pink-bg:#fff5f8;--pink-mid:#f6c4d6;--bg:#f6f7f8;--card:#fff;--fg:#101820;--mute:#51626f;--line:#e8ebed;--ctl-brd:#7b8794;--focus:#ad0cdf;--ok:#2f7a1c;--err:#c40026;--tx-red:#c30045;--shadow:0 0 18px rgba(0,0,0,.10);--font:'Belfius21',Helvetica,Arial,sans-serif}
+:root{color-scheme:light dark;--pink-soft:#ffc2d7;--red:#c30045;--red-dark:#8c193c;--pink-bg:#fff5f8;--pink-mid:#f6c4d6;--bg:#f6f7f8;--card:#fff;--fg:#101820;--mute:#51626f;--line:#e8ebed;--ctl-brd:#7b8794;--focus:#ad0cdf;--ok:#2f7a1c;--err:#c40026;--tx-red:#c30045;--shadow:0 0 18px rgba(0,0,0,.10);--font:'Belfius21',Helvetica,Arial,sans-serif}
 @media (prefers-color-scheme:dark){:root{--bg:#0e141b;--card:#18212b;--fg:#eef0f2;--mute:#9aa8b4;--line:#2b3744;--pink-bg:#2a1a22;--ctl-brd:#7e8c99;--ok:#7fd36a;--err:#ff6b85;--tx-red:#ff7da3;--shadow:0 0 18px rgba(0,0,0,.4)}}
 *{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--font)}
-header{background:var(--red);color:#fff;padding:14px 24px}
-header h1{margin:0;font-size:1.2rem}header p{margin:2px 0 0;font-size:.8rem;color:rgba(255,255,255,.9)}
-main{max-width:1000px;margin:auto;padding:0 24px 70px}
-.tabbar{display:flex;gap:4px;border-bottom:2px solid var(--line);margin:0 0 18px;position:sticky;top:0;background:var(--bg);z-index:15;padding-top:10px}
-.tabbtn{font:inherit;font-weight:600;border:0;background:none;padding:10px 18px;color:var(--mute);border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;border-radius:10px 10px 0 0}
-.tabbtn:hover{color:var(--fg)}.tabbtn[aria-selected=true]{color:var(--tx-red);border-bottom-color:var(--red)}
-.tabbtn:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.cnt{display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:10px;background:var(--pink-bg);color:var(--tx-red);font-size:.72rem;font-weight:700;line-height:20px;text-align:center;border:1px solid var(--pink-mid)}
+header{background:var(--red);color:#fff;padding:16px 24px 0}
+header>*{max-width:1000px;margin-left:auto;margin-right:auto}
+header h1{font-size:1.25rem;font-weight:700;margin:0 auto 2px}
+header .sub{color:rgba(255,255,255,.85);font-size:.8rem;margin:0 auto}
+main{max-width:1000px;margin:auto;padding:20px 24px 70px}
+.tabs{display:flex;gap:6px;margin-top:14px;border-bottom:1px solid rgba(255,255,255,.3);overflow-x:auto}
+.tabbtn{font:inherit;font-weight:600;border:0;background:none;padding:10px 18px;color:rgba(255,255,255,.92);cursor:pointer;border-bottom:3px solid transparent;border-radius:12px 12px 0 0;transition:background .15s;white-space:nowrap}
+.tabbtn:hover{background:rgba(255,255,255,.12)}.tabbtn[aria-selected=true]{color:#fff;border-color:#fff}
+.tabbtn:focus-visible{outline:2px solid #fff;outline-offset:-4px}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.cnt{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;background:#fff;color:var(--red);font-size:.7rem;font-weight:700;line-height:18px;text-align:center}
 .panel{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:18px 22px}
 h2{margin:0 0 2px;font-size:1.05rem}.sub{margin:0 0 14px;color:var(--mute);font-size:.8rem}.d{color:var(--mute);font-size:.78rem}
 table{border-collapse:collapse;width:100%}th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
 th{font-size:.75rem;color:var(--mute)}td.k{font-weight:600}.mono{font-family:ui-monospace,Consolas,monospace;font-size:.85rem}.actions{white-space:nowrap;text-align:right}
-input,select{font:inherit;color:var(--fg);padding:8px 12px;border:2px solid var(--ctl-brd);border-radius:12px;background:var(--card);min-width:0}
-input.w{width:100%}
-button{font:inherit;font-weight:600;font-size:.82rem;padding:8px 16px;border-radius:20px;cursor:pointer;border:2px solid var(--red);background:var(--red);color:#fff}
-button.sec{background:var(--card);color:var(--tx-red);border-color:var(--pink-mid)}button.sec:hover{border-color:var(--red)}
+input,select{font:inherit;font-size:.85rem;color:var(--fg);height:40px;box-sizing:border-box;padding:0 12px;border:2px solid var(--ctl-brd);border-radius:12px;background-color:var(--card);min-width:120px;transition:border-color .15s;max-width:420px;-webkit-appearance:none;appearance:none}
+select{padding-right:34px;background-repeat:no-repeat;background-position:right 12px center;background-size:12px 8px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2351626f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");cursor:pointer}
+@media (prefers-color-scheme:dark){select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b4c0ca' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}}
+option{background:var(--card);color:var(--fg)}
+select:hover,input:hover{border-color:var(--pink-soft)}
+select:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--red)}
+input[type=checkbox]{-webkit-appearance:auto;appearance:auto;height:18px;min-width:0;padding:0;accent-color:var(--red)}
+input.w{width:100%;max-width:none}
+button{font:inherit;font-weight:600;padding:0 24px;height:40px;border-radius:25px;cursor:pointer;border:2px solid var(--red);background:var(--red);color:#fff;transition:border-color .15s}
+button:hover{border-color:var(--red-dark);background:var(--red-dark)}
+button.sec{font-size:.8rem;padding:0 14px;border-radius:20px;background:var(--card);color:var(--tx-red);border-color:var(--pink-mid)}button.sec:hover{border-color:var(--red);background:var(--card)}
 .inl{display:inline-flex;gap:6px;align-items:center}
-button.ghostx{background:none;border:0;color:var(--mute);font-size:1.15rem;line-height:1;padding:6px 11px;border-radius:50%}button.ghostx:hover{color:var(--err);background:var(--pink-bg)}
-#ipTools{margin:6px 0 4px}#ipTools .grow{flex:1;min-width:200px}#tIp input[type=checkbox]{width:18px;height:18px;accent-color:var(--red)}
-button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
+button.ghostx{background:none;border:0;color:var(--mute);font-size:1.15rem;line-height:1;padding:0;width:32px;height:32px;border-radius:50%}button.ghostx:hover{color:var(--err);background:var(--pink-bg);border:0}
+#ipTools{margin:6px 0 4px}#ipTools .grow{flex:1;min-width:200px}#tIp input[type=checkbox],#jnBox input[type=checkbox]{width:18px}
+button.danger{font-size:.8rem;padding:0 14px;border-radius:20px;background:var(--card);color:var(--err);border-color:var(--err)}button.danger:hover{background:var(--pink-bg);border-color:var(--err)}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:0 0 14px}.row label{display:flex;flex-direction:column;font-size:.75rem;color:var(--mute);gap:4px;font-weight:600}
 .pill{display:inline-block;padding:1px 9px;border-radius:12px;font-size:.72rem;font-weight:700;background:var(--pink-bg);color:var(--tx-red);border:1px solid var(--pink-mid)}
 .pill.ok{color:var(--ok);border-color:var(--ok);background:transparent}
@@ -550,23 +560,23 @@ dialog::backdrop{overflow:hidden;overscroll-behavior:contain;background:rgb(0 0 
 .note{font-size:.75rem;color:var(--mute);margin-top:14px}
 .warnbox{border:2px solid var(--err);color:var(--err);border-radius:12px;padding:10px 14px;margin:0 0 14px;font-weight:600}
 .chip{display:inline-flex;align-items:center;gap:6px;margin:2px 6px 2px 0;padding:2px 4px 2px 10px;border-radius:14px;border:1px solid var(--pink-mid);background:var(--pink-bg);font-size:.8rem}
-.chip button{padding:0 7px;border-radius:10px;font-size:.8rem;line-height:1.4;background:none;color:var(--err);border:0}
+.chip button{padding:0 7px;height:auto;border-radius:10px;font-size:.8rem;line-height:1.4;background:none;color:var(--err);border:0}.chip button:hover{background:none;border:0}
 @media (max-width:760px){main{padding:0 14px 70px}.srow{grid-template-columns:1fr}.srow .sa{text-align:left}th:nth-child(2),td:nth-child(2){display:none}}
 </style>
 </head>
 <body>
-<header><h1>Dashboard administration</h1><p>IP allowlist and configuration of the Journeys dashboard</p></header>
+<header><h1>Marketing journeys dashboard – administration</h1><p class="sub">IP allowlist, settings, labels, link names, journey names and product mapping</p>
+  <div class="tabbar tabs" id="tabbar" role="tablist" aria-label="Administration sections" hidden>
+    <button type="button" class="tabbtn tab" role="tab" id="tab-ip" data-tab="ip" aria-controls="p-ip" aria-selected="true" tabindex="0">IP allowlist<span class="cnt" id="cntIp">0</span></button>
+    <button type="button" class="tabbtn tab" role="tab" id="tab-cfg" data-tab="cfg" aria-controls="p-cfg" aria-selected="false" tabindex="-1">Settings</button>
+    <button type="button" class="tabbtn tab" role="tab" id="tab-lab" data-tab="lab" aria-controls="p-lab" aria-selected="false" tabindex="-1">Friendly labels<span class="cnt" id="cntLab">0</span></button>
+    <button type="button" class="tabbtn tab" role="tab" id="tab-link" data-tab="link" aria-controls="p-link" aria-selected="false" tabindex="-1">Link names<span class="cnt" id="cntLink">0</span></button>
+    <button type="button" class="tabbtn tab" role="tab" id="tab-jn" data-tab="jn" aria-controls="p-jn" aria-selected="false" tabindex="-1">Journey names<span class="cnt" id="cntJn">0</span></button>
+    <button type="button" class="tabbtn tab" role="tab" id="tab-prod" data-tab="prod" aria-controls="p-prod" aria-selected="false" tabindex="-1">Product mapping<span class="cnt" id="cntProd">0</span></button>
+  </div></header>
 <main>
   <div id="gate" hidden><div class="panel" style="margin-top:18px"><h2 id="gateTitle"></h2><p class="sub" id="gateText"></p></div></div>
   <div id="app" hidden>
-    <div class="tabbar" role="tablist" aria-label="Administration sections">
-      <button type="button" class="tabbtn" role="tab" id="tab-ip" data-tab="ip" aria-controls="p-ip" aria-selected="true" tabindex="0">IP allowlist<span class="cnt" id="cntIp">0</span></button>
-      <button type="button" class="tabbtn" role="tab" id="tab-cfg" data-tab="cfg" aria-controls="p-cfg" aria-selected="false" tabindex="-1">Settings</button>
-      <button type="button" class="tabbtn" role="tab" id="tab-lab" data-tab="lab" aria-controls="p-lab" aria-selected="false" tabindex="-1">Friendly labels<span class="cnt" id="cntLab">0</span></button>
-      <button type="button" class="tabbtn" role="tab" id="tab-link" data-tab="link" aria-controls="p-link" aria-selected="false" tabindex="-1">Link names<span class="cnt" id="cntLink">0</span></button>
-      <button type="button" class="tabbtn" role="tab" id="tab-jn" data-tab="jn" aria-controls="p-jn" aria-selected="false" tabindex="-1">Journey names<span class="cnt" id="cntJn">0</span></button>
-      <button type="button" class="tabbtn" role="tab" id="tab-prod" data-tab="prod" aria-controls="p-prod" aria-selected="false" tabindex="-1">Product mapping<span class="cnt" id="cntProd">0</span></button>
-    </div>
 
     <section class="panel" id="p-ip" role="tabpanel" aria-labelledby="tab-ip">
       <div class="bar">
@@ -837,7 +847,7 @@ $('fLab').onsubmit = async e=>{ e.preventDefault(); if (await act('cfg_set',{key
 (async()=>{
   const gate=(t,x)=>{ $('gate').hidden=false; $('gateTitle').textContent=t; $('gateText').textContent=x; };
   try{
-    const j = await call('list'); ST = {ips:j.ips||[], cfg:j.cfg||[], yourIp:j.yourIp||'', pmap:j.pmap||[], pmapErr:j.pmapErr||'', jmap:j.jmap||[], jmapErr:j.jmapErr||''}; $('app').hidden=false; render();
+    const j = await call('list'); ST = {ips:j.ips||[], cfg:j.cfg||[], yourIp:j.yourIp||'', pmap:j.pmap||[], pmapErr:j.pmapErr||'', jmap:j.jmap||[], jmapErr:j.jmapErr||''}; $('app').hidden=false; $('tabbar').hidden=false; render();
     const h = location.hash.replace('#',''); if (TABS.includes(h)) showTab(h);
   }catch(e){
     if (e.code==='admin_disabled') gate('Administration is disabled','Add a row to the DASH_Config data extension: ConfigKey = admin_token, Value = a secret key of at least 24 characters (letters and digits). Then open this page with ?k=<that key>.');
