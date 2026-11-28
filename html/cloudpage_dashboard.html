@@ -968,7 +968,7 @@ function recoRules(){
     const L = A.lists; if (!L || !L.snap.length) return 'no publication list data yet (DASH_PubList_Snapshot)';
     const asofs = [...new Set(L.snap.map(r=>r.AsOf))].sort(), cur = asofs[asofs.length-1], prv = asofs.length>1 ? asofs[asofs.length-2] : null;
     const by = new Map(); for (const r of L.snap){ if (r.AsOf!==cur && r.AsOf!==prv) continue; let a = by.get(r.ListName); if(!a){ a={name:r.ListName,act:0,uns:0,out:0,prev:null}; by.set(r.ListName,a); }
-      if (r.AsOf===cur){ if (r.Status==='Active') a.act+=r.Subscribers; else if (r.Status==='Unsubscribed') a.uns+=r.Subscribers; else if (r.Status==='Not in All Subscribers') a.out+=r.Subscribers; }
+      if (r.AsOf===cur){ if (r.Status==='Active') a.act+=r.Subscribers; else if (r.Status==='Unsubscribed') a.uns+=r.Subscribers; else if (r.Status==='Not a subscriber') a.out+=r.Subscribers; }
       else if (r.Status==='Active') a.prev = (a.prev||0)+r.Subscribers; }
     for (const a of by.values()){ if (a.name==='All Subscribers') continue; const members = a.act+a.uns+a.out;
       if (a.prev && a.act>=minS/2 && a.prev-a.act>=0.02*a.prev) F('medium','Audience',a.name+': '+n(a.prev-a.act)+' fewer active members than in '+prv,n(a.act)+' active members now against '+n(a.prev)+' in the '+prv+' snapshot ('+fx1((1-a.act/a.prev)*100)+' % down).','Check what removed people from this list (unsubscribes, held or bounced addresses, a change in the automation that fills it).',{tab:'ins',sub:'lists'},a.act);
@@ -1357,7 +1357,7 @@ function viewLists(){
      sets:[{l:'With an active or future contract',color:'#c30045',colorD:'#ff7da3',d:list.map(a=>a.Act.Yes)},{l:'No active contract',color:'#8a97a2',colorD:'#6b7885',d:list.map(a=>a.Act.No)}]},
     {title:'Active members at each monthly snapshot',labels:asofs,sets:list.map(a=>({l:a.name,d:asofs.map(m=>actAt(a.name,m))}))}
   ], ['c8','c9']);
-  $('plNote').textContent = 'Snapshot of '+cur+(prevA?' (compared with '+prevA+')':' (the history builds up with one snapshot per month)')+'. The lists are the data extensions List_Info (Information), List_Newsletter, List_Promo and List_Survey, each member counted once, leads excluded (Subscriber Key starting with 00QP). The status of a member is the Status field of the list data extension; "Not in All Subscribers" = an Active member whose key is unknown in All Subscribers, so that person cannot receive emails. Joined / unsubscribed per month are only available for All Subscribers (the list data extensions have no dates). With contract = at least one Active or Future contract in Contract_Salesforce_1 (Contact__c = SubscriberKey).';
+  $('plNote').textContent = 'Snapshot of '+cur+(prevA?' (compared with '+prevA+')':' (the history builds up with one snapshot per month)')+'. The lists are the data extensions List_Info (Information), List_Newsletter, List_Promo and List_Survey, each member counted once, leads excluded (Subscriber Key starting with 00QP). The status of a member is the Status field of the list data extension; "Not a subscriber" = an Active member whose key is unknown in All Subscribers, so that person cannot receive emails. Joined / unsubscribed per month are only available for All Subscribers (the list data extensions have no dates). With contract = at least one Active or Future contract in Contract_Salesforce_1 (Contact__c = SubscriberKey).';
 }
 
 /* ---------- Insights : géographie ---------- */
