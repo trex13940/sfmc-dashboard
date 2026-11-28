@@ -498,6 +498,8 @@ input,select{font:inherit;color:var(--fg);padding:8px 12px;border:2px solid var(
 input.w{width:100%}
 button{font:inherit;font-weight:600;font-size:.82rem;padding:8px 16px;border-radius:20px;cursor:pointer;border:2px solid var(--red);background:var(--red);color:#fff}
 button.sec{background:var(--card);color:var(--tx-red);border-color:var(--pink-mid)}button.sec:hover{border-color:var(--red)}
+button.ghostx{background:none;border:0;color:var(--mute);font-size:1.15rem;line-height:1;padding:6px 11px;border-radius:50%}button.ghostx:hover{color:var(--err);background:var(--pink-bg)}
+#ipTools{margin:6px 0 4px}#ipTools .grow{flex:1;min-width:200px}#tIp input[type=checkbox]{width:18px;height:18px;accent-color:var(--red)}
 button.danger{background:var(--card);color:var(--err);border-color:var(--err)}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:0 0 14px}.row label{display:flex;flex-direction:column;font-size:.75rem;color:var(--mute);gap:4px;font-weight:600}
 .pill{display:inline-block;padding:1px 9px;border-radius:12px;font-size:.72rem;font-weight:700;background:var(--pink-bg);color:var(--tx-red);border:1px solid var(--pink-mid)}
@@ -551,6 +553,7 @@ dialog::backdrop{overflow:hidden;overscroll-behavior:contain;background:rgb(0 0 
         <label>Description (optional)<input id="ipDesc" maxlength="200" size="34" placeholder="Office, VPN, review session..."></label>
         <button type="submit">Add</button>
       </form>
+      <div class="row" id="ipTools"><label class="grow">Search the list<input id="ipFilter" type="search" placeholder="address or description..." autocomplete="off"></label><button type="button" class="danger" id="ipBulk" hidden>Remove selected</button></div>
       <table id="tIp"></table>
     </section>
 
@@ -649,7 +652,7 @@ const GROUPS = [
 ];
 const TABS = ['ip','cfg','lab','link','prod'];
 const maskIp = v => { const s = String(v||''), m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(\/\d+)?$/); if (m) return 'xxx.xxx.'+m[3]+'.'+m[4]+(m[5]||''); const g = s.split(':'); return g.length>2 ? 'xxxx:xxxx:...:'+g[g.length-1] : s; };
-let ST = {ips:[], cfg:[], yourIp:'', pmap:[], pmapErr:''}, TAB = 'ip', FILTER = '', FOCUS = null;
+let ST = {ips:[], cfg:[], yourIp:'', pmap:[], pmapErr:''}, TAB = 'ip', FILTER = '', FOCUS = null, IPFILTER = '', IPSEL = new Set();
 const OPEN = {keys:true, dash:true, de:false};
 /* native modal <dialog>: focus lands on Cancel (the safe action), Esc cancels, focus returns to the button that opened it */
 function ask(text, okLabel){
@@ -683,9 +686,15 @@ function renderIp(){
   const allowed = ST.ips.some(x=>x.you);
   $('yourState').textContent = allowed ? 'allowed' : 'not in the list'; $('yourState').className = 'pill'+(allowed?' ok':'');
   $('cntIp').textContent = ST.ips.length;
-  $('tIp').innerHTML = '<thead><tr><th>IP address / range</th><th>Description</th><th></th></tr></thead><tbody>'+
-    (ST.ips.length ? ST.ips.map(x=>`<tr><td class="k mono" style="white-space:nowrap">${esc(maskIp(x.ip))}${x.you?' <span class="pill ok">you</span>':''}</td><td class="d">${esc(x.desc)}</td><td class="actions"><button type="button" class="danger" data-rm="${esc(x.ip)}" aria-label="Remove ${esc(x.ip)}">Remove</button></td></tr>`).join('') : '<tr><td colspan="3" class="d">The list is empty: nobody can open the dashboard.</td></tr>')+'</tbody>';
+  const fl = IPFILTER.trim().toLowerCase(), shown = ST.ips.filter(x=>!fl || (maskIp(x.ip)+' '+x.desc).toLowerCase().includes(fl));
+  IPSEL.forEach(k=>{ if (!ST.ips.some(x=>x.ip===k)) IPSEL.delete(k); });
+  $('tIp').innerHTML = '<thead><tr><th style="width:32px"><input type="checkbox" id="ipAll" aria-label="Select all shown"></th><th>IP address / range</th><th>Description</th><th></th></tr></thead><tbody>'+
+    (shown.length ? shown.map(x=>`<tr><td><input type="checkbox" data-sel="${esc(x.ip)}" aria-label="Select ${esc(maskIp(x.ip))}"${IPSEL.has(x.ip)?' checked':''}></td><td class="k mono" style="white-space:nowrap">${esc(maskIp(x.ip))}${x.you?' <span class="pill ok">you</span>':''}</td><td class="d">${esc(x.desc)}</td><td class="actions"><button type="button" class="ghostx" data-rm="${esc(x.ip)}" aria-label="Remove ${esc(maskIp(x.ip))}" title="Remove">&times;</button></td></tr>`).join('') : '<tr><td colspan="4" class="d">'+(ST.ips.length ? 'No address matches the search.' : 'The list is empty: nobody can open the dashboard.')+'</td></tr>')+'</tbody>';
   $('tIp').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ ask('Remove '+maskIp(b.dataset.rm)+' from the allowlist ?','Remove').then(ok=>{ if (ok) act('ip_remove',{ip:b.dataset.rm}); }); });
+  const bulk = () => { $('ipBulk').hidden = !IPSEL.size; $('ipBulk').textContent = 'Remove selected ('+IPSEL.size+')'; $('ipAll').checked = shown.length>0 && shown.every(x=>IPSEL.has(x.ip)); };
+  $('tIp').querySelectorAll('[data-sel]').forEach(c=>c.onchange=()=>{ if (c.checked) IPSEL.add(c.dataset.sel); else IPSEL.delete(c.dataset.sel); bulk(); });
+  $('ipAll').onchange = e=>{ shown.forEach(x=>{ if (e.target.checked) IPSEL.add(x.ip); else IPSEL.delete(x.ip); }); $('tIp').querySelectorAll('[data-sel]').forEach(c=>c.checked = e.target.checked); bulk(); };
+  bulk();
 }
 function settingRow(s, r){
   const id = 'c_'+s.k;
@@ -749,6 +758,8 @@ document.querySelector('.tabbar').addEventListener('keydown', e=>{
   if (to>=0){ e.preventDefault(); showTab(tabs[to].dataset.tab, true); }
 });
 $('cfgFilter').oninput = e=>{ FILTER = e.target.value; renderCfg(); };
+$('ipFilter').oninput = e=>{ IPFILTER = e.target.value; renderIp(); };
+$('ipBulk').onclick = async () => { const list = [...IPSEL]; if (!list.length || !await ask('Remove '+list.length+' address'+(list.length>1?'es':'')+' from the allowlist ?','Remove')) return; for (const ip of list){ if (!await act('ip_remove',{ip})) break; IPSEL.delete(ip); } };
 $('fIp').onsubmit = async e=>{ e.preventDefault(); if (await act('ip_add',{ip:$('ipVal').value,desc:$('ipDesc').value})){ $('ipVal').value=''; $('ipDesc').value=''; $('ipVal').focus(); } };
 $('fLink').onsubmit = async e=>{ e.preventDefault(); if (await act('link_set',{pattern:$('lkPat').value,name:$('lkName').value})){ $('lkPat').value=''; $('lkName').value=''; $('lkPat').focus(); } };
 $('lkEx').onclick = async ()=>{ for (const [p,n] of LINK_EX) if (!(await act('link_set',{pattern:p,name:n}))) break; };

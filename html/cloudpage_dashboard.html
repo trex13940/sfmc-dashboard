@@ -125,7 +125,7 @@ Variable.SetValue("@cfgJson", Stringify(clientCfg).replace(/</g, "\\u003c").repl
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Journeys Dashboard – Email KPIs</title>
+<title>Marketing Journeys Dashboard</title>
 <style>
 /* Design tokens inspirés du funnel Belfius Direct (couleurs, rayons, ombres, boutons en pilule) */
 :root{
@@ -158,6 +158,8 @@ select{padding-right:34px;background-repeat:no-repeat;background-position:right 
 @media (prefers-color-scheme:dark){select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b4c0ca' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}}
 option{background:var(--card);color:var(--fg)}
 .bar .btn,.bar .btn2{height:40px;padding-top:0;padding-bottom:0}
+.only-m{display:none}.only-m[hidden]{display:none!important}
+@media (max-width:700px){.only-m{display:inline-block;margin:0 0 10px}#filtBar{display:none}body.filt-open #filtBar{display:flex}}
 .bar .acts{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-left:auto}
 @keyframes shim{0%{background-position:100% 0}100%{background-position:-100% 0}}
 #lJ,#lJ2{display:flex;flex-direction:column;gap:4px}
@@ -184,6 +186,8 @@ button.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;margin-bottom:16px}
 .card{background:var(--card);border:2px solid transparent;border-radius:16px;padding:14px 16px;box-shadow:var(--shadow-tile);transition:transform .15s,border-color .15s}
 .card:hover{transform:scale(1.015);border-color:var(--red)}
+.cards .card{position:relative}.card .sp{position:absolute;right:12px;bottom:12px;opacity:.9}@media (max-width:480px){.card .sp{display:none}}.card .sp polyline{fill:none;stroke:var(--red);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}.card .sp circle{fill:var(--red)}
+.cards.tiered .card.sec .sp{display:none}
 .card b{display:block;font-size:1.5rem;line-height:1.1;font-weight:600;color:var(--fg);margin-bottom:4px}   /* neutral: red / green are kept for the deltas and alerts */
 .cards.tiered{grid-template-columns:repeat(60,1fr)}
 .cards.tiered .card.pri b{font-size:2rem}
@@ -210,6 +214,9 @@ button.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 @media (prefers-color-scheme:dark){.reco.medium .sev{color:#f0b24a}.reco.info .sev{color:#6cb8ee}}
 .reco h3{margin:0 0 4px;font-size:1rem}.reco p{margin:2px 0;font-size:.88rem}.reco .ac{color:var(--fg)}.reco .ev{color:var(--mute)}
 .reco .go{margin-top:8px}
+.rgrp>summary{cursor:pointer;font-weight:700;font-size:1.05rem;margin:6px 0 10px;list-style:none}.rgrp>summary::-webkit-details-marker{display:none}.rgrp>summary::before{content:'▸ ';color:var(--red)}.rgrp[open]>summary::before{content:'▾ '}.rgrp .n{font-size:.75rem;font-weight:600;padding:1px 9px;border-radius:12px;background:var(--pink-bg);color:var(--tx-red);margin-left:6px}
+.rlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px;margin-bottom:12px}@media (max-width:480px){.rlist{grid-template-columns:1fr}}
+.rlist .reco{padding:12px 14px 12px 16px}
 .recomore{margin:12px 4px;font-size:.82rem;color:var(--mute)}.recomore summary{cursor:pointer;font-weight:600}
 .wrap:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .sr{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -225,6 +232,7 @@ thead th.sorted{color:var(--tx-red)}
 .thb:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:4px}
 tbody tr:hover td{background:var(--pink-bg)}
 tr.tot td{font-weight:700;background:var(--pink-bg);color:var(--tx-red)}
+.vmenu{position:relative}.vmenu>summary{list-style:none;cursor:pointer;display:inline-block;margin:0;height:40px;line-height:22px}.vmenu>summary::-webkit-details-marker{display:none}.vmenu>summary::after{content:' ▾'}.vpanel{position:absolute;right:0;top:44px;z-index:25;display:flex;flex-direction:column;gap:8px;min-width:180px;padding:12px;background:var(--card);border:2px solid var(--ctl-brd);border-radius:12px;box-shadow:var(--shadow)}.vpanel .btn2{margin:0;text-align:left}.vpanel #lExp{display:flex;flex-direction:column;gap:8px}
 .btn2{font:inherit;font-size:.8rem;font-weight:600;padding:8px 14px;margin-right:6px;border-radius:20px;cursor:pointer;background:var(--card);color:var(--tx-red);border:2px solid var(--pink-mid)}
 .btn2:hover{border-color:var(--red)}
 .btn2:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -240,7 +248,7 @@ tr.child:hover td{background:var(--pink-light)}
 .msg{padding:30px;text-align:center;color:var(--mute)}.err{color:#ffd6e1;font-weight:600}
 .note{font-size:.75rem;color:var(--mute);margin-top:10px;padding-left:22px;position:relative}
 .note::before{content:"i";position:absolute;left:0;top:1px;width:14px;height:14px;border-radius:50%;background:var(--red);color:#fff;font-size:.65rem;font-weight:700;text-align:center;line-height:14px}
-.warn{background:var(--pink-bg);border:2px solid var(--pink-mid);color:var(--red-dark);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:.8rem}
+.warn{display:inline-block;background:var(--pink-bg);border:1px solid var(--pink-mid);color:var(--red-dark);border-radius:16px;padding:4px 12px;margin:0 0 12px;font-size:.78rem;max-width:100%}.warn[hidden]{display:none}.warn summary{cursor:pointer;list-style:none;font-weight:600}.warn summary::-webkit-details-marker{display:none}.warn p{margin:6px 0 2px;font-weight:400}
 @media (prefers-color-scheme:dark){.warn{color:var(--fg)}}
 .tops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 @media (max-width:900px){.tops{grid-template-columns:1fr}}
@@ -256,6 +264,9 @@ tr.child:hover td{background:var(--pink-light)}
 .top .vl small{display:block;color:var(--mute);font-weight:400;font-size:.72rem}
 .top .bar2{grid-column:2/4;height:6px;border-radius:3px;background:var(--grey-track);overflow:hidden}
 .top .bar2 i{display:block;height:100%;background:var(--red);border-radius:3px}
+.top .bar2{position:relative;overflow:visible}.top .bar2 i.mid{background:#d98a00}.top .bar2 i.hi{background:var(--red)}.top .bar2 .mk{position:absolute;top:-4px;width:2px;height:14px;background:var(--fg);opacity:.55}
+.cls{display:inline-flex;align-items:center;gap:4px;margin-right:8px;white-space:nowrap}.cls i{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid rgba(16,24,32,.2)}
+.top .rl{margin:-4px 0 6px;font-size:.72rem;color:var(--mute)}
 td.bad{color:var(--err-text);font-weight:700}
 @media (max-width:768px){header{padding:12px 16px 0}main{padding:16px}.bar{padding:12px}.tab{padding:8px 12px}}
 /* ---- accessibilité et confort laptop ---- */
@@ -311,7 +322,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
 <body>
 <a class="skip" href="#content">Skip to the data</a>
 <header>
-  <h1>Journeys – Email KPIs</h1>
+  <h1>Marketing journeys dashboard</h1>
   <div class="sub" id="gen" role="status" aria-live="polite">Loading…</div>
   <div class="tabs" role="tablist" aria-label="Dashboard sections">
     <button class="tab" role="tab" id="tab-journeys" data-tab="journeys" aria-selected="true" aria-controls="v-main" tabindex="0">Journeys</button>
@@ -338,7 +349,8 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <span id="winBar" role="group" aria-label="Look-back window" hidden><span class="lbl">Previous complete months</span>
         <button type="button" class="chip" data-win="3" aria-pressed="true">3</button><button type="button" class="chip" data-win="6" aria-pressed="false">6</button><button type="button" class="chip" data-win="12" aria-pressed="false">12</button></span>
     </div>
-  <div class="bar">
+  <button type="button" id="bFilt" class="btn2 only-m" aria-expanded="false" aria-controls="filtBar">Filters</button>
+  <div class="bar" id="filtBar">
     <label class="ctl" id="lFam">Family<select id="fFam"><option value="ALL">All</option><option value="MKT">Marketing (MKT_)</option><option value="OPS">Operational (Oxx_)</option></select></label>
     <label class="ctl" id="lType">Campaign type<select id="fType"><option value="">All</option></select></label>
     <label class="ctl" id="lProd">Product<select id="fProd"><option value="">All</option></select></label>
@@ -357,18 +369,17 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     <label class="ctl" id="lAlert">Alert scope<select id="fAlert"><option value="ongoing">Ongoing journeys only</option><option value="all">All journeys</option></select></label>
     <label class="ctl" id="lQ">Search<input id="fQ" placeholder="journey name…"></label>
     <div class="acts">
-    <span class="ctl" id="lCompact"><button class="btn2" id="bCompact" type="button" aria-pressed="false">Rates only</button></span>
-    <span class="ctl" id="lExp"><button class="btn2" id="bExp" type="button">Expand all</button><button class="btn2" id="bCol" type="button">Collapse all</button></span>
+    <details class="vmenu ctl" id="lCompact"><summary class="btn2">View</summary><div class="vpanel"><button class="btn2" id="bCompact" type="button" aria-pressed="false">Rates only</button><span id="lExp"><button class="btn2" id="bExp" type="button">Expand all</button><button class="btn2" id="bCol" type="button">Collapse all</button></span></div></details>
     <button class="btn2" id="bReset" type="button" hidden>Reset filters</button>
     <button class="btn" id="bCsv">Export CSV</button>
     </div>
   </div>
   <div id="ctx" class="ctx" role="status" aria-live="polite" hidden></div>
-  <div id="warn" class="warn" role="status" hidden></div>
+  <details id="warn" class="warn" hidden><summary><span aria-hidden="true">⚠</span> <span id="warnSum"></span></summary><p id="warnTxt"></p></details>
 
   <section id="v-main">
     <div id="cards" class="cards"></div>
-    <div id="charts" class="charts"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div></div>
+    <div id="charts" class="charts"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div><div class="card"><canvas id="c2b"></canvas></div></div>
     <div class="wrap"><table id="tbl"></table></div>
     <div class="note" id="note"></div>
   </section>
@@ -681,9 +692,9 @@ function renderTable(id, keyCols, cols, rows, total, opts){
 function cards(id, items, primary){
   const el = $(id), tiered = primary>0 && items.length>primary, sec = items.length-primary, secSpan = sec>0 ? Math.floor(60/sec) : 60;
   el.classList.toggle('tiered', tiered);
-  el.innerHTML = items.map(([v,l,d,c,ttl],i)=>{
+  el.innerHTML = items.map(([v,l,d,c,ttl,sp],i)=>{
     const cls = tiered ? (i<primary ? 'card pri' : 'card sec') : 'card', span = tiered ? ` style="grid-column:span ${i<primary ? Math.floor(60/primary) : secSpan}"` : '';
-    return `<div class="${cls}"${span}><b>${v}</b><span>${esc(l)}</span>${d?`<em class="dl ${c||''}" title="${esc(ttl||'')}">${esc(d)}</em>`:''}</div>`;
+    return `<div class="${cls}"${span}>${sp||''}<b>${v}</b><span>${esc(l)}</span>${d?`<em class="dl ${c||''}" title="${esc(ttl||'')}">${esc(d)}</em>`:''}</div>`;
   }).join('');
 }
 const KPI_CARDS = [
@@ -698,7 +709,13 @@ const KPI_CARDS = [
   {l:'Complaint rate',v:t=>deliv(t)?t.Compl/deliv(t):null,  kind:'rate',good:'down'}
 ];
 const fx1 = x => x.toFixed(1).replace('.',',');
-function kpiCards(tot, prev, pr){
+function spark(vals){   /* inline trend line (no axes): the last point is marked */
+  const v = vals.filter(x=>x!=null); if (v.length<3) return '';
+  const lo = Math.min(...v), hi = Math.max(...v), W = 76, H = 22, st = vals.length>1 ? W/(vals.length-1) : 0;
+  const pts = vals.map((x,i)=>x==null?null:[(i*st).toFixed(1), (H-2-(hi===lo?.5:(x-lo)/(hi-lo))*(H-4)).toFixed(1)]).filter(Boolean), last = pts[pts.length-1];
+  return '<svg class="sp" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" aria-hidden="true" focusable="false"><polyline points="'+pts.map(p=>p.join(',')).join(' ')+'"/><circle cx="'+last[0]+'" cy="'+last[1]+'" r="2.2"/></svg>';
+}
+function kpiCards(tot, prev, pr, mons){
   return KPI_CARDS.map(c=>{
     const v = c.v(tot), val = c.kind==='vol' ? n(v) : (v==null ? '–' : PF.format(v));
     let d = '', cls = '';
@@ -709,7 +726,7 @@ function kpiCards(tot, prev, pr){
       else { x = (v-p)*100; txt = (Math.abs(x)<0.05?'= ':x>0?'▲ +':'▼ −')+(Math.abs(x)<0.05?'0,0':fx1(Math.abs(x)))+' pt'; }
       if (txt){ d = txt; if (c.good && (c.kind==='vol'?Math.abs(x)*100:Math.abs(x))>=0.05) cls = (x>0)===(c.good==='up') ? 'good' : 'bad'; }
     }
-    return [val, c.l, d, cls, pr ? 'vs '+pr.from+' → '+pr.to : ''];
+    return [val, c.l, d, cls, pr ? 'vs '+pr.from+' → '+pr.to : '', mons ? spark(mons.map(m=>c.v(m))) : ''];
   });
 }
 
@@ -728,7 +745,7 @@ function drawCharts(defs, ids){
     let scales;
     if (d.horizontal) scales = {x:{beginAtZero:true,stacked:!!d.stacked,max:d.max,ticks:{callback:tick}}, y:{stacked:!!d.stacked,ticks:{autoSkip:false}}};
     else {
-      scales = {y:{beginAtZero:true,position:'left',stacked:!!d.stacked,title:{display:two,text:d.axisL||''},ticks:{callback:tick}}};
+      scales = {y:d.log ? {type:'logarithmic',min:1,position:'left',ticks:{callback:v=>[1,10,100,1000,10000,100000].includes(v)?NF.format(v):''}} : {beginAtZero:true,position:'left',stacked:!!d.stacked,title:{display:two,text:d.axisL||''},ticks:{callback:tick}}};
       if (d.stacked) scales.x = {stacked:true};
       if (two) scales.y1 = {beginAtZero:true,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:d.axisR||''},ticks:{callback:tick}};
     }
@@ -742,7 +759,8 @@ const byMonthCharts = rows => {
   const byM = group(rows, r=>['',r.Month]).sort((a,b)=>a.month<b.month?-1:1), few = byM.length<=2 ? 'bar' : undefined;
   return [
     {title:'Volumes by month',type:few,labels:byM.map(a=>a.month),sets:[{l:'Sends',d:byM.map(a=>a.Sends)},{l:'Opens',d:byM.map(a=>a.Opens)},{l:'Unique clicks',d:byM.map(a=>a.Clicks)}]},
-    {title:'Rates by month',pct:true,axisL:'Open %',axisR:'CTR % and Bounce %',labels:byM.map(a=>a.month),sets:[{l:'Open % (left axis)',d:byM.map(a=>deliv(a)?a.Opens/deliv(a):0)},{l:'CTR % (right axis)',right:true,d:byM.map(a=>deliv(a)?a.Clicks/deliv(a):0)},{l:'Bounce % (right axis)',right:true,d:byM.map(a=>a.Sends?a.Bounces/a.Sends:0)}]}
+    {title:'Open rate by month',pct:true,type:few,labels:byM.map(a=>a.month),sets:[{l:'Open %',d:byM.map(a=>deliv(a)?a.Opens/deliv(a):0)}]},
+    {title:'Clicks and bounces by month',pct:true,type:few,labels:byM.map(a=>a.month),sets:[{l:'CTR %',d:byM.map(a=>deliv(a)?a.Clicks/deliv(a):0)},{l:'CTOR %',d:byM.map(a=>a.Opens?a.Clicks/a.Opens:0)},{l:'Bounce %',d:byM.map(a=>a.Sends?a.Bounces/a.Sends:0)}]}
   ];
 };
 
@@ -758,7 +776,8 @@ function viewKpi(dim){
   const grouped = group(rows, r => [dimVal(r,dim), monthly ? r.Month : '']);
   const tot = group(rows, r=>['','']) [0] || ZERO();
   const pr = prevRange(), prevRows = pr ? D.kpi.filter(r=>baseOk(r.JourneyName) && r.Month>=pr.from && r.Month<=pr.to) : [];
-  cards('cards', kpiCards(tot, prevRows.length ? group(prevRows, r=>['','']) [0] : null, pr), 4);
+  const monT = group(D.kpi.filter(r=>baseOk(r.JourneyName)), r=>['',r.Month]).sort((a,b)=>a.month<b.month?-1:1).slice(-6);   /* trend of the last 6 months, whatever the selected period */
+  cards('cards', kpiCards(tot, prevRows.length ? group(prevRows, r=>['','']) [0] : null, pr, monT.length>=3 ? monT : null), 4);
   const isJ = dim==='journey';
   const keyCols = isJ ? journeyCols(false, monthly)
     : [{k:'name',l:DIMLAB[dim],v:a=>dimShow(dim,a.name).toLowerCase(),f:a=>esc(dimShow(dim,a.name))}].concat(monthly?[{k:'month',l:'Month',v:a=>a.month,f:a=>esc(a.month)}]:[]);
@@ -770,9 +789,9 @@ function viewKpi(dim){
     opts = {cmp:recentCmp, children:childMap(acts, monthly), childCell:actChildCell, empty};
   }
   renderTable('tbl', keyCols, kpiCols(), grouped, tot, opts);
-  drawCharts(byMonthCharts(rows));
+  drawCharts(byMonthCharts(rows), ['c1','c2','c2b']);
   $('note').textContent = (S.tab==='journeys' ? "Most recent first (latest send month, then covered month). Click the arrow in front of a journey to show its email activities with their own type and product (FR/NL versions merged; for an ongoing journey the Month column shows the send month taken into account; anything after a \"-\" in the campaign name is ignored). " : "") +
-    "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens. Delivered means accepted by the receiving server, not necessarily in the inbox. Open rates are overstated by mail privacy protection (Apple Mail, Gmail image proxy): compare journeys with each other and give more weight to clicks. The arrows on the cards compare with the previous period of the same length (percentage points for rates; green = better, red = worse). In the rates chart, Open % uses the left axis and CTR / Bounce % the right axis." +
+    "Attributed to the send month (cohort). Delivered = Sends − Bounces. Opens / clicks are unique. Each rate sits right after its count. Rates use Delivered as denominator, except Delivery % and Bounce % (Sends); CTOR = clicks / opens. Delivered means accepted by the receiving server, not necessarily in the inbox. Open rates are overstated by mail privacy protection (Apple Mail, Gmail image proxy): compare journeys with each other and give more weight to clicks. The arrows on the cards compare with the previous period of the same length (percentage points for rates; green = better, red = worse). The small line on a card is the trend of the last 6 months." +
     (S.tab==='journeys' && !D.email.length ? (D.loading.has('email') ? " Loading email-level data…" : " Email-level data not available yet (DASH_Email_KPI_Monthly).") : "");
 }
 
@@ -844,7 +863,7 @@ function viewConv(){
   const ms = Object.keys(byM).sort();
   drawCharts([
     legacy ? {title:'Leads by send month',labels:ms,sets:[{l:'Leads',d:ms.map(x=>byM[x].M)}]}
-           : {title:'Leads by month (email month, else creation month)',type:'bar',stacked:true,labels:ms,sets:[{l:'After a marketing email',color:'#c30045',colorD:'#ff7da3',d:ms.map(x=>byM[x].M)},{l:'Triggered an email',color:'#2a7fb8',colorD:'#6cb8ee',d:ms.map(x=>byM[x].T)},{l:'No email found',color:'#8a97a2',colorD:'#6b7885',d:ms.map(x=>byM[x].N)}]},
+           : {title:'Leads by month, log scale (email month, else creation month)',log:true,labels:ms,sets:[{l:'After a marketing email',color:'#c30045',colorD:'#ff7da3',d:ms.map(x=>byM[x].M||null)},{l:'Triggered an email',color:'#2a7fb8',colorD:'#6cb8ee',d:ms.map(x=>byM[x].T||null)},{l:'No email found',color:'#8a97a2',colorD:'#6b7885',d:ms.map(x=>byM[x].N||null)}]},
     {title:'Leads by status (period)',type:'bar',horizontal:true,labels:stAll,sets:[{l:'Leads',d:stAll.map(s=>statuses[s])}]}
   ]);
   $('note').textContent = "All leads of Lead_Salesforce_1 are listed, then compared with the emails received (journeys MKT_XSELL_, MKT_PROMO_, MKT_NEWS_, OCX_XSELL_, OCL_, ODO_, ODD_OFF_) whose product matches the lead product (or is ALL; see Product mapping in the admin page). Generated after a marketing email: the last such email received in the 30 days before the lead was created. Triggered an email: the lead triggered an OCL / ODO / ODD_OFF journey (first email within 30 days after creation; used when no marketing email precedes it). No email found: leads without email, not in _Subscribers or without a matching email, shown as \"(no email)\". Signed leads are credited to the LAST email received before the lead's last modification date (an approximation of the signature date), within the validity of the lead: 70 days after creation, or 8 weeks after the first ODD_OFF offer email if later, shown in \"Conversions credited\"; \"Signed (these leads)\" counts the Signed leads among those generated by the journey. Delay = days between the email and the lead (either direction). Click the arrow in front of a journey to show the split by email activity." +
@@ -1000,7 +1019,8 @@ function viewReco(){
   $('recoNav').innerHTML = cats.map(c=>`<button type="button" class="chip" data-rc="${c}" aria-pressed="${c===cat}">${c==='all'?'All':c}${c==='all'?'':' ('+res.findings.filter(f=>f.cat===c).length+')'}</button>`).join('');
   $('recoNav').querySelectorAll('[data-rc]').forEach(b=>b.onclick=()=>{ S.rc = b.dataset.rc; render(); });
   const list = res.findings.filter(f=>cat==='all' || f.cat===cat);
-  $('recoList').innerHTML = list.length ? list.map(f=>`<article class="reco ${f.sev}"><div class="rh"><span class="sev">${SEVS[f.sev]}</span><span>${esc(f.cat)}</span></div><h3>${esc(f.title)}</h3><p class="ev">${esc(f.ev)}</p><p class="ac"><b>Suggested action:</b> ${esc(f.action)}</p>${f.go?`<button type="button" class="btn2 go" data-go="${esc(JSON.stringify(f.go))}">See the data</button>`:''}</article>`).join('')
+  const artOf = f=>`<article class="reco ${f.sev}"><div class="rh"><span class="sev">${SEVS[f.sev]}</span><span>${esc(f.cat)}</span></div><h3>${esc(f.title)}</h3><p class="ev">${esc(f.ev)}</p><p class="ac"><b>Suggested action:</b> ${esc(f.action)}</p>${f.go?`<button type="button" class="btn2 go" data-go="${esc(JSON.stringify(f.go))}">See the data</button>`:''}</article>`;
+  $('recoList').innerHTML = list.length ? [['high','Fix'],['medium','Watch'],['info','Insights']].map(([k,l])=>{ const g = list.filter(f=>f.sev===k); return g.length ? `<details class="rgrp ${k}"${k==='info'?'':' open'}><summary>${l} <span class="n">${g.length}</span></summary><div class="rlist">${g.map(artOf).join('')}</div></details>` : ''; }).join('')
     : `<div class="card"><b>Nothing to report</b><span>${res.checked ? 'No rule is triggered for this period and category.' : 'Not enough data for the checks yet.'}</span></div>`;
   $('recoList').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ const g = JSON.parse(b.dataset.go); if (g.j!==undefined) S.j = g.j; if (g.sub) S.sub = g.sub; if (g.seg) S.seg = g.seg; if (g.gc) S.gc = g.gc; if (g.q!==undefined){ S.q = g.q; $('fQ').value = g.q; } selectTab(g.tab); window.scrollTo(0,0); });
   $('recoSkipped').hidden = !res.skipped.length; $('recoSkipList').innerHTML = res.skipped.map(s=>'<li>'+esc(s)+'</li>').join('');
@@ -1128,7 +1148,7 @@ async function viewAna(){
   const kRows = D.kpi.filter(r=>r.JourneyName===S.j && inMonths(r.Month));
   const eRows = D.email.filter(r=>r.JourneyName===S.j && inMonths(r.Month));
   const tot = group(kRows, r=>['','']) [0] || group(eRows, r=>['','']) [0] || ZERO();
-  cards('aCards', kpiCards(tot), 4);
+  cards('aCards', kpiCards(tot, null, null, (g=>g.length>=3?g.slice(-6):null)(group(D.kpi.filter(r=>r.JourneyName===S.j), r=>['',r.Month]).sort((a,b)=>a.month<b.month?-1:1))), 4);
   const cmpOn = !!S.j2 && S.j2!==S.j, defs = [byMonthCharts(kRows)[0]], ids = ['c3'];
   $('anaCmp').hidden = !cmpOn;
   if (cmpOn){ defs.push(renderCompare(tot, journeyTotals(S.j2))); ids.push('c7'); }
@@ -1170,9 +1190,14 @@ async function viewAna(){
 }
 
 /* ---------- Insights ---------- */
-function topList(title, items, fmtVal){
-  const max = Math.max(1, ...items.map(i=>i.val));
-  return `<div class="top"><h3>${esc(title)}</h3>${items.length?'<ol>'+items.map((i,x)=>`<li><span class="rk">${x+1}</span><span class="nm" title="${esc(i.title||i.name)}">${esc(i.name)}${i.sub?`<small>${esc(i.sub)}</small>`:''}</span><span class="vl">${fmtVal(i.val)}${i.extra?`<small>${esc(i.extra)}</small>`:''}</span><span class="bar2"><i style="width:${Math.round(i.val/max*100)}%"></i></span></li>`).join('')+'</ol>':'<div class="msg">No data</div>'}</div>`;
+const BNC_REF = [{v:.01,l:'1 % (hard bounces: well under)'},{v:.02,l:'2 % (total bounces)'}], CMP_REF = [{v:.001,l:'0,1 % (Google)'},{v:.003,l:'0,3 % (never)'}];
+const fx2 = x => x.toFixed(2).replace('.',',');
+/* opt.ref: reference thresholds [{v,l}] : the bar shows each item's RATE on a common scale, with a marker per threshold */
+function topList(title, items, fmtVal, opt){
+  const ref = opt && opt.ref, rates = items.map(i=>i.rate||0), max = ref ? Math.max(ref[ref.length-1].v*1.3, ...rates) : Math.max(1, ...items.map(i=>i.val));
+  const bar = i => { const w = Math.min(100, Math.round((ref ? (i.rate||0) : i.val)/max*100)), c = ref && i.rate>=ref[ref.length-1].v ? ' class="hi"' : ref && i.rate>=ref[0].v ? ' class="mid"' : '';
+    return '<span class="bar2"><i'+c+' style="width:'+w+'%"></i>'+(ref ? ref.map(x=>'<u class="mk" style="left:'+(x.v/max*100).toFixed(1)+'%" title="'+esc(x.l)+'"></u>').join('') : '')+'</span>'; };
+  return `<div class="top"><h3>${esc(title)}</h3>${ref?'<p class="rl">Bar = rate on a common scale · markers: '+ref.map(x=>esc(x.l)).join(' / ')+'</p>':''}${items.length?'<ol>'+items.map((i,x)=>`<li><span class="rk">${x+1}</span><span class="nm" title="${esc(i.title||i.name)}">${esc(i.name)}${i.sub?`<small>${esc(i.sub)}</small>`:''}</span><span class="vl">${fmtVal(i.val)}${i.extra?`<small>${esc(i.extra)}</small>`:''}</span>${bar(i)}</li>`).join('')+'</ol>':'<div class="msg">No data for the period.</div>'}</div>`;
 }
 function renderCompliance(rows){
   const t = group(rows, r=>['','']) [0], hasHard = rows.some(r=>r.HardBounces!==undefined);
@@ -1198,14 +1223,14 @@ function viewInsDeliv(){
   for (const r of D.domain){ if(!inMonths(r.Month)) continue; let a=dm.get(r.Domain); if(!a){a={name:r.Domain,Sends:0,Bounces:0,Complaints:0};dm.set(r.Domain,a);} a.Sends+=r.Sends;a.Bounces+=r.Bounces;a.Complaints+=r.Complaints; }
   const rows0 = D.kpi.filter(r=>inScope(r.JourneyName,r.Month));
   const doms = [...dm.values()], domSends = doms.reduce((s,a)=>s+a.Sends,0);
-  const top = (arr,key,extra) => arr.filter(a=>a[key]>0).sort((a,b)=>b[key]-a[key]).slice(0,5).map(a=>({name:a.name,val:a[key],extra:extra?extra(a):''}));
+  const top = (arr,key,extra) => arr.filter(a=>a[key]>0).sort((a,b)=>b[key]-a[key]).slice(0,5).map(a=>({name:a.name,val:a[key],rate:a.Sends?a[key]/a.Sends:0,extra:extra?extra(a):''}));
   const jr = group(D.kpi.filter(r=>inScope(r.JourneyName,r.Month)), r=>[r.JourneyName,'']);
-  const topJ = jr.filter(a=>a.Bounces>0).sort((a,b)=>b.Bounces-a.Bounces).slice(0,5).map(a=>({name:parse(a.name).campaign,title:a.name,sub:parse(a.name).fam+' · '+parse(a.name).type+' · '+parse(a.name).product+(parse(a.name).covered?' · '+parse(a.name).covered:''),val:a.Bounces,extra:pct(a.Bounces,a.Sends)+' of sends'}));
+  const topJ = jr.filter(a=>a.Bounces>0).sort((a,b)=>b.Bounces-a.Bounces).slice(0,5).map(a=>({name:parse(a.name).campaign,title:a.name,sub:parse(a.name).fam+' · '+parse(a.name).type+' · '+parse(a.name).product+(parse(a.name).covered?' · '+parse(a.name).covered:''),val:a.Bounces,rate:a.Sends?a.Bounces/a.Sends:0,extra:pct(a.Bounces,a.Sends)+' of sends'}));
   $('tops').innerHTML =
     topList('Top 5 domains – emails sent', top(doms,'Sends',a=>pct(a.Sends,domSends)+' of all sends'), n) +
-    topList('Top 5 domains – bounces', top(doms,'Bounces',a=>pct(a.Bounces,a.Sends)+' of sends'), n) +
-    topList('Top 5 domains – complaints', top(doms,'Complaints',a=>pct(a.Complaints,a.Sends)+' of sends'), n) +
-    topList('Top 5 journeys – bounces', topJ, n);
+    topList('Top 5 domains – bounces', top(doms,'Bounces',a=>pct(a.Bounces,a.Sends)+' of sends'), n, {ref:BNC_REF}) +
+    topList('Top 5 domains – complaints', top(doms,'Complaints',a=>fx2(a.Sends?a.Complaints/a.Sends*100:0)+' % of sends'), n, {ref:CMP_REF}) +
+    topList('Top 5 journeys – bounces', topJ, n, {ref:BNC_REF});
   renderCompliance(rows0);
   $('iNote').textContent = "Domains: all MKT_/Oxx_ journeys, filtered by the selected months only (domains with at least 20 sends in a month). The journeys ranking also follows the Family / Type / Product filters." + (D.domain.length?'':' Domain data not available yet (DASH_Domain_Monthly).');
 }
@@ -1359,7 +1384,7 @@ function viewLists(){
   drawCharts([
     {title:'Active subscribers by list, with / without a contract',type:'bar',horizontal:true,stacked:true,labels:list.map(a=>a.name),
      sets:[{l:'With an active or future contract',color:'#c30045',colorD:'#ff7da3',d:list.map(a=>a.Act.Yes)},{l:'No active contract',color:'#8a97a2',colorD:'#6b7885',d:list.map(a=>a.Act.No)}]},
-    {title:'Active members at each monthly snapshot',labels:asofs,sets:list.map(a=>({l:a.name,d:asofs.map(m=>actAt(a.name,m))}))}
+    {title:asofs.length>1?'Active members at each monthly snapshot':'Active members (first snapshot: '+asofs[0]+')',type:asofs.length>1?undefined:'bar',labels:asofs,sets:list.map(a=>({l:a.name,d:asofs.map(m=>actAt(a.name,m))}))}
   ], ['c8','c9']);
   $('plNote').textContent = 'Snapshot of '+cur+(prevA?' (compared with '+prevA+')':' (the history builds up with one snapshot per month)')+'. The lists are the data extensions List_Info (Information), List_Newsletter, List_Promo and List_Survey, each member counted once, leads excluded (Subscriber Key starting with 00QP). The status of a member is the Status field of the list data extension; "Not a subscriber" = an Active member whose key is unknown in All Subscribers, so that person cannot receive emails. Joined / unsubscribed per month are only available for All Subscribers (the list data extensions have no dates). With contract = at least one Active or Future contract in Contract_Salesforce_1 (Contact__c = SubscriberKey).';
 }
@@ -1392,11 +1417,13 @@ function viewGeo(){
   const vals = [...ents.values()].map(mv), lo = Math.min(...vals), hi = Math.max(...vals), fv = v => byPc ? fx1(v*100)+' %' : n(v);
   /* % with contract: colour relative to the overall average (above = strong, below = pale), because the provinces only differ by a few points */
   const avg = tAll ? tWC/tAll : 0, span = Math.max(hi-avg, avg-lo) || 1;
-  const col = e => byPc ? ramp(.5 + (mv(e)-avg)/(2*span)) : ramp((mv(e)-lo)/((hi-lo)||1));
+  /* 5 classes with about the same number of areas each (a continuous scale hides the differences between provinces) */
+  const sorted = vals.slice().sort((a,b)=>a-b), cut = [1,2,3,4].map(k=>sorted[Math.min(sorted.length-1,Math.floor(k*sorted.length/5))]), cls = v => cut.filter(c=>v>=c).length;
+  const col = e => ramp(cls(mv(e))/4);
   const postal = S.gl==='postal', cells = (GEO.cells||{});
   $('gzBar').hidden = !postal; if ($('fGz').value!==S.gz) $('fGz').value = S.gz;
   /* postal codes: colour on a logarithmic scale (a few areas hold most contacts); % with contract: relative to the average */
-  const lg = v => Math.log(Math.max(v,1)), colP = e => byPc ? col(e) : ramp((lg(e.Contacts)-lg(lo))/((lg(hi)-lg(lo))||1));
+  const colP = col;
   let svg = '<svg viewBox="'+GEO.viewBox.join(' ')+'" role="img" aria-label="Map of Belgium: number of contacts by '+(postal?'postal code area':'province')+'. The same figures are in the table next to the map.">';
   if (!postal){
     for (const p of GEO.provinces){ const e = pvm.get(p.id); svg += '<path class="prov" d="'+p.d+'" fill="'+(e ? col(e) : 'var(--map-neutral)')+'" data-k="v:'+p.id+'"/>'; }
@@ -1417,10 +1444,9 @@ function viewGeo(){
     const idx = GEO.provinces.findIndex(p=>p.id===S.gz), outs = box.querySelectorAll('path.pout');
     if (idx>=0 && outs[idx]){ const bb = outs[idx].getBBox(), pad = Math.max(bb.width,bb.height)*0.08, w = bb.width+2*pad, h = bb.height+2*pad; box.firstChild.setAttribute('viewBox', (bb.x-pad)+' '+(bb.y-pad)+' '+w+' '+h); }
   }
-  const grad = '<i style="background:linear-gradient(90deg,'+ramp(0)+','+ramp(1)+')"></i>';
-  const avgTxt = byPc ? '<span> · average '+fv(avg)+' (centre of the scale)</span>' : '';
-  $('mapLegend').innerHTML = S.gl==='postal' ? (byPc ? '<span>Colour = % with contract:</span><span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+'</span>'+avgTxt : '<span>Contacts per postal code area (log scale):</span><span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+'</span>')+'<span> · areas are approximated from the postal code positions</span>'
-    : '<span>'+fv(lo)+'</span>'+grad+'<span>'+fv(hi)+(byPc ? ' of contacts with a contract' : ' contacts')+'</span>'+avgTxt;
+  const bnd = [lo,...cut,hi], steps = [0,1,2,3,4].map(i=>'<span class="cls"><i style="background:'+ramp(i/4)+'"></i>'+fv(bnd[i])+(i<4?' – '+fv(bnd[i+1]):' +')+'</span>').join('');
+  const avgTxt = byPc ? '<span> · average '+fv(avg)+'</span>' : '';
+  $('mapLegend').innerHTML = '<span>'+(byPc ? 'Colour = % with contract, 5 classes:' : (S.gl==='postal' ? 'Contacts per postal code area, 5 classes:' : 'Contacts per province, 5 classes:'))+'</span>'+steps+avgTxt+(S.gl==='postal' ? '<span> · areas are approximated from the postal code positions, not official boundaries</span>' : '');
   const share = e => e.Contacts/total < 0.001 ? '< 0,1 %' : pct(e.Contacts,total);
   const info = (title,e) => '<b>'+esc(title)+'</b>Contacts'+segTxt+': '+n(e.Contacts)+' ('+share(e)+(sg==='all'?' of all contacts':' of the segment')+')'+(hasG?'<br>With contract: '+n(e.WC||0)+' of '+n(e.All||0)+(e.All?' ('+pct(e.WC||0,e.All)+')':''):'');
   const show = ev => {
@@ -1503,10 +1529,13 @@ function saveHash(){
     for (const k of ['tab','fam','type','prod','per','gran','grp','view','q','j','j2','gz','rc','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
     if (!S.compact) p.set('compact','0');   /* rates only is the default view */
     const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
+    try{ const o = {compact:!!S.compact}; for (const k of PREF_KEYS) o[k] = S[k]||''; localStorage.setItem('dashPrefs', JSON.stringify(o)); }catch(e){}
   }catch(e){}
 }
+const PREF_KEYS = ['tab','per','gran','fam','type','prod'];
 function loadHash(){
   const p = new URLSearchParams(location.hash.slice(1));
+  if (!location.hash){ try{ const ls = JSON.parse(localStorage.getItem('dashPrefs')||'{}'); for (const k of PREF_KEYS) if (typeof ls[k]==='string' && ls[k]) p.set(k, ls[k]); if (ls.compact===false) p.set('compact','0'); }catch(e){} }   /* no link parameters: the choices of the last visit (tab, period, filters, columns) */
   if (TABS[p.get('tab')]) S.tab = p.get('tab');
   for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
   applyPeriod();
@@ -1519,16 +1548,21 @@ function selectTab(t, focus){
   document.querySelectorAll('.tab').forEach(x=>{ const on = x.dataset.tab===t; x.setAttribute('aria-selected',on); x.tabIndex = on?0:-1; if (on && focus) x.focus(); });
   render();
 }
+function filtLabel(){   /* mobile: the filters sit behind a button that says how many differ from the default */
+  const k = ['fam','type','prod','per','gran','q'].filter(x=>S[x] && DEF && S[x]!==DEF[x]).length;
+  $('bFilt').textContent = 'Filters'+(k ? ' ('+k+')' : '');
+}
 function render(){
   CNT = null; const cfg = TABS[S.tab];
   let ctl = (S.tab==='ins' && S.sub!=='deliv') ? (S.sub==='lists' ? ['lPer'] : []) : cfg.ctl;
   if (S.tab==='ana' && !S.j) ctl = ctl.filter(id=>['lJ','lPer'].includes(id));   /* nothing to act on until a journey is chosen */   /* the filter bar does not apply to the subscriber / geography views */
   $('insNav').hidden = S.tab!=='ins';   /* the Insights views (Deliverability / Subscriber base / Geography) stay at the very top */
   document.querySelectorAll('.ctl').forEach(el=>el.hidden = !ctl.includes(el.id));
-  if (S.tab==='conv' && S.grp!=='journey') $('lExp').hidden = true;
+  { const vm = ctl.includes('lCompact') || ctl.includes('lExp'); $('lCompact').hidden = !vm; $('bCompact').hidden = !ctl.includes('lCompact'); $('lExp').hidden = !ctl.includes('lExp') || (S.tab==='conv' && S.grp!=='journey'); }
   $('bCsv').hidden = !cfg.csv || (S.tab==='ana' && !S.j);
   $('bReset').hidden = !(FILTERS.some(k=>S[k]!==DEF[k]) && ['journeys','cats','conv','ins','sms'].includes(S.tab) && !(S.tab==='ins' && S.sub!=='deliv'));
   document.querySelector('.bar').hidden = [...document.querySelectorAll('.ctl')].every(e=>e.hidden) && $('bCsv').hidden && $('bReset').hidden;
+  $('bFilt').hidden = document.querySelector('.bar').hidden; filtLabel();
   $('bCompact').setAttribute('aria-pressed', S.compact); $('bCompact').textContent = S.compact ? 'All columns' : 'Rates only';
   ['main','ana','ins','reco','alerts','sms'].forEach(v=>$('v-'+v).hidden = v!==cfg.view);
   $('v-'+cfg.view).setAttribute('aria-labelledby','tab-'+S.tab);
@@ -1556,7 +1590,7 @@ async function api(part, extra){
   catch(e){ throw new Error('Unexpected server response (HTTP '+res.status+'): '+txt.replace(/\s+/g,' ').slice(0,220)); }   /* e.g. a plain-text timeout / size message from the CloudPage */
   if (j.error) throw new Error(j.error); return j;
 }
-function showWarn(w){ if (w && w.length){ $('warn').hidden=false; $('warn').textContent='Some data sources are unavailable: '+w.join(' · '); } }
+function showWarn(w){ if (w && w.length){ $('warn').hidden=false; $('warnSum').textContent = w.length>1 ? w.length+' data issues (details)' : 'A data source is unavailable (details)'; $('warnTxt').textContent='Some data sources are unavailable: '+w.join(' · '); } }
 function loadLinks(j, from, to){
   const lk = j+'|'+from+'|'+to, key = 'links|'+lk;
   if (LOADING[key]) return LOADING[key];
@@ -1624,6 +1658,7 @@ function refreshExtra(){   /* months and filter lists also come from the late da
 }
 function setup(){
   wireScroll();
+  $('bFilt').onclick = () => { const o = document.body.classList.toggle('filt-open'); $('bFilt').setAttribute('aria-expanded', o); };
   const months = [...new Set([...D.kpi.map(r=>r.Month),...D.conv.map(r=>r.SendMonth),...D.email.map(r=>r.Month),...D.domain.map(r=>r.Month)])].filter(Boolean).sort();
   if (GEO && GEO.provinces) $('fGz').innerHTML = '<option value="">All of Belgium</option>' + GEO.provinces.slice().sort((a,b)=>a.en.localeCompare(b.en)).map(p=>`<option value="${p.id}">${esc(p.en)}</option>`).join('');
   DATA_MONTHS = months; S.per = 'all'; buildPeriods(); applyPeriod();
