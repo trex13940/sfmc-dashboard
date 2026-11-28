@@ -160,19 +160,19 @@ option{background:var(--card);color:var(--fg)}
 .bar .btn,.bar .btn2{height:40px;padding-top:0;padding-bottom:0}
 .bar .acts{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-left:auto}
 @keyframes shim{0%{background-position:100% 0}100%{background-position:-100% 0}}
-#lJ{display:flex;flex-direction:column;gap:4px}
-#lJ>label{display:block;font-size:.75rem;color:var(--mute);font-weight:600}
+#lJ,#lJ2{display:flex;flex-direction:column;gap:4px}
+#lJ>label,#lJ2>label{display:block;font-size:.75rem;color:var(--mute);font-weight:600}
 .combo{position:relative}
-#fJq{width:min(480px,86vw);padding-right:36px;cursor:text}
+#fJq,#fJ2q{width:min(480px,86vw);padding-right:36px;cursor:text}
 .jclear{position:absolute;right:6px;top:7px;width:26px;height:26px;padding:0;border:0;border-radius:13px;background:none;color:var(--mute);font-size:1.2rem;line-height:1;cursor:pointer}
 .jclear:hover{background:var(--pink-bg);color:var(--tx-red)}
-#jList{position:absolute;z-index:30;left:0;top:44px;width:max(100%,460px);max-height:360px;overflow:auto;margin:0;padding:4px;list-style:none;background:var(--card);border:2px solid var(--ctl-brd);border-radius:12px;box-shadow:var(--shadow)}
-#jList li{display:flex;flex-direction:column;gap:1px;padding:7px 10px;border-radius:8px;cursor:pointer}
-#jList li b{font-weight:600;color:var(--fg);word-break:break-word}
-#jList li span{font-size:.75rem;color:var(--mute)}
-#jList li:hover,#jList li.act{background:var(--pink-bg)}
-#jList li[aria-selected=true]{box-shadow:inset 3px 0 0 var(--red)}
-#jList li.jmore{cursor:default;font-size:.75rem;color:var(--mute);background:none}
+#jList,#jList2{position:absolute;z-index:30;left:0;top:44px;width:max(100%,460px);max-height:360px;overflow:auto;margin:0;padding:4px;list-style:none;background:var(--card);border:2px solid var(--ctl-brd);border-radius:12px;box-shadow:var(--shadow)}
+#jList li,#jList2 li{display:flex;flex-direction:column;gap:1px;padding:7px 10px;border-radius:8px;cursor:pointer}
+#jList li b,#jList2 li b{font-weight:600;color:var(--fg);word-break:break-word}
+#jList li span,#jList2 li span{font-size:.75rem;color:var(--mute)}
+#jList li:hover,#jList li.act,#jList2 li:hover,#jList2 li.act{background:var(--pink-bg)}
+#jList li[aria-selected=true],#jList2 li[aria-selected=true]{box-shadow:inset 3px 0 0 var(--red)}
+#jList li.jmore,#jList2 li.jmore{cursor:default;font-size:.75rem;color:var(--mute);background:none}
 body.loading .cards:empty{min-height:78px;border-radius:16px;background:linear-gradient(90deg,var(--card) 25%,var(--pink-bg) 50%,var(--card) 75%);background-size:200% 100%;animation:shim 1.4s linear infinite}
 body.loading .charts .card{background:linear-gradient(90deg,var(--card) 25%,var(--pink-bg) 50%,var(--card) 75%);background-size:200% 100%;animation:shim 1.4s linear infinite}
 @media (prefers-reduced-motion:reduce){body.loading .cards:empty,body.loading .charts .card{animation:none}}
@@ -1106,12 +1106,12 @@ function renderCompare(ta, tb){
     if (va!=null && vb!=null){
       let x, txt;
       if (c.kind==='vol'){ if (va>0){ x = vb/va-1; const flat = Math.abs(x)*100<0.05; txt = (flat?'= ':x>0?'▲ +':'▼ −')+(flat?'0,0':fx1(Math.abs(x)*100))+' %'; } }
-      else { x = (vb-va)*100; txt = (Math.abs(x)<0.05?'= ':x>0?'▲ +':'▼ −')+(Math.abs(x)<0.05?'0,0':fx1(Math.abs(x)))+' pt'; }
-      if (txt){ d = txt; if (c.good && (c.kind==='vol'?Math.abs(x)*100:Math.abs(x))>=0.05) cls = (x>0)===(c.good==='up') ? 'good' : 'bad'; }
+      else if (va>0){ x = vb/va-1; const flat = Math.abs(x)*100<0.05; txt = (flat?'= ':x>0?'▲ +':'▼ −')+(flat?'0,0':fx1(Math.abs(x)*100))+' %'; }
+      if (txt){ d = txt; if (c.good && Math.abs(x)*100>=0.05) cls = (x>0)===(c.good==='up') ? 'good' : 'bad'; }
     }
     return `<tr><td class="l">${esc(c.l)}</td><td>${fmt(c,va)}</td><td>${fmt(c,vb)}</td><td><span class="dl ${cls}">${esc(d)}</span></td></tr>`;
   }).join('');
-  $('tCmp').innerHTML = `<thead><tr><th scope="col" class="l">Metric</th><th scope="col" title="${esc(S.j)}">${esc(A)}</th><th scope="col" title="${esc(S.j2)}">${esc(B)}</th><th scope="col">Difference (B vs A)</th></tr></thead><tbody>${rows}</tbody>`;
+  $('tCmp').innerHTML = `<thead><tr><th scope="col" class="l">Metric</th><th scope="col" title="${esc(S.j)}">${esc(A)}</th><th scope="col" title="${esc(S.j2)}">${esc(B)}</th><th scope="col">Difference (B vs A, %)</th></tr></thead><tbody>${rows}</tbody>`;
   $('cmpTitle').textContent = 'Comparison: '+A+' vs '+B;
   $('cmpDetails').textContent = 'Details: '+A;
   const rate = (t,k)=> deliv(t) ? (k==='o' ? t.Opens : t.Clicks)/deliv(t) : 0, ctor = t=> t.Opens ? t.Clicks/t.Opens : 0;
