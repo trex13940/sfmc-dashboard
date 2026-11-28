@@ -1539,6 +1539,7 @@ async function api(part, extra){
   if (!API_URL) throw new Error('api_url is not set in DASH_Config');
   const k = new URLSearchParams(location.search).get('k')||'';
   let url = API_URL+'?k='+encodeURIComponent(k)+(part?'&part='+part:'');
+  if (extra && extra.m) url += '&m='+encodeURIComponent(extra.m);
   if (extra && extra.asof) url += '&asof='+encodeURIComponent(extra.asof);
   if (extra && extra.j) url += '&j='+encodeURIComponent(extra.j)+'&from='+encodeURIComponent(extra.from||'')+'&to='+encodeURIComponent(extra.to||'');
   const res = await fetch(url,{cache:'no-store'});
@@ -1561,6 +1562,18 @@ async function loadPart(part){
   if (LOADING[part]) return LOADING[part];
   LOADING[part] = api(part).then(j=>{ D[part] = j[part]||[]; showWarn(j.warnings); }).catch(e=>{ D[part]=[]; showWarn([part+': '+e.message]); });
   return LOADING[part];
+}
+
+/* leads: one request per send month (the whole data extension is too long for a single CloudPage request) */
+function loadConv(){
+  const ms = D.kpi.map(r=>r.Month).filter(Boolean).sort(); if (!ms.length){ D.conv = []; return Promise.resolve(); }
+  const pt = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Brussels',year:'numeric',month:'2-digit'}).formatToParts(new Date(D.generatedMs||Date.now()));
+  const last = pt.find(x=>x.type==='year').value+'-'+pt.find(x=>x.type==='month').value, months = [];
+  let [y,m] = ms[0].split('-').map(Number); m -= 12; while (m<1){ m += 12; y--; }   /* leads created before the first send month */
+  for (;;){ const k = y+'-'+String(m).padStart(2,'0'); months.push(k); if (k>=last && k>=ms[ms.length-1]) break; if (++m>12){ m = 1; y++; } if (months.length>60) break; }
+  const out = [], errs = []; let next = 0;
+  const worker = async () => { while (next<months.length){ const mo = months[next++]; try{ const j = await api('conv',{m:mo}); out.push(...(j.conv||[])); if (j.warnings && j.warnings.length) errs.push(...j.warnings); }catch(e){ errs.push('conv '+mo+': '+e.message); } } };
+  return Promise.all([worker(),worker(),worker(),worker()]).then(()=>{ D.conv = out; showWarn(errs.length>2 ? [errs[0]+' (+'+(errs.length-1)+' other months)'] : errs); });
 }
 
 /* ---------- init ---------- */
@@ -1665,7 +1678,7 @@ async function load(){
     showWarn(j.warnings);
     document.body.classList.remove('loading'); setup(); selectTab(S.tab);
     /* leads, email-level and domain data come in separate requests (each has its own time limit): the journeys appear first */
-    [...D.loading].forEach(x=>loadPart(x).then(()=>{ D.loading.delete(x); refreshExtra(); }));
+    [...D.loading].forEach(x=>(x==='conv' ? loadConv() : loadPart(x)).then(()=>{ D.loading.delete(x); refreshExtra(); }));
   }catch(e){
     document.body.classList.remove('loading'); document.body.classList.add('failed');
     $('errMsg').textContent = friendly(String(e.message||e)); $('errDetail').textContent = 'Technical detail: '+String(e.message||e);
