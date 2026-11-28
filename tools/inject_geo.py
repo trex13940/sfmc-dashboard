@@ -22,10 +22,10 @@ def enc(path):
         out.append(','.join(toks))
     return '|'.join(out)
 src['provinces'] = [dict(x, d=enc(x['d'])) for x in src['provinces']]
-src['cells'] = {k: enc(v) for k, v in src['cells'].items()}
+src['postal'] = {k: v[2] for k, v in src['postal'].items()}   # code postal -> province (les zones par code postal ne sont plus affichees)
 geo = json.dumps(src, ensure_ascii=False, separators=(',', ':'))
 p = os.path.join(ROOT, 'html', 'cloudpage_dashboard.html'); t = open(p, encoding='utf-8').read()
-DEC = "(function(){const un=z=>z%2?-((z+1)/2):z/2,dp=s=>s.split('|').map(u=>{const t=u.split(','),o=[];let x=0,y=0;for(let i=0;i<t.length;i+=2){x+=un(parseInt(t[i],36));y+=un(parseInt(t[i+1],36));o.push(x+' '+y);}return 'M'+o.join('L')+'Z';}).join('');GEO.provinces.forEach(p=>{p.d=dp(p.d);});for(const k in GEO.cells)GEO.cells[k]=dp(GEO.cells[k]);})();"
+DEC = "(function(){const un=z=>z%2?-((z+1)/2):z/2,dp=s=>s.split('|').map(u=>{const t=u.split(','),o=[];let x=0,y=0;for(let i=0;i<t.length;i+=2){x+=un(parseInt(t[i],36));y+=un(parseInt(t[i+1],36));o.push(x+' '+y);}return 'M'+o.join('L')+'Z';}).join('');GEO.provinces.forEach(p=>{p.d=dp(p.d);});})();"
 safe = geo.replace('%', '\\u0025').replace('</', '<\\/')     # evite d interferer avec AMPScript (%%) et la balise script
 t2 = re.sub(r'/\*GEO_START\*/.*?/\*GEO_END\*/', lambda m: '/*GEO_START*/const GEO = ' + safe + ';\n' + DEC + '/*GEO_END*/', t, flags=re.S)
 assert t2 != t or 'const GEO = {' in t
