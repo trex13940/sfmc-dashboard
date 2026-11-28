@@ -273,7 +273,7 @@ function matchList(list, ipRaw) {
 var CFG_RULES = {
   product_map_de: { t: "name" }, product_map_name: { t: "name" },
   api_url: { t: "url" }, ip_de_key: { t: "name" }, ip_de_name: { t: "name" }, link_de_name: { t: "name" }, link_de_key: { t: "name" },
-  audience_dist_de: { t: "name" }, contact_geo_de: { t: "name" }, admin_log_de: { t: "name" },
+  audience_dist_de: { t: "name" }, contact_geo_de: { t: "name" }, publist_snapshot_de: { t: "name" }, publist_monthly_de: { t: "name" }, admin_log_de: { t: "name" },
   link_budget_ms: { t: "int", min: 1000, max: 25000 }, alert_drop_pct: { t: "int", min: 1, max: 100 },
   alert_min_sends: { t: "int", min: 0, max: 10000000 }, alert_min_days: { t: "int", min: 1, max: 28 },
   asset_strip_extra: { t: "text", max: 200 }, token: { t: "secret" }, admin_token: { t: "secret" }
@@ -625,6 +625,8 @@ const SCHEMA = [
   {k:'link_budget_ms', l:'Links time budget (ms)', d:'Maximum time to read links before showing a partial result (1000 - 25000).', def:'20000', type:'number'},
   {k:'audience_dist_de',l:'Audience DE',           d:'Customer Key of the subscriber distribution data extension.', def:'DASH_Audience_Dist'},
   {k:'contact_geo_de', l:'Contact geography DE',   d:'Customer Key of the contact geography data extension.', def:'DASH_Contact_Geo'},
+  {k:'publist_snapshot_de',l:'Publication lists - snapshot DE', d:'Customer Key of the publication lists snapshot data extension.', def:'DASH_PubList_Snapshot'},
+  {k:'publist_monthly_de', l:'Publication lists - monthly DE',  d:'Customer Key of the monthly joins / unsubscribes data extension.', def:'DASH_PubList_Monthly'},
   {k:'product_map_de', l:'Product mapping DE - key', d:'Customer Key of the product mapping data extension.', def:'DASH_Product_Map'},
   {k:'product_map_name',l:'Product mapping DE - name', d:'Name of that data extension.', def:'= key'},
   {k:'admin_log_de',   l:'Admin log DE',           d:'Customer Key of the change log data extension.', def:'DASH_Admin_Log'}
@@ -632,7 +634,7 @@ const SCHEMA = [
 const GROUPS = [
   {id:'keys', t:'Access keys', items:['token','admin_token']},
   {id:'dash', t:'Dashboard settings', items:['api_url','alert_drop_pct','alert_min_sends','alert_min_days','asset_strip_extra']},
-  {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','product_map_de','product_map_name','admin_log_de']}
+  {id:'de',   t:'Data extension names (advanced)', items:['ip_de_key','ip_de_name','link_de_name','link_de_key','link_budget_ms','audience_dist_de','contact_geo_de','publist_snapshot_de','publist_monthly_de','product_map_de','product_map_name','admin_log_de']}
 ];
 const TABS = ['ip','cfg','lab','link','prod'];
 let ST = {ips:[], cfg:[], yourIp:'', pmap:[], pmapErr:''}, TAB = 'ip', FILTER = '', FOCUS = null;

@@ -29,7 +29,8 @@ Les demandes ci-dessous (faites à partir de 16 h le 27/11/2026) sont **impléme
 2. **Ajouter à `DASH_Conversions`** (Text) : `OriginKind` (1), `ConvJourney` (200), `ConvEmailName` (200), `ConvSendMonth` (7).
 3. **Vérifier que `Lead_Salesforce_1` contient le champ `LastModifiedDate`** (utilisé comme date de signature approchée).
 4. **Relancer `sql/04_backfill_conversions.sql`** (Run Once, mois par mois si le délai de 30 minutes est dépassé), puis laisser tourner `sql/02_conversions.sql` dans l'automation quotidienne.
-5. Facultatif, pour contrôler l'attribution : `sql/20_audit_months.sql`, puis `sql/19_audit_lead_attribution.sql` (un mois à la fois), `21` et `22` (DE cibles décrites dans `sql/NOTES.md`).
+5. **Listes de publication** (nouvelle vue *Insights › Publication lists*) : créer `DASH_PubList_Snapshot` (**AsOf** Text(7), **ListName** Text(200), **Status** Text(20), **Contract** Text(3) en clé primaire ; Subscribers Number) et `DASH_PubList_Monthly` (**ListName** Text(200), **Month** Text(7) en clé primaire ; Joined, Unsubscribed Number). Lancer `sql/26_probe_lists.sql` (cible `DASH_Debug`) pour voir les listes et leur type, puis `sql/25_backfill_publist_monthly.sql` (une fois) et `sql/23_publist_snapshot.sql` / `sql/24_publist_monthly.sql` (quotidiennes, mode Update). Ajouter les deux requêtes à l'automation.
+6. Facultatif, pour contrôler l'attribution : `sql/20_audit_months.sql`, puis `sql/19_audit_lead_attribution.sql` (un mois à la fois), `21` et `22` (DE cibles décrites dans `sql/NOTES.md`).
 
 ### Étape C : ce qui a changé et ce qu'il faut tester
 | # | Modification | À tester dans Marketing Cloud |
@@ -45,8 +46,16 @@ Les demandes ci-dessous (faites à partir de 16 h le 27/11/2026) sont **impléme
 | 9 | **Bonnes pratiques web** : confirmations de la page admin dans une boîte de dialogue native, ombre de défilement des tableaux en CSS pur, thèmes clair / sombre déclarés, zones de tableau accessibles au clavier, annonce du tri. | Supprimer une ligne dans la page admin (Échap annule) ; tableaux larges (ombre à droite, Tab puis flèches) ; thème sombre. |
 | 10 | **Revue de design** : ligne de contexte sous les filtres (période et filtres appliqués), valeurs des cartes en couleur neutre, 4 cartes KPI principales et les autres en bandeau discret, Deliverability en grille 2 × 2, **tableaux en mode « ratios » par défaut** (bouton « All columns » pour les volumes). | Vérifier la ligne de contexte sur chaque onglet ; les liens enregistrés avant cette version ouvrent le mode ratios. |
 | 11 | **Sélecteur de période** : une seule liste remplace *From / To* (voir la liste ci-dessous). La période choisie est dans l'adresse (`per=`). | Essayer chaque période ; elle est calculée sur la date de « Data as of » (heure belge). Les anciens liens avec `from=` / `to=` sont ignorés (retour à « All periods »). |
+| 12 | **Journey analysis : comparaison de deux journeys** (liste « Compare with »). Tableau de 9 indicateurs côte à côte avec la différence, graphique d'engagement, détail de la journey A en dessous ; la comparaison est dans l'adresse (`j2=`). | Comparer deux journeys (ex. Newsletter Q2 et Q3) sur une période ; vérifier les totaux avec l'onglet Journeys. |
+| 13 | **Insights › Publication lists** : abonnés par liste (actifs, désinscrits, bounced / held), avec ou sans contrat, inscriptions et désinscriptions de la période, croissance nette par mois. Nouvelles DE et requêtes 23 à 26 (étape B, point 5). | Voir la section « À fournir lundi » ci-dessous. |
 
 **Périodes proposées** : All periods, This month, Previous month, Last 2 months, Last 3 months, This quarter, Previous quarter, Last 6 months, This half-year, Previous half-year, Last 12 months, This year, Previous year. Chaque entrée affiche entre parenthèses les mois couverts.
+
+### À fournir lundi : noms des DE des listes de publication
+Les requêtes 23 à 25 lisent les listes **sans connaître vos DE** : elles utilisent les Data Views `_List` et `_ListSubscribers` (toutes les listes de type Public ou Private) et `_Subscribers` pour « All Subscribers ». Pour finaliser, j'ai besoin de :
+1. le résultat de `26_probe_lists.sql` (nom, type et nombre de membres de chaque liste), pour confirmer les noms exacts (All Subscribers, promo, newsletter, survey, information) et les types ;
+2. les **noms des DE qui alimentent chaque liste** : `sql/27_publist_vs_source_de_TEMPLATE.sql` en fait un contrôle d'écart (abonnés dans la DE mais pas actifs sur la liste, et inversement). Il suffit de remplacer `SOURCE_DE_NAME`, `LIST_NAME` et le nom du champ clé.
+Hypothèses à vérifier lors du premier essai : les colonnes `_List.ListType` et `_ListSubscribers.Status` / `DateJoined` / `DateUnsubscribed`, et que « All Subscribers » est bien couverte par `_Subscribers`.
 
 ### Rappels de sécurité
 - Le token du dashboard a été collé dans une conversation : **changez-le** (page admin, onglet *Settings*).
@@ -67,6 +76,8 @@ Les demandes ci-dessous (faites à partir de 16 h le 27/11/2026) sont **impléme
 | DASH_SMS_Monthly | **JourneyName** Text(200), **Month** Text(7), **AssetName** Text(200), Sent, Messages, UniqueRecipients, Delivered, Bounced (Number) |
 | DASH_Sub_Monthly | **SubscriberKey** Text(100), **Month** Text(7), RecMkt, RecOps, OpenMkt, ClickMkt (Number) : par abonné et par mois, journeys MKT_ / Oxx_ (s'accumule, jamais écrasée) |
 | DASH_Audience_Dist | **AsOf** Text(7), **Win** Text(2), **Contract** Text(3) (Yes/No), **RecBucket** Text(6), **Seg** Text(15), Subscribers, ReceivedMkt, ReceivedOps, OpensMkt, ClicksMkt, Months (Number) |
+| DASH_PubList_Snapshot | **AsOf** Text(7), **ListName** Text(200), **Status** Text(20), **Contract** Text(3) (clé primaire sur les 4 champs), Subscribers (Number) : abonnés par liste de publication et par statut, avec ou sans contrat actif ou futur ; un instantané par mois |
+| DASH_PubList_Monthly | **ListName** Text(200), **Month** Text(7), Joined, Unsubscribed (Number) : inscriptions et désinscriptions par liste et par mois (s'accumule) |
 | DASH_Contact_Geo | **PostalCode** Text(10), Contacts (Number), WithContract (Number), AsOf Text(10) : contacts par code postal (indication seule) ; écrasée chaque jour |
 | DASH_Product_Map | **Source** Text(10), **Value** Text(100), **ProductGroup** Text(30) (clé primaire sur les 3 champs) : mapping des produits (email / lead `Page_Origin__c` / contrat `Product2__c`), géré depuis la page d'administration ; **nécessaire aux requêtes 02 et 04** |
 | DASH_Config | **ConfigKey** Text(50), Value Text(200) : voir « Configuration » |
@@ -88,6 +99,7 @@ Tous les réglages sont des lignes de la DE `DASH_Config` (colonnes `ConfigKey` 
 | `link_de_name` / `link_de_key` | `DASH_Link_Monthly` | idem | DE des liens (lecture rapide / repli) |
 | `link_budget_ms` | `20000` | `20000` | temps maximum de lecture des liens avant résultat partiel |
 | `audience_dist_de` / `contact_geo_de` | `DASH_Audience_Dist` / `DASH_Contact_Geo` | idem | DE de la base abonnés et de la géographie |
+| `publist_snapshot_de` / `publist_monthly_de` | `DASH_PubList_Snapshot` / `DASH_PubList_Monthly` | idem | DE des listes de publication |
 | `product_map_de` / `product_map_name` | `DASH_Product_Map` | idem | DE du mapping des produits |
 | `admin_log_de` | `DASH_Admin_Log` | idem | DE du journal des modifications (facultative) |
 | `asset_strip_extra` | `Preview;Test` | – | textes supplémentaires retirés des noms d'e-mails / assets, séparés par `;` |
@@ -105,6 +117,7 @@ La DE doit s'appeler **DASH_Config** (nom et Customer Key). Le dashboard s'ouvre
 5. `sql/10_domain_monthly.sql` → DASH_Domain_Monthly, **Update**
 6. `sql/13_sms_monthly.sql` → DASH_SMS_Monthly, **Update**
 7. `sql/15_sub_monthly.sql` → DASH_Sub_Monthly, **Update**
+   (listes de publication : `sql/23_publist_snapshot.sql` → DASH_PubList_Snapshot et `sql/24_publist_monthly.sql` → DASH_PubList_Monthly, **Update**, après la création des DE)
 8. `sql/17_audience_dist.sql` → DASH_Audience_Dist, **Update** (après l'étape 7 ; une exécution par jour)
 9. `sql/18_audience_geo.sql` → DASH_Contact_Geo, **Overwrite** (ne lit que `Contact_Salesforce_1`)
 
@@ -132,8 +145,8 @@ Une liste **Period** remplace les anciens *From / To*. Elle propose : toutes les
 - **Journeys** : triées de la plus récente à la plus ancienne ; Campaign, Month (mois couvert, ou mois d'envoi pour les journeys « ongoing »), Family, Type, Product. Chaque journey se déplie pour afficher ses emails avec leur propre type et produit. Par défaut les tableaux affichent les ratios ; le bouton *All columns* ajoute les volumes.
 - **Categories** : vue par préfixe, type de campagne ou produit.
 - **Conversions (leads)** : attribution « leads d'abord » (voir plus bas), même détail par activité email.
-- **Journey analysis** : une journey en détail (choisie avec la liste de recherche) : langues FR/NL, emails, KPI, liens groupés par email (chargés à la demande).
-- **Insights** : *Deliverability* (top 5 domaines et journeys), *Subscriber base* (3, 6 ou 12 mois précédents, avec ou sans contrat actif ou futur), *Geography* (carte de Belgique par province ou code postal, contacts avec ou sans contrat).
+- **Journey analysis** : une journey en détail (choisie avec la liste de recherche) : langues FR/NL, emails, KPI, liens groupés par email (chargés à la demande). Une seconde liste « Compare with » compare deux journeys (tableau côte à côte, différence, graphique d'engagement).
+- **Insights** : *Deliverability* (top 5 domaines et journeys), *Subscriber base* (3, 6 ou 12 mois précédents, avec ou sans contrat actif ou futur), *Publication lists* (abonnés, désinscrits, inscriptions et désinscriptions par liste), *Geography* (carte de Belgique par province ou code postal, contacts avec ou sans contrat).
 - **Alerts** : volume du mois en cours comparé au mois précédent au prorata des jours écoulés (seuils dans `DASH_Config`).
 - **SMS** : par journey et asset.
 

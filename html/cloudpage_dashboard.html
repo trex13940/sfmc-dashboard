@@ -316,6 +316,7 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
     <div class="subnav" id="insNav" role="group" aria-label="Insights views" hidden>
       <button type="button" class="chip" data-sub="deliv" aria-pressed="true">Deliverability</button>
       <button type="button" class="chip" data-sub="aud" aria-pressed="false">Subscriber base</button>
+      <button type="button" class="chip" data-sub="lists" aria-pressed="false">Publication lists</button>
       <button type="button" class="chip" data-sub="geo" aria-pressed="false">Geography</button>
       <span class="grow"></span>
       <span id="segBar" role="group" aria-label="Contract segment" hidden><span class="lbl">Contract</span>
@@ -331,6 +332,10 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <div class="combo"><input id="fJq" type="text" role="combobox" aria-expanded="false" aria-controls="jList" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search a journey (name, product, type…)">
         <button type="button" id="fJclear" class="jclear" aria-label="Clear the selected journey" hidden>&times;</button>
         <ul id="jList" role="listbox" aria-label="Journeys" hidden></ul><select id="fJ" hidden tabindex="-1" aria-hidden="true"></select></div></div>
+    <div class="ctl" id="lJ2"><label for="fJ2q" class="lbl">Compare with (optional)</label>
+      <div class="combo"><input id="fJ2q" type="text" role="combobox" aria-expanded="false" aria-controls="jList2" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Add a journey to compare…">
+        <button type="button" id="fJ2clear" class="jclear" aria-label="Remove the comparison" hidden>&times;</button>
+        <ul id="jList2" role="listbox" aria-label="Journeys to compare" hidden></ul><select id="fJ2" hidden tabindex="-1" aria-hidden="true"></select></div></div>
     <label class="ctl" id="lPer">Period<select id="fPer"></select></label>
     <label class="ctl" id="lGran">Granularity<select id="fGran"><option value="total">Period total</option><option value="month">By month</option></select></label>
     <label class="ctl" id="lGrp">Group by<select id="fGrp"><option value="journey">Journey</option><option value="cat">Category</option><option value="type">Campaign type</option><option value="product">Product</option></select></label>
@@ -357,6 +362,12 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
   <section id="v-ana" hidden>
     <div id="anaEmpty" class="warn" role="status" hidden>Select a journey above to see its analysis.</div>
     <div id="anaBody">
+    <div id="anaCmp" hidden>
+      <div class="h2" id="cmpTitle">Comparison</div>
+      <div class="wrap"><table id="tCmp"></table></div>
+      <div class="charts" id="cmpCharts"><div class="card"><canvas id="c7"></canvas></div></div>
+      <div class="h2" id="cmpDetails"></div>
+    </div>
     <div id="aCards" class="cards"></div>
     <div class="charts"><div class="card"><canvas id="c3"></canvas></div></div>
     <div class="h2">By language</div>
@@ -384,6 +395,14 @@ a.jl:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radi
       <div class="charts" id="segCharts"><div class="card"><canvas id="c6"></canvas></div></div>
       <div class="wrap"><table id="tSeg"></table></div></div>
       <div class="note" id="audNote"></div>
+    </div>
+    <div id="ins-lists" hidden>
+      <div id="plMsg" class="warn" role="status" hidden></div>
+      <div id="plCards" class="cards"></div>
+      <div class="charts"><div class="card"><canvas id="c8"></canvas></div><div class="card"><canvas id="c9"></canvas></div></div>
+      <div class="h2">Publication lists</div>
+      <div class="wrap"><table id="tPl"></table></div>
+      <div class="note" id="plNote"></div>
     </div>
     <div id="ins-geo" hidden>
       <div id="geoMsg" class="warn" role="status" hidden></div>
@@ -425,7 +444,7 @@ const ALERT_MIN_DAYS = CFG.alertMinDays ?? 3;    /* do not alert before this man
 const DARK = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 const PAL_L = ['#c30045','#101820','#2a7fb8','#4b9b30','#ad0cdf'], PAL_D = ['#ff7da3','#eef0f2','#6cb8ee','#7fd36a','#d28bff'];
 const DASHES = [[],[7,4],[2,3],[10,3,2,3]], PTS = ['circle','rect','triangle','rectRot'];   /* series differ by shape and line style, not only by colour */
-const S = {tab:'journeys', fam:'ALL', type:'', prod:'', per:'all', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
+const S = {tab:'journeys', fam:'ALL', type:'', prod:'', per:'all', from:'', to:'', gran:'total', grp:'journey', view:'cat', q:'', j:'', j2:'', alert:'ongoing', compact:true, sub:'deliv', win:'3', gl:'prov', seg:'all', gc:'n'};
 let DEF = {}, JSET = new Set(), FOCUS = null;
 const SORT = {};   /* sort state per table id: {k,d} */
 const EXP = new Set();   /* expanded journey rows (email activity detail) */
@@ -436,7 +455,7 @@ const TABS = {
   journeys:{view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lCompact','lExp','lQ'], csv:'tbl'},
   cats:    {view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lCompact','lView','lQ'], csv:'tbl'},
   conv:    {view:'main', ctl:['lFam','lType','lProd','lPer','lGran','lGrp','lExp','lQ'], csv:'tbl'},
-  ana:     {view:'ana',  ctl:['lJ','lPer','lCompact','lExp'], csv:'tEmail'},
+  ana:     {view:'ana',  ctl:['lJ','lJ2','lPer','lCompact','lExp'], csv:'tEmail'},
   ins:     {view:'ins',  ctl:['lFam','lType','lProd','lPer'], csv:null},
   alerts:  {view:'alerts', ctl:['lAlert'], csv:'tAlerts'},
   sms:     {view:'sms',  ctl:['lPer','lQ'], csv:'tSms'}
@@ -849,41 +868,72 @@ function updateBadge(){ const A=computeAlerts(); const c=A.rows.filter(a=>a.aler
 /* règles de noms de liens (page d'administration) : motif contenu dans l'adresse, * = joker, le motif le plus long l'emporte */
 const LINKRULES = ((CFG.linkMap)||[]).map(([p,nm])=>({re:new RegExp(p.split('*').map(s=>s.replace(/[.+?^${}()|[\]\\]/g,'\\$&')).join('.*'),'i'), len:p.length, name:nm, pat:p})).sort((a,b)=>b.len-a.len);
 function mapLinkName(url){ const u = String(url||'').replace(/^https?:\/\//i,''); if (!u) return null; for (const r of LINKRULES) if (r.re.test(u)) return r; return null; }
-let JOPTS = [], JSHOWN = [], JACT = -1;
+let JOPTS = [];
 function buildJourneyList(js, last){
   JOPTS = js.map(j=>{ const p = parse(j), mo = p.covered==='ongoing' ? 'ongoing (last send '+last.get(j)+')' : (p.covered||'–'), meta = [mo,p.fam,lab('type',p.type),lab('product',p.product)].join(' · ');
     return {name:j, campaign:p.campaign, meta, hay:(j+' '+meta+' '+p.type+' '+p.product).toLowerCase()}; });
 }
 const jText = name => { const o = JOPTS.find(x=>x.name===name); return o ? o.campaign+' · '+o.meta : ''; };
-function syncJ(){ const i = $('fJq'); if (document.activeElement!==i) i.value = jText(S.j); $('fJclear').hidden = !S.j; $('fJ').value = S.j; }
-function closeJ(){ $('jList').hidden = true; $('fJq').setAttribute('aria-expanded','false'); $('fJq').removeAttribute('aria-activedescendant'); JACT = -1; }
-function openJ(filter){
-  const q = String(filter||'').toLowerCase().split(/\s+/).filter(Boolean), CAP = 60;
-  JSHOWN = JOPTS.filter(o=>q.every(w=>o.hay.includes(w))); JACT = -1;
-  let h = JSHOWN.slice(0,CAP).map((o,i)=>`<li role="option" id="jo${i}" data-i="${i}" aria-selected="${o.name===S.j}"><b>${esc(o.campaign)}</b><span>${esc(o.meta)}</span></li>`).join('');
-  if (JSHOWN.length>CAP) h += `<li class="jmore" aria-hidden="true">${JSHOWN.length-CAP} more: type to narrow the list</li>`;
-  if (!JSHOWN.length) h = '<li class="jmore">No journey matches this search</li>';
-  $('jList').innerHTML = h; $('jList').hidden = false; $('fJq').setAttribute('aria-expanded','true');
-}
-function moveJ(d){
-  const n = Math.min(JSHOWN.length,60); if (!n) return;
-  JACT = (JACT+d+n)%n; document.querySelectorAll('#jList li').forEach((li,i)=>li.classList.toggle('act',i===JACT));
-  const el = $('jo'+JACT); if (el){ el.scrollIntoView({block:'nearest'}); $('fJq').setAttribute('aria-activedescendant','jo'+JACT); }
-}
-function chooseJ(name){ S.j = name; closeJ(); $('fJq').blur(); SORT.tbl = null; render(); }
-function wireJourneyBox(){
-  const i = $('fJq');
-  i.onfocus = ()=>{ i.select(); openJ(''); };
-  i.oninput = ()=>openJ(i.value);
-  i.onblur = ()=>setTimeout(()=>{ if (document.activeElement!==i){ closeJ(); syncJ(); } },120);
-  i.onkeydown = e=>{
-    if (e.key==='ArrowDown'){ e.preventDefault(); if ($('jList').hidden) openJ(''); moveJ(1); }
-    else if (e.key==='ArrowUp'){ e.preventDefault(); moveJ(-1); }
-    else if (e.key==='Enter'){ if (!$('jList').hidden){ e.preventDefault(); const o = JSHOWN[JACT>=0?JACT:(JSHOWN.length===1?0:-1)]; if (o) chooseJ(o.name); } }
-    else if (e.key==='Escape'){ closeJ(); i.value = jText(S.j); }
+/* searchable journey picker; two instances: the journey to analyse (j) and an optional journey to compare it with (j2) */
+function makeJourneyBox(c){
+  const box = {shown:[], act:-1}, inp = ()=>$(c.input), lst = ()=>$(c.list);
+  box.sync = ()=>{ const i = inp(); if (document.activeElement!==i) i.value = jText(S[c.key]); $(c.clear).hidden = !S[c.key]; $(c.select).value = S[c.key]; };
+  box.close = ()=>{ lst().hidden = true; inp().setAttribute('aria-expanded','false'); inp().removeAttribute('aria-activedescendant'); box.act = -1; };
+  box.open = filter=>{
+    const q = String(filter||'').toLowerCase().split(/\s+/).filter(Boolean), CAP = 60, ex = c.exclude ? S[c.exclude] : '';
+    box.shown = JOPTS.filter(o=>o.name!==ex && q.every(w=>o.hay.includes(w))); box.act = -1;
+    let h = box.shown.slice(0,CAP).map((o,i)=>`<li role="option" id="${c.list}o${i}" data-i="${i}" aria-selected="${o.name===S[c.key]}"><b>${esc(o.campaign)}</b><span>${esc(o.meta)}</span></li>`).join('');
+    if (box.shown.length>CAP) h += `<li class="jmore" aria-hidden="true">${box.shown.length-CAP} more: type to narrow the list</li>`;
+    if (!box.shown.length) h = '<li class="jmore">No journey matches this search</li>';
+    lst().innerHTML = h; lst().hidden = false; inp().setAttribute('aria-expanded','true');
   };
-  $('jList').onmousedown = e=>{ const li = e.target.closest('li[data-i]'); if (li){ e.preventDefault(); chooseJ(JSHOWN[+li.dataset.i].name); } };
-  $('fJclear').onclick = ()=>{ S.j = ''; render(); i.focus(); };
+  box.move = d=>{
+    const n = Math.min(box.shown.length,60); if (!n) return;
+    box.act = (box.act+d+n)%n; lst().querySelectorAll('li').forEach((li,i)=>li.classList.toggle('act',i===box.act));
+    const el = $(c.list+'o'+box.act); if (el){ el.scrollIntoView({block:'nearest'}); inp().setAttribute('aria-activedescendant',c.list+'o'+box.act); }
+  };
+  box.choose = name=>{ S[c.key] = name; if (c.key==='j' && S.j2===name) S.j2 = ''; box.close(); inp().blur(); SORT.tbl = null; render(); };
+  box.wire = ()=>{
+    const i = inp();
+    i.onfocus = ()=>{ i.select(); box.open(''); };
+    i.oninput = ()=>box.open(i.value);
+    i.onblur = ()=>setTimeout(()=>{ if (document.activeElement!==i){ box.close(); box.sync(); } },120);
+    i.onkeydown = e=>{
+      if (e.key==='ArrowDown'){ e.preventDefault(); if (lst().hidden) box.open(''); box.move(1); }
+      else if (e.key==='ArrowUp'){ e.preventDefault(); box.move(-1); }
+      else if (e.key==='Enter'){ if (!lst().hidden){ e.preventDefault(); const o = box.shown[box.act>=0?box.act:(box.shown.length===1?0:-1)]; if (o) box.choose(o.name); } }
+      else if (e.key==='Escape'){ box.close(); i.value = jText(S[c.key]); }
+    };
+    lst().onmousedown = e=>{ const li = e.target.closest('li[data-i]'); if (li){ e.preventDefault(); box.choose(box.shown[+li.dataset.i].name); } };
+    $(c.clear).onclick = ()=>{ S[c.key] = ''; render(); i.focus(); };
+  };
+  return box;
+}
+const BOXES = [makeJourneyBox({input:'fJq',list:'jList',clear:'fJclear',select:'fJ',key:'j'}), makeJourneyBox({input:'fJ2q',list:'jList2',clear:'fJ2clear',select:'fJ2',key:'j2',exclude:'j'})];
+const syncJ = () => BOXES.forEach(b=>b.sync());
+const wireJourneyBox = () => BOXES.forEach(b=>b.wire());
+/* ---------- comparison of two journeys ---------- */
+const journeyTotals = j => { const k = D.kpi.filter(r=>r.JourneyName===j && inMonths(r.Month)), e = D.email.filter(r=>r.JourneyName===j && inMonths(r.Month)); return group(k, r=>['','']) [0] || group(e, r=>['','']) [0] || ZERO(); };
+const cmpName = (j, other) => { const p = parse(j); return parse(other).campaign===p.campaign ? p.campaign+' · '+(p.covered==='ongoing' ? 'ongoing' : p.covered||j) : p.campaign; };
+const CMP_ORDER = ['Sends','Delivered','Delivery rate','Open rate','CTR (unique)','CTOR','Bounce rate','Unsub rate','Complaint rate'];
+function renderCompare(ta, tb){
+  const A = cmpName(S.j,S.j2), B = cmpName(S.j2,S.j), fmt = (c,v)=> v==null ? '–' : c.kind==='vol' ? n(v) : PF.format(v);
+  const rows = CMP_ORDER.map(l=>KPI_CARDS.find(c=>c.l===l)).map(c=>{
+    const va = c.v(ta), vb = c.v(tb); let d = '–', cls = '';
+    if (va!=null && vb!=null){
+      let x, txt;
+      if (c.kind==='vol'){ if (va>0){ x = vb/va-1; const flat = Math.abs(x)*100<0.05; txt = (flat?'= ':x>0?'▲ +':'▼ −')+(flat?'0,0':fx1(Math.abs(x)*100))+' %'; } }
+      else { x = (vb-va)*100; txt = (Math.abs(x)<0.05?'= ':x>0?'▲ +':'▼ −')+(Math.abs(x)<0.05?'0,0':fx1(Math.abs(x)))+' pt'; }
+      if (txt){ d = txt; if (c.good && (c.kind==='vol'?Math.abs(x)*100:Math.abs(x))>=0.05) cls = (x>0)===(c.good==='up') ? 'good' : 'bad'; }
+    }
+    return `<tr><td class="l">${esc(c.l)}</td><td>${fmt(c,va)}</td><td>${fmt(c,vb)}</td><td><span class="dl ${cls}">${esc(d)}</span></td></tr>`;
+  }).join('');
+  $('tCmp').innerHTML = `<thead><tr><th scope="col" class="l">Metric</th><th scope="col" title="${esc(S.j)}">${esc(A)}</th><th scope="col" title="${esc(S.j2)}">${esc(B)}</th><th scope="col">Difference (B vs A)</th></tr></thead><tbody>${rows}</tbody>`;
+  $('cmpTitle').textContent = 'Comparison: '+A+' vs '+B;
+  $('cmpDetails').textContent = 'Details: '+A;
+  const rate = (t,k)=> deliv(t) ? (k==='o' ? t.Opens : t.Clicks)/deliv(t) : 0, ctor = t=> t.Opens ? t.Clicks/t.Opens : 0;
+  return {title:'Engagement: '+A+' vs '+B, type:'bar', pct:true, labels:['Open rate','CTR (unique)','CTOR'],
+          sets:[{l:A,color:'#c30045',colorD:'#ff7da3',d:[rate(ta,'o'),rate(ta,'c'),ctor(ta)]},{l:B,color:'#2a7fb8',colorD:'#6cb8ee',d:[rate(tb,'o'),rate(tb,'c'),ctor(tb)]}]};
 }
 async function viewAna(){
   syncJ();
@@ -893,7 +943,10 @@ async function viewAna(){
   const eRows = D.email.filter(r=>r.JourneyName===S.j && inMonths(r.Month));
   const tot = group(kRows, r=>['','']) [0] || group(eRows, r=>['','']) [0] || ZERO();
   cards('aCards', kpiCards(tot), 4);
-  drawCharts([byMonthCharts(kRows)[0]], ['c3']);
+  const cmpOn = !!S.j2 && S.j2!==S.j, defs = [byMonthCharts(kRows)[0]], ids = ['c3'];
+  $('anaCmp').hidden = !cmpOn;
+  if (cmpOn){ defs.push(renderCompare(tot, journeyTotals(S.j2))); ids.push('c7'); }
+  drawCharts(defs, ids);
   const keyL = [{k:'name',l:'Language',v:a=>a.name,f:a=>esc(a.name)}];
   const byLang = group(eRows, r=>[parseEmail(r.EmailName).lang||'n/a','']);
   const empty = 'Email-level data not available yet (DASH_Email_KPI_Monthly).';
@@ -952,14 +1005,14 @@ function viewInsDeliv(){
 
 /* ---------- Insights : sous-vues ---------- */
 function viewIns(){
-  $('ins-deliv').hidden = S.sub!=='deliv'; $('ins-aud').hidden = S.sub!=='aud'; $('ins-geo').hidden = S.sub!=='geo'; $('winBar').hidden = S.sub!=='aud'; $('segBar').hidden = S.sub==='deliv';   /* the geography is not tied to a look-back window */
+  $('ins-deliv').hidden = S.sub!=='deliv'; $('ins-aud').hidden = S.sub!=='aud'; $('ins-geo').hidden = S.sub!=='geo'; $('ins-lists').hidden = S.sub!=='lists'; $('winBar').hidden = S.sub!=='aud'; $('segBar').hidden = S.sub==='deliv' || S.sub==='lists';   /* the geography is not tied to a look-back window */
   document.querySelectorAll('[data-sub]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.sub===S.sub));
   document.querySelectorAll('[data-win]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.win===S.win));
   document.querySelectorAll('[data-gl]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.gl===S.gl));
   document.querySelectorAll('[data-seg]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.seg===S.seg));
   document.querySelectorAll('[data-gc]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.gc===S.gc));
   if (S.sub==='deliv') return viewInsDeliv();
-  const msg = $(S.sub==='aud' ? 'audMsg' : 'geoMsg');
+  const msg = $(S.sub==='aud' ? 'audMsg' : S.sub==='lists' ? 'plMsg' : 'geoMsg');
   if (D.audErr){
     msg.hidden = false; msg.innerHTML = 'Subscriber data could not be loaded: '+esc(D.audErr)+' <button type="button" class="btn2" id="bAudRetry">Retry</button>';
     $('bAudRetry').onclick = ()=>{ D.audErr=''; render(); }; return;
@@ -968,7 +1021,7 @@ function viewIns(){
     msg.hidden = false; msg.textContent = 'Loading subscriber data… (this can take a few seconds)';
     loadAudience().then(()=>{ if (S.tab==='ins') render(); }); return;
   }
-  if (S.sub==='aud') viewAud(); else viewGeo();
+  if (S.sub==='aud') viewAud(); else if (S.sub==='lists') viewLists(); else viewGeo();
 }
 function brusselsMonth(ms){ const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Brussels',year:'numeric',month:'2-digit'}).formatToParts(new Date(ms)).map(x=>[x.type,x.value])); return p.year+'-'+p.month; }
 function loadAudience(){
@@ -977,9 +1030,11 @@ function loadAudience(){
   LOADING.audience = (async()=>{
     try{
       const r = await api('audience',{asof:cur});
-      let dist = r.dist||[], asof = r.asof;
-      if (!dist.length){ const r2 = await api('audience',{asof:prev}); if ((r2.dist||[]).length){ dist = r2.dist; asof = r2.asof; } }   /* snapshot of the previous month until the new one is computed */
-      D.aud = {asof, dist, geo:r.geo||[]}; D.audErr = ''; showWarn(r.warnings);
+      let dist = r.dist||[], asof = r.asof, lists = r.publists||{snap:[],monthly:[]}, r2 = null;
+      const prevResp = async()=> r2 || (r2 = await api('audience',{asof:prev}));   /* snapshot of the previous month until the new one is computed */
+      if (!dist.length){ const x = await prevResp(); if ((x.dist||[]).length){ dist = x.dist; asof = x.asof; } }
+      if (!(lists.snap||[]).length){ const x = await prevResp(); if (((x.publists||{}).snap||[]).length) lists = x.publists; }
+      D.aud = {asof, dist, geo:r.geo||[], lists:{snap:lists.snap||[], monthly:lists.monthly||[]}}; D.audErr = ''; showWarn(r.warnings);
     }catch(e){ D.aud = null; D.audErr = e.message; }
     finally{ delete LOADING.audience; }
   })();
@@ -1052,6 +1107,50 @@ function viewAud(){
       {k:'Ops',l:'Avg operational emails',v:a=>a.Subs?a.Ops/a.Subs:-1,f:a=>a.Subs?fx1(a.Ops/a.Subs):'–'}], [sgs.Yes,sgs.No], null, {cmp:(a,b)=>a.k==='Yes'?-1:1});
   }
   $('audNote').textContent = 'Chart and table: subscribers who received no marketing email (the largest group) are left out of the first chart but counted in the table; engagement bars are shown only for groups of at least 30 subscribers. Active subscribers only (_Subscribers, Status = Active), leads (SubscriberKey starting with 00QP) excluded. Contract = at least one contract in Contract_Salesforce_1 with Status__c Active or Future for that contact (Contact__c = SubscriberKey); other statuses cannot receive communications.'+(hasC?'':' [Contract split unavailable: recreate DASH_Audience_Dist with the Contract column and rerun query 17.]')+' As of '+D.aud.asof+'. "Previous N months" = the N complete months before the current month (CET). Emails received = sent and not bounced, journeys MKT_ (marketing) and Oxx_ (operational). Engagement is measured on marketing emails: Clicked = at least one unique click, Opened = at least one unique open but no click. The 12-month window fills up as history accumulates (Data Views only keep about 6 months).';
+}
+
+/* ---------- Insights : listes de publication ---------- */
+const PL_STATUS_ORDER = ['Active','Unsubscribed','Bounced','Held','Deleted'];
+function viewLists(){
+  const L = D.aud.lists || {snap:[],monthly:[]}, msg = $('plMsg');
+  charts.forEach(c=>c.destroy()); charts = [];
+  if (!L.snap.length){
+    msg.hidden = false; msg.textContent = 'No publication list data yet (DASH_PubList_Snapshot): create the data extensions and run queries 23 and 24 (see the README).';
+    cards('plCards',[]); $('tPl').innerHTML = ''; $('plNote').textContent = ''; return;
+  }
+  msg.hidden = true;
+  const lists = new Map(), get = name => { let a = lists.get(name); if (!a){ a = {name,St:{},Act:{Yes:0,No:0},Joined:0,Unsub:0}; lists.set(name,a); } return a; };
+  for (const r of L.snap){ const a = get(r.ListName); a.St[r.Status] = (a.St[r.Status]||0)+r.Subscribers; if (r.Status==='Active') a.Act[r.Contract==='Yes'?'Yes':'No'] += r.Subscribers; }
+  const months = [...new Set(L.monthly.filter(r=>inMonths(r.Month)).map(r=>r.Month))].sort();
+  for (const r of L.monthly){ if (!inMonths(r.Month)) continue; const a = get(r.ListName); a.Joined += r.Joined; a.Unsub += r.Unsubscribed; }
+  const list = [...lists.values()].filter(a=>Object.keys(a.St).length);
+  const act = a => a.St.Active||0, base = list.find(a=>a.name==='All Subscribers'), baseAct = base ? act(base) : Math.max(0,...list.map(act));
+  list.sort((a,b)=>act(b)-act(a));
+  cards('plCards', [[n(baseAct),'Active subscribers'+(base?'':' (largest list)')],[n(list.filter(a=>a.name!=='All Subscribers').length),'Publication lists'],
+    [n(base?base.Joined:list.reduce((s,a)=>s+a.Joined,0)),'Joined in the period'],[n(base?base.Unsub:list.reduce((s,a)=>s+a.Unsub,0)),'Unsubscribed in the period'],
+    [(()=>{ const j = base?base.Joined:0, u = base?base.Unsub:0; return (j-u>0?'+':j-u<0?'−':'')+n(Math.abs(j-u)); })(),'Net growth in the period']]);
+  const other = a => Object.keys(a.St).filter(s=>!PL_STATUS_ORDER.includes(s)).reduce((s,k)=>s+a.St[k],0);
+  const keyCols = [{k:'name',l:'List',v:a=>a.name.toLowerCase(),f:a=>esc(a.name)}];
+  const cols = [
+    {k:'Act',l:'Active',v:a=>act(a),f:a=>n(act(a))},
+    {k:'Share',l:'% of active base',v:a=>act(a),f:a=>baseAct ? pct(act(a),baseAct) : '–'},
+    {k:'Yes',l:'Active with contract',v:a=>a.Act.Yes,f:a=>n(a.Act.Yes)},
+    {k:'YesP',l:'% with contract',v:a=>act(a)?a.Act.Yes/act(a):-1,f:a=>act(a)?pct(a.Act.Yes,act(a)):'–'},
+    {k:'Uns',l:'Unsubscribed',v:a=>a.St.Unsubscribed||0,f:a=>n(a.St.Unsubscribed||0)},
+    {k:'Bnc',l:'Bounced / held',v:a=>(a.St.Bounced||0)+(a.St.Held||0),f:a=>n((a.St.Bounced||0)+(a.St.Held||0))},
+    {k:'Oth',l:'Other statuses',v:a=>other(a),f:a=>n(other(a))},
+    {k:'J',l:'Joined (period)',v:a=>a.Joined,f:a=>n(a.Joined)},
+    {k:'U',l:'Unsubscribed (period)',v:a=>a.Unsub,f:a=>n(a.Unsub)},
+    {k:'Net',l:'Net (period)',v:a=>a.Joined-a.Unsub,f:a=>(a.Joined-a.Unsub>0?'+':a.Joined-a.Unsub<0?'−':'')+n(Math.abs(a.Joined-a.Unsub))}
+  ];
+  renderTable('tPl', keyCols, cols, list, null, {defK:'Act'});
+  const net = (name,m)=>L.monthly.filter(r=>r.ListName===name && r.Month===m).reduce((s,r)=>s+r.Joined-r.Unsubscribed,0);
+  drawCharts([
+    {title:'Active subscribers by list, with / without a contract',type:'bar',horizontal:true,stacked:true,labels:list.map(a=>a.name),
+     sets:[{l:'With an active or future contract',color:'#c30045',colorD:'#ff7da3',d:list.map(a=>a.Act.Yes)},{l:'No active contract',color:'#8a97a2',colorD:'#6b7885',d:list.map(a=>a.Act.No)}]},
+    {title:'Net growth per month (joined − unsubscribed)',labels:months,sets:list.map(a=>({l:a.name,d:months.map(m=>net(a.name,m))}))}
+  ], ['c8','c9']);
+  $('plNote').textContent = 'Snapshot of '+(D.aud.asof||'–')+' (status of each member of the public and private lists, leads excluded: SubscriberKey starting with 00QP). "All Subscribers" comes from the All Subscribers list (_Subscribers); the other lists from _ListSubscribers. Joined / unsubscribed come from DateJoined / DateUnsubscribed, per month in CET, for the selected period. With contract = at least one Active or Future contract in Contract_Salesforce_1 (Contact__c = SubscriberKey).';
 }
 
 /* ---------- Insights : géographie ---------- */
@@ -1158,10 +1257,11 @@ function setSummary(count, dim){ CNT = n(count)+' '+(S.gran==='month' ? 'rows' :
 /* what the figures on screen are about: period and applied filters, next to the cards */
 function updateCtx(){
   const el = $('ctx'), tab = S.tab;
-  if (tab==='ins' && S.sub!=='deliv'){ el.hidden = true; return; }
+  if (tab==='ins' && S.sub!=='deliv' && S.sub!=='lists'){ el.hidden = true; return; }
   const period = 'Period <b>'+esc(periodText(S.per))+'</b>', parts = [];
-  if (tab==='ana'){ if (!S.j){ el.hidden = true; return; } parts.push('Journey <b>'+esc(parse(S.j).campaign)+'</b>', period); }
+  if (tab==='ana'){ if (!S.j){ el.hidden = true; return; } parts.push('Journey <b>'+esc(parse(S.j).campaign)+'</b>'+(S.j2 && S.j2!==S.j ? ' vs <b>'+esc(parse(S.j2).campaign)+'</b>' : ''), period); }
   else if (tab==='alerts'){ el.hidden = false; el.innerHTML = '<span>Scope <b>'+(S.alert==='all'?'All journeys':'Ongoing journeys only')+'</b></span>'; return; }
+  else if (tab==='ins' && S.sub==='lists'){ parts.push(period); }
   else if (tab==='sms'){ parts.push(period); if (S.q) parts.push('Search <b>"'+esc(S.q)+'"</b>'); }
   else {
     parts.push(period, S.fam==='ALL' ? 'All families' : 'Family <b>'+(S.fam==='MKT'?'Marketing (MKT_)':'Operational (Oxx_)')+'</b>',
@@ -1174,11 +1274,11 @@ function updateCtx(){
   el.hidden = false; el.innerHTML = parts.map(p=>'<span>'+p+'</span>').join('');
 }
 const FILTERS = ['fam','type','prod','q','gran','per'];
-const HSEL = {fam:'fFam',type:'fType',prod:'fProd',per:'fPer',gran:'fGran',grp:'fGrp',view:'fView',j:'fJ',alert:'fAlert'};
+const HSEL = {fam:'fFam',type:'fType',prod:'fProd',per:'fPer',gran:'fGran',grp:'fGrp',view:'fView',j:'fJ',j2:'fJ2',alert:'fAlert'};
 function saveHash(){
   try{
     const p = new URLSearchParams();
-    for (const k of ['tab','fam','type','prod','per','gran','grp','view','q','j','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
+    for (const k of ['tab','fam','type','prod','per','gran','grp','view','q','j','j2','alert','sub','win','gl','seg','gc']) if (S[k] && S[k]!==DEF[k]) p.set(k,S[k]);
     if (!S.compact) p.set('compact','0');   /* rates only is the default view */
     const h = p.toString(); history.replaceState(null,'',location.pathname+location.search+(h?'#'+h:''));
   }catch(e){}
@@ -1189,7 +1289,7 @@ function loadHash(){
   for (const k in HSEL){ const v=p.get(k), el=$(HSEL[k]); if (v!==null && [...el.options].some(o=>o.value===v)){ S[k]=v; el.value=v; } }
   applyPeriod();
   if (p.get('q')){ S.q=p.get('q'); $('fQ').value=S.q; }
-  for (const [k,vals] of [['sub',['deliv','aud','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']],['gc',['n','pc']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
+  for (const [k,vals] of [['sub',['deliv','aud','lists','geo']],['win',['3','6','12']],['gl',['prov','postal']],['seg',['all','yes','no']],['gc',['n','pc']]]) if (vals.includes(p.get(k))) S[k]=p.get(k);
   S.compact = p.get('compact')!=='0';
 }
 function selectTab(t, focus){
@@ -1199,7 +1299,7 @@ function selectTab(t, focus){
 }
 function render(){
   CNT = null; const cfg = TABS[S.tab];
-  let ctl = (S.tab==='ins' && S.sub!=='deliv') ? [] : cfg.ctl;
+  let ctl = (S.tab==='ins' && S.sub!=='deliv') ? (S.sub==='lists' ? ['lPer'] : []) : cfg.ctl;
   if (S.tab==='ana' && !S.j) ctl = ctl.filter(id=>['lJ','lPer'].includes(id));   /* nothing to act on until a journey is chosen */   /* the filter bar does not apply to the subscriber / geography views */
   $('insNav').hidden = S.tab!=='ins';   /* the Insights views (Deliverability / Subscriber base / Geography) stay at the very top */
   document.querySelectorAll('.ctl').forEach(el=>el.hidden = !ctl.includes(el.id));
@@ -1277,8 +1377,8 @@ function setup(){
   const js = [...last.keys()].sort((a,b)=>(last.get(b)>last.get(a)?1:last.get(b)<last.get(a)?-1:0)||(covKey(b)>covKey(a)?1:covKey(b)<covKey(a)?-1:0)||(a<b?-1:1));
   $('fJ').innerHTML = js.map(j=>{const p=parse(j);return `<option value="${esc(j)}">${esc(p.campaign+' · '+(p.covered||'–')+' · '+p.fam+' · '+p.type+' · '+p.product)}</option>`;}).join('');
   S.j = ''; JSET = new Set(js);   /* no journey is preselected: the analysis page stays empty until one is chosen */
-  $('fJ').innerHTML = '<option value=""></option>' + $('fJ').innerHTML; buildJourneyList(js, last);
-  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',per:'all',gran:'total',grp:'journey',view:'cat',q:'',j:S.j,alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
+  $('fJ').innerHTML = '<option value=""></option>' + $('fJ').innerHTML; $('fJ2').innerHTML = $('fJ').innerHTML; buildJourneyList(js, last);
+  DEF = {tab:'journeys',fam:'ALL',type:'',prod:'',per:'all',gran:'total',grp:'journey',view:'cat',q:'',j:S.j,j2:'',alert:'ongoing',sub:'deliv',win:'3',gl:'prov',seg:'all',gc:'n'};
   const on = (id,fn)=>{ $(id).onchange = e=>{fn(e.target.value); SORT.tbl=null; render();}; };
   on('fType',v=>S.type=v); on('fProd',v=>S.prod=v); on('fView',v=>S.view=v); on('fFam',v=>S.fam=v);
   on('fPer',v=>{ S.per=v; applyPeriod(); }); on('fGran',v=>S.gran=v); on('fGrp',v=>S.grp=v);

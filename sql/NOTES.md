@@ -104,3 +104,12 @@ Basées sur votre requête de reporting (quarterly) et adaptées au rythme mensu
 
 ## Page d'administration
 Voir la section « Page d'administration » du README (page `html/cloudpage_admin.html`). La page écrit dans `DASH_IP_Allowlist` et `DASH_Config` (par WSProxy, avec repli sur `UpsertData` / `DeleteData` par nom de DE) et vérifie chaque écriture par relecture. Les champs lus sont `IPAddress` / `Description` et `ConfigKey` / `Value`.
+
+## Listes de publication (23 à 27)
+Source : Data Views `_List` (nom et type), `_ListSubscribers` (statut et dates par membre) et `_Subscribers` pour « All Subscribers ». Sont retenues les listes de type `Public` ou `Private` ; les listes d'exclusion, de désabonnement global et Salesforce sont ignorées. Les leads (`SubscriberKey` commençant par `00QP`) sont exclus.
+- **23** `DASH_PubList_Snapshot` (clé : AsOf, ListName, Status, Contract), mode Update : nombre de membres par liste, statut (Active, Unsubscribed, Bounced, Held, Deleted…) et contrat actif ou futur (Yes / No, même définition que la base abonnés). Un instantané par mois (`AsOf`) est conservé.
+- **24** et **25** `DASH_PubList_Monthly` (clé : ListName, Month), mode Update : inscriptions (`DateJoined`) et désinscriptions (`DateUnsubscribed`) par mois en CET. 24 recalcule les 3 derniers mois chaque jour ; 25 est le chargement initial depuis le 01/01/2025 (date modifiable en tête du fichier).
+- **26** sonde : liste, type et nombre de membres de chaque liste (cible `DASH_Debug`, Overwrite), pour vérifier les noms et les types.
+- **27** modèle de contrôle d'écart entre une DE source et les membres actifs d'une liste ; remplacer `SOURCE_DE_NAME`, `LIST_NAME` et le champ clé `SubscriberKey`.
+- Hypothèses à confirmer au premier essai : colonnes `_List.ListType`, `_ListSubscribers.Status`, `DateJoined`, `DateUnsubscribed`, et valeurs de `ListType`.
+- Test : la logique des requêtes 23 et 25 a été vérifiée sur une base de test (DuckDB) contre un calcul indépendant ; elles n'ont pas encore tourné dans Marketing Cloud.
